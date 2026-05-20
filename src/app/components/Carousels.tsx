@@ -52,7 +52,7 @@ export function ProductCarousel({ carouselList, size }: ICarousel) {
 
                 {/* Text content */}
                 <div className="h-16 w-full flex items-center justify-center mt-auto">
-                  <p className={`font-medium  text-center text-balance ${item.title.length > 22 ? '2xl:text-base' : 'text-sm sm:text-base 2xl:text-lg'}`}>
+                  <p className={`font-semibold  text-center text-balance ${item.title.length > 22 ? '2xl:text-base' : 'text-sm sm:text-base 2xl:text-lg'}`}>
                     {item.title}
                   </p>
                 </div>
