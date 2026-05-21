@@ -36,7 +36,7 @@ export function ProductCarousel({ carouselList, size }: ICarousel) {
           <CarouselItem key={index} className="sm:basis-1/2 pl-6 lg:basis-1/3 xl:basis-1/4">
             <div className={`p-1 flex flex-col justify-end relative ${size === 'md' ? 'h-96' : 'h-80'}`}>
               <div className="absolute h-full w-full z-30 -left-[0.5px] pointer-events-none">
-                <div className={`relative w-full  ${size === 'md' ? 'h-[72%]' : 'h-[80%]'}`}>
+                <div className={`relative w-full  ${size === 'md' ? 'h-[72%]' : 'h-[75%]'}`}>
                   <Image 
                     src={item.img}
                     alt={item.title + 'image'} 
