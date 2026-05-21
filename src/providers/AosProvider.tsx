@@ -7,7 +7,7 @@ import 'aos/dist/aos.css'
 export default function AOSProvider() {
   useEffect(() => {
     AOS.init({
-      once: true,
+      once: false,
       offset: 0,
       startEvent: 'load',
     })

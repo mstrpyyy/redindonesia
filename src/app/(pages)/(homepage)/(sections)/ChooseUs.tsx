@@ -53,7 +53,7 @@ export const ChooseUsHomeSection = () => {
               data-aos="zoom-in-right"
               data-aos-easing="ease-out"
               data-aos-duration="500"
-              // data-aos-offset="250"
+              data-aos-offset="250"
             
             >
               <div className='flex items-center gap-4'>

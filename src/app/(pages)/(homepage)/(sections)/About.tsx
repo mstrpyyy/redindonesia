@@ -36,7 +36,7 @@ export const AboutHomeSection = () => {
             data-aos="fade-right"
             data-aos-easing="ease-out"
             data-aos-duration="500"
-            data-aos-delay={(index*50).toString()}
+            data-aos-delay={(index*150).toString()}
             key={index}
             href={item.href}
             className="relative group w-fit"
