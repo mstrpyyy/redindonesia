@@ -69,13 +69,16 @@ export const ChooseUsHomeSection = () => {
       </div>
 
       <div className='flex-1 relative max-lg:hidden'>
-        <Image
-          alt='fixed image'
-          src='/image/home/hand-holding-transparent.webp'
-          width={683}
-          height={715}
-          className='fixed bottom-0 h-[48vw] w-[48vw] right-0 -z-40' 
-        />
+        <div className='fixed bottom-0 right-0 h-[45vw] w-[45vw] -z-40'>
+          <Image
+            alt='Novuma srynge'
+            src='/image/home/hand-holding-transparent.webp'
+            fill
+            priority
+            sizes="45vw"
+            className='object-contain object-bottom-right'
+          />
+        </div>
       </div>
 
       <div className='w-screen h-screen fixed top-0 left-0 -z-40'/>

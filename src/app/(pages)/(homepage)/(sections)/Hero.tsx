@@ -41,6 +41,7 @@ export const HeroHomeSection = () => {
         src="/image/home/hero-banner2048x1536.webp"
         alt="Alma Harmony hero banner"
         fill
+        priority
         sizes="100vw"
         className="object-cover object-center z-0 hidden md:block lg:hidden"
       />
@@ -49,6 +50,7 @@ export const HeroHomeSection = () => {
         src="/image/home/hero-banner1536x2048.webp"
         alt="Alma Harmony hero banner"
         fill
+        priority
         sizes="100vw"
         className="object-cover object-center z-0 hidden lg:block 2xl:hidden"
       />
@@ -57,6 +59,7 @@ export const HeroHomeSection = () => {
         src="/image/home/hero-banner2560x1440.webp"
         alt="Alma Harmony hero banner"
         fill
+        priority
         sizes="100vw"
         className="object-cover object-center z-0 hidden 2xl:block"
       />
