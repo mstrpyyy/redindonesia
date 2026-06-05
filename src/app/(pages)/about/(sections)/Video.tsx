@@ -9,7 +9,7 @@ export const AboutVideo = () => {
       id="wecg56N1r6s"
       title="We are radian elok distriversa"
       lazyLoad={true}
-      thumbnail="/image/about/hero-about.jpg"
+      thumbnail="/image/about/about-banner-xl.webp"
     />
   )
 }

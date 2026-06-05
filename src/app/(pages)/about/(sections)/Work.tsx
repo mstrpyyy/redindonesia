@@ -25,7 +25,7 @@ const cards: { icon: LucideIcon; title: string; description: string }[] = [
 
 export const AboutWork = () => {
   return (
-    <section className=''>
+    <section id='about-work' className=''>
       <Image src={'/image/red-work.png'} alt='red-work' width={1654} height={500} className='w-56 sm:w-72' />
       <div className="text-justify">
         <p className="mt-6 p-format  font-medium!">

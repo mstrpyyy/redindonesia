@@ -84,14 +84,25 @@ export const BrandHomeSection = () => {
 
 const MarqueeComponent = ({item, index}:{item:{src:string, link:string}, index:number}) => {
   return (
-    <Link key={index} href={item.link} className='w-28 ml-12 sm:w-32 sm:ml-14 md:w-32 md:ml-32 lg:w-36 lg:ml-36 xl:w-44 xl:ml-44 block aspect-square hover:bg-neutral-100 rounded-lg'>
-      <Image
-        src={item.src}
-        alt="brand logo"
-        width={301}
-        height={301}
-        className="object-cover object-center"
-      />
+    <Link
+      key={index}
+      href={item.link}
+      className={`
+          w-28 sm:w-32 md:w-32 lg:w-36 xl:w-44 
+          ml-12 sm:ml-14 md:ml-32 lg:ml-36 xl:ml-44
+          aspect-square hover:bg-neutral-100 rounded-lg px-2
+          flex items-center
+        `}
+      >
+        <div className='relative h-full max-h-[50%] w-full'>
+        <Image
+          src={item.src}
+          alt="brand logo"
+          fill
+          sizes="300px"
+          className="object-contain object-center "
+        />
+        </div>
     </Link>
   )
 }

@@ -6,19 +6,19 @@ import Link from "next/link"
 const aboutMenuList = [
   {
     name: 'who',
-    href: '/',
+    href: '/about#about-who',
     bgImgUrl: '/image/about/about-img5.jpg',
-    labelImgUrl: '/image/home/red-what-logo.webp'
-  },
-  {
-    name: 'what',
-    href: '/',
-    bgImgUrl: '/image/about/about-img8.jpg',
     labelImgUrl: '/image/home/red-who-logo.webp'
   },
   {
     name: 'what',
-    href: '/',
+    href: '/about#about-what',
+    bgImgUrl: '/image/about/about-img8.jpg',
+    labelImgUrl: '/image/home/red-what-logo.webp'
+  },
+  {
+    name: 'what',
+    href: '/about#about-work',
     bgImgUrl: '/image/about/about-img1.jpg',
     labelImgUrl: '/image/home/red-work-logo.webp'
   }
@@ -39,7 +39,7 @@ export const AboutHomeSection = () => {
             data-aos-delay={(index*150).toString()}
             key={index}
             href={item.href}
-            className="relative group w-fit"
+            className="relative group h-28 xs:h-32 lg:h-32 aspect-square"
             // className="relative w-full h-36 sm:h-44 bg-cover bg-center rounded-2xl overflow-hidden shadow-md"
             // style={{ backgroundImage: `url(${item.bgImgUrl})` }}
           >
@@ -48,10 +48,10 @@ export const AboutHomeSection = () => {
             <Image
               src={item.labelImgUrl}
               alt={item.name}
-              width={1376}
-              height={200}
+              fill
+              sizes="300px"
               // className="h-24 lg:h-44 w-auto absolute -translate-y-1/2 top-1/2 left-0 lg:-left-6"
-              className="h-28 xs:h-32 lg:h-32 w-auto group-hover:scale-110 transition-all duration-200"
+              className="object-contain object-center group-hover:scale-105 transition-all duration-300"
             />
             {/* <div className="absolute right-2 top-2 bg-white/70 text-black flex items-center gap-2 px-2 py-1 rounded-full text-sm font-medium">
               Read

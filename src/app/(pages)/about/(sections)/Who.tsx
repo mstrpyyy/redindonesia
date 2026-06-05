@@ -2,7 +2,7 @@ import Image from 'next/image'
 
 export const AboutWho = () => {
   return (
-      <section className="flex flex-col lg:flex-row justify-between items-center gap-10">
+      <section id='about-who' className="flex flex-col lg:flex-row justify-between items-center gap-10">
         <div className='flex-1 w-full'>
           <Image src={'/image/red-who.png'} alt='red-who' width={1654} height={500} className='w-56 sm:w-72' />
 
@@ -24,7 +24,7 @@ export const AboutWho = () => {
           </div>
         </div>
 
-        <div className='w-full lg:w-110'>
+        <div className='w-full lg:w-90'>
           <div className='grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-2 gap-3'>
             {[1,2,3,4,5,6].map((n) => (
               <div
@@ -32,7 +32,7 @@ export const AboutWho = () => {
                 className='relative overflow-hidden rounded-2xl aspect-square group'
               >
                 <Image
-                  src={`/image/about/about-img${n}.jpg`}
+                  src={`/image/about/who-${n}.webp`}
                   alt={`About image ${n}`}
                   fill
                   className='object-cover transition-transform duration-500 group-hover:scale-105'

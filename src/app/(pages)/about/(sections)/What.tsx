@@ -5,7 +5,7 @@ import React from 'react'
 
 export const AboutWhat = () => {
   return (  
-    <section className=''>
+    <section id='about-what' className=''>
       <h2 className="sr-only">What is RED?</h2>
       <Image src={'/image/red-what.png'} alt='red-what' width={1654} height={500} className='w-56 sm:w-72' />
       <div className='flex flex-col lg:flex-row items-start lg:items-center gap-10 lg:gap-20'>
@@ -28,16 +28,16 @@ export const AboutWhat = () => {
           {/*  <p className='p-sm-format'>
             Strategic partnerships with the world&apos;s leading medical aesthetic brands.
           </p> */}
-            <div className='grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-3 2xl:grid-cols-4 justify-items-center gap-2 sm:gap-4 lg:gap-6'>
+            <div className='grid grid-cols-2 xs:grid-cols-4 sm:grid-cols-4 lg:grid-cols-3 justify-items-center gap-3 md:gap-6'>
               {brandList.map((item, index) => {
                 return (
-                  <Link key={index} href={item.link} className='md:w-24 lg:w-32 block aspect-square bg-white shadow-sm rounded-xl p-2'>
+                  <Link key={index} href={item.link} className='w-full md:w-28 xl:w-32 block aspect-square bg-white shadow-sm hover:shadow-md transition-shadow rounded-xl relative'>
                     <Image
                       src={item.src}
                       alt="brand logo"
-                      width={301}
-                      height={301}
-                      className="object-cover object-center"
+                      fill
+                      sizes="300px"
+                      className="object-contain object-center p-1 xs:p-2 sm:p-3"
                     />
                   </Link>
                 )
