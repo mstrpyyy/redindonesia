@@ -79,6 +79,9 @@ export const ChooseUsHomeSection = () => {
             className='object-contain object-bottom-right'
           />
         </div>
+        <div className='fixed bottom-0 right-0 w-full h-full -z-50 bg-secondary'>
+        </div>
+        
       </div>
 
       <div className='w-screen h-screen fixed top-0 left-0 -z-40'/>

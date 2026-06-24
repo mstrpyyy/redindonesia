@@ -22,7 +22,7 @@ export default function Home() {
 
       <div className="shadow-[0_5px_25px_rgba(0,0,0,0.20)]">
         {/* ABOUT */}
-        <BodyWrapper className="py-24 bg-white">
+        <BodyWrapper className="py-24 bg-secondary">
           <AboutHomeSection />
         </BodyWrapper>
 
@@ -50,7 +50,7 @@ export default function Home() {
         </BodyWrapper>
 
         {/* PRODUCTS */}
-        <BodyWrapper className="py-24 bg-white">
+        <BodyWrapper className="py-24 bg-secondary">
           <div className="space-y-20">
             <ProductHomeSection
               title="Alma Laser"
