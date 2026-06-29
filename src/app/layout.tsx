@@ -4,7 +4,6 @@ import { Navbar } from "./components/navbar/Navbar";
 import localFont from 'next/font/local'
 import AOSProvider from "@/providers/AosProvider";
 import { Footer } from "./components/Footer";
-import { Bumper } from "./components/Bumper";
 
 const jakarta = localFont({
   src: [

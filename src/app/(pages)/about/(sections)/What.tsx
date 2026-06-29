@@ -7,10 +7,12 @@ export const AboutWhat = () => {
   return (  
     <section id='about-what' className=''>
       <h2 className="sr-only">What is RED?</h2>
-      <Image src={'/image/red-what.png'} alt='red-what' width={1654} height={500} className='w-56 sm:w-72' />
       <div className='flex flex-col lg:flex-row items-start lg:items-center gap-10 lg:gap-20'>
         <div className="p-sm-format text-justify flex-1">
-          <p className="mt-6">
+          <div className="flex max-lg:justify-center">
+            <Image src={'/image/about/red-what.webp'} alt='red-what' width={1667} height={1250} className='w-56 sm:w-72' />
+          </div>
+          <p className="mt-2">
             At RED, we believe that world-class clinical results are born from the perfect synergy between a practitioner&apos;s skill and the technology they wield. We don&apos;t just supply equipment; we cultivate long-term partnerships dedicated to elevating the standards of medical aesthetics in Indonesia.
           </p>
           <p className='mt-2'>
@@ -21,7 +23,7 @@ export const AboutWhat = () => {
           </p>
         </div>
 
-        <div className='w-full lg:w-fit'>
+        <div className='w-full lg:w-fit mt-auto'>
           <h3 className='h3-format mb-3 lg:text-right'>
             Our Brands
           </h3>

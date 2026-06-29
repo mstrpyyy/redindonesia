@@ -4,9 +4,11 @@ export const AboutWho = () => {
   return (
       <section id='about-who' className="flex flex-col lg:flex-row justify-between items-center gap-10">
         <div className='flex-1 w-full'>
-          <Image src={'/image/red-who.png'} alt='red-who' width={1654} height={500} className='w-56 sm:w-72' />
+          <div className="flex max-lg:justify-center">
+            <Image src={'/image/about/red-who.webp'} alt='red-who' width={1667} height={1250} className='w-56 sm:w-72' />
+          </div>
 
-          <div className='p-6 sm:p-8 rounded-xl mt-6 sm:mt-8 shadow-sm bg-white'>
+          <div className='p-6 sm:p-8 rounded-xl shadow-sm bg-white'>
             <h2 className="h2-sm-format">
               <span>We are </span>
               <span className="text-brand-red font-bold">Radian Elok Distriversa</span>

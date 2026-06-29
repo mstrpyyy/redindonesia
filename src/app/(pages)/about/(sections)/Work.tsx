@@ -26,9 +26,11 @@ const cards: { icon: LucideIcon; title: string; description: string }[] = [
 export const AboutWork = () => {
   return (
     <section id='about-work' className=''>
-      <Image src={'/image/red-work.png'} alt='red-work' width={1654} height={500} className='w-56 sm:w-72' />
+      <div className="flex max-lg:justify-center">
+        <Image src={'/image/about/red-work.webp'} alt='red-work' width={1667} height={1250} className='w-56 sm:w-72' />
+      </div>
       <div className="text-justify">
-        <p className="mt-6 p-format  font-medium!">
+        <p className="p-format  font-medium!">
           At RED, we believe great technology is only half the battle, the other half is expertise. When you partner with us, you gain two decades of clinical knowledge and a team dedicated to your success. We provide the infrastructure and services your practice demands.
         </p>
         <div className='flex flex-col sm:flex-row gap-4 my-10'>
