@@ -1,0 +1,257 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import { mkdir, unlink, writeFile } from "fs/promises";
+import path from "path";
+import { z } from "zod";
+
+import {
+  ACCEPTED_IMAGE_TYPES,
+  MAX_PROFILE_IMG_LABEL,
+  MAX_PROFILE_IMG_SIZE,
+} from "./upload-limits";
+
+const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "social-accounts");
+
+const socialAccountFieldsSchema = z.object({
+  platform: z.string().trim().min(1, "Platform is required"),
+  label: z.string().trim().min(1, "Label is required"),
+  url: z.url("URL must be a valid URL"),
+});
+
+const profileImgSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Profile image is required")
+  .refine(
+    (file) => file.size <= MAX_PROFILE_IMG_SIZE,
+    `Profile image must be smaller than ${MAX_PROFILE_IMG_LABEL}`
+  )
+  .refine(
+    (file) => ACCEPTED_IMAGE_TYPES.includes(file.type),
+    "Profile image must be a JPEG, PNG, WEBP, or GIF"
+  );
+
+type ActionResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: { code: string; message: string } };
+
+async function saveProfileImage(file: File): Promise<string> {
+  const extension = path.extname(file.name) || `.${file.type.split("/")[1]}`;
+  const filename = `${crypto.randomUUID()}${extension}`;
+
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
+
+  return `/uploads/social-accounts/${filename}`;
+}
+
+async function deleteProfileImage(profileImg: string): Promise<void> {
+  // basename() strips any directory component, so a tampered DB value can't
+  // reach outside the upload directory.
+  const diskPath = path.join(UPLOAD_DIR, path.basename(profileImg));
+  await unlink(diskPath).catch(() => {
+    // Already gone or locked — an orphaned file is not worth failing the request.
+  });
+}
+
+export async function createSocialAccount(
+  formData: FormData
+): Promise<ActionResult<{ id: string }>> {
+  const parsedFields = socialAccountFieldsSchema.safeParse({
+    platform: formData.get("platform"),
+    label: formData.get("label"),
+    url: formData.get("url"),
+  });
+
+  if (!parsedFields.success) {
+    return {
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsedFields.error.issues[0]?.message ?? "Invalid input",
+      },
+    };
+  }
+
+  const parsedImage = profileImgSchema.safeParse(formData.get("profileImg"));
+  if (!parsedImage.success) {
+    return {
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsedImage.error.issues[0]?.message ?? "Invalid profile image",
+      },
+    };
+  }
+
+  let profileImg: string;
+  try {
+    profileImg = await saveProfileImage(parsedImage.data);
+  } catch {
+    return {
+      success: false,
+      error: { code: "UPLOAD_ERROR", message: "Failed to save profile image." },
+    };
+  }
+
+  try {
+    // Newest account takes the first slot; shift everything else down.
+    const [, account] = await prisma.$transaction([
+      prisma.socialAccount.updateMany({ data: { order: { increment: 1 } } }),
+      prisma.socialAccount.create({
+        data: { ...parsedFields.data, profileImg, order: 0 },
+      }),
+    ]);
+
+    revalidatePath("/admin/support/marcom");
+    return { success: true, data: { id: account.id } };
+  } catch {
+    await deleteProfileImage(profileImg);
+    return {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to create social account." },
+    };
+  }
+}
+
+export async function updateSocialAccount(
+  id: string,
+  formData: FormData
+): Promise<ActionResult<{ id: string }>> {
+  if (!id) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Missing account id." },
+    };
+  }
+
+  const existing = await prisma.socialAccount.findUnique({ where: { id } });
+  if (!existing) {
+    return {
+      success: false,
+      error: { code: "NOT_FOUND", message: "Social account not found." },
+    };
+  }
+
+  const parsedFields = socialAccountFieldsSchema.safeParse({
+    platform: formData.get("platform"),
+    label: formData.get("label"),
+    url: formData.get("url"),
+  });
+
+  if (!parsedFields.success) {
+    return {
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsedFields.error.issues[0]?.message ?? "Invalid input",
+      },
+    };
+  }
+
+  // An untouched file input arrives as an empty File — treat it as "keep image".
+  const fileEntry = formData.get("profileImg");
+  let newProfileImg: string | undefined;
+
+  if (fileEntry instanceof File && fileEntry.size > 0) {
+    const parsedImage = profileImgSchema.safeParse(fileEntry);
+    if (!parsedImage.success) {
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsedImage.error.issues[0]?.message ?? "Invalid profile image",
+        },
+      };
+    }
+
+    try {
+      newProfileImg = await saveProfileImage(parsedImage.data);
+    } catch {
+      return {
+        success: false,
+        error: { code: "UPLOAD_ERROR", message: "Failed to save profile image." },
+      };
+    }
+  }
+
+  try {
+    await prisma.socialAccount.update({
+      where: { id },
+      data: {
+        ...parsedFields.data,
+        ...(newProfileImg && { profileImg: newProfileImg }),
+      },
+    });
+  } catch {
+    if (newProfileImg) await deleteProfileImage(newProfileImg);
+    return {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to update social account." },
+    };
+  }
+
+  // Only remove the old file once the DB points at the new one.
+  if (newProfileImg && existing.profileImg !== newProfileImg) {
+    await deleteProfileImage(existing.profileImg);
+  }
+
+  revalidatePath("/admin/support/marcom");
+  return { success: true, data: { id } };
+}
+
+export async function deleteSocialAccount(
+  id: string
+): Promise<ActionResult<null>> {
+  if (!id) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Missing account id." },
+    };
+  }
+
+  try {
+    const account = await prisma.socialAccount.delete({ where: { id } });
+    await deleteProfileImage(account.profileImg);
+
+    revalidatePath("/admin/support/marcom");
+    return { success: true, data: null };
+  } catch {
+    return {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to delete social account." },
+    };
+  }
+}
+
+const reorderSchema = z.array(z.string().min(1)).min(1);
+
+export async function reorderSocialAccounts(
+  ids: string[]
+): Promise<ActionResult<null>> {
+  const parsed = reorderSchema.safeParse(ids);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Invalid order payload." },
+    };
+  }
+
+  try {
+    await prisma.$transaction(
+      parsed.data.map((id, index) =>
+        prisma.socialAccount.update({ where: { id }, data: { order: index } })
+      )
+    );
+
+    revalidatePath("/admin/support/marcom");
+    return { success: true, data: null };
+  } catch {
+    return {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to save the new order." },
+    };
+  }
+}

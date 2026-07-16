@@ -5,7 +5,7 @@
 
 @theme {
   --breakpoint-xs: 25rem;
-  --color-brand-red: oklch(0.57 0.23 27);
+  --color-brand-red: #E72129;
   --color-brand-red2: #ff0100;
   --color-brand-pink: #fce8e9;
   --color-brand-peach: #FFBD98;

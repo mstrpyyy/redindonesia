@@ -41,18 +41,66 @@ PT. Radian Elok Distriversa is a catalog and marketing website for medical aesth
 
 ## Data Flow
 
-Currently, the application follows a **Static Content Architecture**:
-- Data is managed in `src/lib/data.ts` as constant objects.
-- Components import this data directly to render navigation, product lists, and brand information.
-- All rendering is performed server-side where possible, with client-side interactivity for dropdowns, carousels, and animations.
+The application follows a **hybrid data architecture**:
+- Static catalog/marketing content (navigation, product lists, brand information) is
+  managed in `src/lib/data.ts` as constant objects.
+- CMS content (articles) is stored in PostgreSQL and read via Prisma. `/media/articles`
+  queries `Article` directly rather than static data.
+- All rendering is performed server-side where possible, with client-side interactivity
+  for dropdowns, carousels, and animations.
+
+## CMS & Auth Architecture
+
+- **Database**: PostgreSQL, running in Docker on the VPS (`docker-compose.yml` under
+  `~/apps/red-indonesia`), exposed only on `127.0.0.1:5432`. Database `cms_db`, user
+  `cms_user`.
+- **ORM**: Prisma 6 (`prisma-client-js` provider). Pinned to v6 — v7 requires driver
+  adapters and a separate `prisma.config.ts`, not worth adopting yet (see ADR-004).
+- **Schema** (`prisma/schema.prisma`):
+  - `AdminAccount` — `id`, `username` (unique), `passwordHash`, `updatedAt`. Exactly one
+    row is expected; there is no signup flow.
+  - `Article` — `id`, `title`, `slug` (unique), `excerpt?`, `content`, `coverImage?`,
+    `status` (`"draft" | "published"`), `publishedAt?`, `createdAt`, `updatedAt`.
+  - `SocialAccount` — `id`, `platform`, `label`, `profileImg` (relative path under
+    `/uploads/social-accounts`), `url`, `order`, `createdAt`, `updatedAt`.
+- **Auth model**: a single shared login for the whole client team — not multi-user,
+  not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
+  httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`
+  route except `/admin/login`.
+- **Admin UI**: lives inside this same Next.js app under `/admin` (list, editor) rather
+  than a separate app or subdomain — no extra Nginx config needed since it's just
+  another Next.js route.
+- **Editor**: Tiptap for rich text, persisted via Server Actions with Zod validation.
+- **Image uploads**: local disk, not a hosted service (see ADR-007). Server actions
+  write uploaded files to `public/uploads/<feature>/<uuid>.<ext>` (e.g.
+  `public/uploads/social-accounts/`) and store the relative `/uploads/...` path in the
+  DB. Next.js serves anything under `public/` directly, so no extra Nginx config is
+  needed. `public/uploads` is gitignored — it's runtime state on the VPS disk, not
+  versioned content.
 
 ## Infrastructure & Deployment
 
-- **Platform**: Targeted for Vercel/Next.js standard deployment.
+- **Hosting**: Self-hosted Hostinger VPS (Ubuntu), not Vercel. A non-root `deploy` user
+  owns the app; SSH key auth, firewall enabled.
+- **Runtime**: Node.js v20 (via NodeSource), Docker (Postgres container), PM2 as the
+  process manager. The app runs as PM2 process `red-indonesia` (`npm start`).
+- **Reboot persistence**: `pm2 startup systemd` generates `pm2-deploy.service`, scoped
+  to `User=deploy` / `PM2_HOME=/home/deploy/.pm2` (must be scoped to `deploy`, not
+  `root` — a root-scoped unit resurrects an empty process list on reboot instead of the
+  real app). `pm2 save` persists the process list this service resurrects.
+- **Reverse proxy**: Nginx serves two sites on the same VPS:
+  - `red-indonesia.co.id` → existing WordPress site (PHP-FPM 7.4), untouched.
+  - `demo.red-indonesia.co.id` → proxies to `localhost:3000` (this Next.js app). SSL via
+    Certbot. DNS is an A record directly to the VPS IP (not a CNAME to Vercel).
+- **Deploy flow**: build/test locally → `git push` → on VPS: `git pull && npm run build
+  && pm2 restart red-indonesia`.
+- **Planned cutover** (not yet executed): once this app is fully built and verified on
+  the `demo.` subdomain, repoint `red-indonesia.co.id` itself from WordPress to
+  `localhost:3000` by editing its Nginx server block. Existing SSL cert stays valid.
+  Do not perform this until explicitly instructed.
 - **Assets**: Images and fonts are served from the `public` directory.
 - **Fonts**: Plus Jakarta Sans (local).
 
 ## Future Considerations
 
-- **CMS Integration**: Transitioning static data to a headless CMS (e.g., Sanity, Contentful) or a database (Prisma + PostgreSQL) as the catalog grows.
 - **Search Optimization**: Implementation of a more robust search index if the product count exceeds static search capabilities.
