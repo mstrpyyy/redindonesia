@@ -6,12 +6,20 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const token = request.cookies.get("session")?.value;
 
   if (pathname === "/admin/login") {
-    return NextResponse.next();
-  }
+    if (!token) {
+      return NextResponse.next();
+    }
 
-  const token = request.cookies.get("session")?.value;
+    try {
+      await jwtVerify(token, secret);
+      return NextResponse.redirect(new URL("/admin", request.url));
+    } catch {
+      return NextResponse.next();
+    }
+  }
 
   if (!token) {
     return NextResponse.redirect(new URL("/admin/login", request.url));

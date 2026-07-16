@@ -219,3 +219,13 @@ html {
       white 100%
   );
 }
+
+.radial-gradient3 {
+  background: radial-gradient(
+      circle at center,
+      #fce8e9 0%,
+      rgba(252, 232, 233, 0.6) 20%,
+      rgba(252, 232, 233, 0.15) 40%,
+      white 100%
+  );
+}
