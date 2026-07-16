@@ -13,6 +13,13 @@ import {
 
 const UPLOAD_FEATURE = "social-accounts";
 
+// Social accounts render on both the admin list and the public marcom page —
+// both must be revalidated or the public page keeps its build-time snapshot.
+function revalidateSocialAccountPages() {
+  revalidatePath("/admin/support/marcom");
+  revalidatePath("/support/marcom-promotion");
+}
+
 const socialAccountFieldsSchema = z.object({
   platform: z.string().trim().min(1, "Platform is required"),
   label: z.string().trim().min(1, "Label is required"),
@@ -92,7 +99,7 @@ export async function createSocialAccount(
       }),
     ]);
 
-    revalidatePath("/admin/support/marcom");
+    revalidateSocialAccountPages();
     return { success: true, data: { id: account.id } };
   } catch {
     await deleteProfileImage(profileImg);
@@ -185,7 +192,7 @@ export async function updateSocialAccount(
     await deleteProfileImage(existing.profileImg);
   }
 
-  revalidatePath("/admin/support/marcom");
+  revalidateSocialAccountPages();
   return { success: true, data: { id } };
 }
 
@@ -203,7 +210,7 @@ export async function deleteSocialAccount(
     const account = await prisma.socialAccount.delete({ where: { id } });
     await deleteProfileImage(account.profileImg);
 
-    revalidatePath("/admin/support/marcom");
+    revalidateSocialAccountPages();
     return { success: true, data: null };
   } catch {
     return {
@@ -233,7 +240,7 @@ export async function reorderSocialAccounts(
       )
     );
 
-    revalidatePath("/admin/support/marcom");
+    revalidateSocialAccountPages();
     return { success: true, data: null };
   } catch {
     return {
