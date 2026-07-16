@@ -212,3 +212,41 @@ article cover images) reuse the same path handling.
   alongside Postgres.
 - Dev and prod serve `/uploads/` through different mechanisms (Next dev server vs.
   Nginx) — acceptable, since the URL contract is identical.
+
+## ADR-009: In-app route handler for `/uploads/*` alongside Nginx
+
+**Date:** 2026-07-16
+**Status:** Accepted (amends ADR-008)
+
+**Context:**
+After deploying ADR-008, `next/image` rendering of uploaded images broke in
+production: `/_next/image?url=%2Fuploads%2F...` returned "The requested resource
+isn't a valid image" even though the direct `/uploads/...` URL worked. Cause: for
+relative `url=` sources, the Next.js image optimizer resolves the path through the
+server's **own router**, never via an external HTTP request — so Nginx's
+`location /uploads/` block is bypassed and the app itself 404s.
+
+**Options considered:**
+1. **Route handler `app/uploads/[...path]/route.ts` streaming from `UPLOAD_DIR`** —
+   the optimizer resolves through it; Nginx still answers direct browser requests
+   first, so the Node hot path is limited to optimizer cache misses.
+2. **`unoptimized` prop on affected `<Image>` components** — avoids the handler but
+   forfeits resizing/format optimization and must be remembered on every future
+   upload-rendering component.
+3. **Store absolute URLs + `images.remotePatterns`** — makes DB contents
+   environment-dependent; rejected.
+
+**Decision:**
+Add the route handler (option 1). It validates path segments against the upload base
+directory (`resolveUploadPath` in `src/lib/uploads.ts` rejects traversal), whitelists
+image extensions, and serves with long-lived immutable cache headers (safe — filenames
+are UUIDs). Verified locally against a production build: direct route 200, optimizer
+200 with an optimized payload, traversal and unknown extensions 404.
+
+**Consequences:**
+- `next/image` works for uploads in every environment with no per-component flags.
+- As a side effect, uploads also work in production even if the Nginx block or
+  `UPLOAD_DIR` is misconfigured (served by Node instead of Nginx) — slower, but not
+  broken.
+- Two servers can answer `/uploads/*` (Nginx, then the app); their cache headers are
+  kept equivalent and content is identical, so precedence doesn't matter.

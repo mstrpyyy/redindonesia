@@ -27,6 +27,25 @@ directory in production.
 `deploy`), move existing files from `public/uploads/`, set `UPLOAD_DIR` in the app
 env, add the Nginx `location /uploads/` block (see `ARCHITECTURE.md`), reload Nginx.
 
+## [x] Task: Route handler for `/uploads/*` (next/image optimizer fix)
+
+**Context:** After the ADR-008 rollout, `<Image>` renders of uploaded files failed in
+production ("The requested resource isn't a valid image") because the image optimizer
+resolves relative `url=` sources through the Next.js router, bypassing Nginx. See
+ADR-009.
+**Approach:** Catch-all route handler streams files from `UPLOAD_DIR` with extension
+whitelist, traversal guard, and immutable cache headers.
+**Files to create or modify:**
+- `src/app/uploads/[...path]/route.ts` — new GET handler
+- `src/lib/uploads.ts` — add `resolveUploadPath()` containment check
+**Acceptance criteria:**
+- [x] `GET /uploads/<feature>/<file>` returns the file with correct Content-Type.
+- [x] `/_next/image?url=%2Fuploads%2F...` returns an optimized image (verified against
+  a local production build with `UPLOAD_DIR` outside the project).
+- [x] Path traversal (`..`) and non-image extensions return 404.
+**Do not:** Remove the Nginx `location /uploads/` block — it remains the fast path for
+direct browser requests.
+
 ## [ ] Task: Add Instagram/TikTok highlights to Marcom & Promotion page
 
 **Context:** The Marcom & Promotion support page (`Tambahkan highlight akun Instagram

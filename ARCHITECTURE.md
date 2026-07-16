@@ -80,6 +80,11 @@ The application follows a **hybrid data architecture**:
     at runtime are never placed under `public/`, because the `next start` server only
     serves `public/` assets that existed at build time, and deploys replace the app
     directory.
+  - **Route handler** (`src/app/uploads/[...path]/route.ts`): serves the same files
+    from inside the app. Required because the `next/image` optimizer resolves relative
+    `url=` sources through the Next.js server's own router, never through Nginx —
+    without it, `/_next/image?url=%2Fuploads%2F...` fails with "The requested resource
+    isn't a valid image". Browser requests still hit Nginx first in production.
   - **Local dev**: `UPLOAD_DIR` is unset, so the helpers fall back to
     `public/uploads`, which `next dev` serves from disk without a restart.
     `public/uploads` is gitignored.

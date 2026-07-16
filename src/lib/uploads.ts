@@ -26,6 +26,19 @@ export async function saveUpload(file: File, feature: string): Promise<string> {
   return `/uploads/${feature}/${filename}`;
 }
 
+/**
+ * Resolves URL path segments to a file inside the upload base directory.
+ * Returns null if the segments would escape it (e.g. `..` traversal).
+ */
+export function resolveUploadPath(segments: string[]): string | null {
+  const base = path.resolve(UPLOAD_BASE_DIR);
+  const resolved = path.resolve(base, ...segments);
+  if (resolved === base || !resolved.startsWith(base + path.sep)) {
+    return null;
+  }
+  return resolved;
+}
+
 export async function deleteUpload(
   publicPath: string,
   feature: string
