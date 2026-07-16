@@ -139,7 +139,7 @@ Build the CMS as routes inside this app under `/admin`, protected by
 ## ADR-007: Local-disk storage for uploaded images
 
 **Date:** 2026-07-10
-**Status:** Accepted
+**Status:** Superseded by ADR-008
 
 **Context:**
 `SocialAccount.profileImg` needs an actual uploaded image, not a pasted URL. The
@@ -168,3 +168,47 @@ is gitignored — it's runtime state on the VPS, not versioned content.
   is load-bearing in production.
 - Revisit if traffic/volume ever justifies a CDN — this ADR gets superseded, not
   silently swapped out.
+
+## ADR-008: Uploads stored outside the app directory, served by Nginx
+
+**Date:** 2026-07-16
+**Status:** Accepted (supersedes ADR-007)
+
+**Context:**
+ADR-007 assumed Next.js would serve runtime-written files under `public/uploads`. That
+assumption is wrong in production: the `next start` server builds its static-asset
+manifest at **build time**, so files written into `public/` at runtime 404 until the
+next build/restart (observed on the VPS — uploads only appear after `pm2 restart`).
+Deploys also replace the app directory, wiping `public/uploads` entirely. Local disk
+remains the right storage medium (ADR-007's cost reasoning still holds); only the
+location and serving path were wrong.
+
+**Options considered:**
+1. **Persistent directory outside the app, served directly by Nginx** — no restart
+   needed, survives deploys, zero Node overhead per image request. Nginx is already in
+   front of the app. Requires one Nginx `location` block and an env var.
+2. **Same external directory, served by a Next.js route handler** — no Nginx change,
+   but every image request goes through Node; strictly worse when Nginx is already
+   available.
+3. **Object storage (S3/R2/MinIO)** — better durability/CDN, but adds a third-party
+   cost/dependency; overkill for a single-VPS CMS with small profile images.
+
+**Decision:**
+Uploads are written to `UPLOAD_DIR` (env var; on the VPS
+`/var/lib/radian-elok/uploads`), organized as `<UPLOAD_DIR>/<feature>/<uuid>.<ext>`.
+Nginx serves that directory at `/uploads/`. The DB continues to store the relative
+`/uploads/<feature>/<filename>` URL, so no data migration is needed — existing files
+are moved once with `mv`. In local dev, `UPLOAD_DIR` is unset and falls back to
+`public/uploads`, which `next dev` serves from disk without a restart. Shared
+save/delete helpers live in `src/lib/uploads.ts` so future upload features (e.g.
+article cover images) reuse the same path handling.
+
+**Consequences:**
+- Uploads are immediately visible in production with no rebuild/restart, and survive
+  deploys.
+- One new piece of infra config: the Nginx `location /uploads/` block and the
+  `UPLOAD_DIR` env var must exist on the VPS (documented in `ARCHITECTURE.md`).
+- The backup-routine consequence from ADR-007 carries over: back up `UPLOAD_DIR`
+  alongside Postgres.
+- Dev and prod serve `/uploads/` through different mechanisms (Next dev server vs.
+  Nginx) — acceptable, since the URL contract is identical.

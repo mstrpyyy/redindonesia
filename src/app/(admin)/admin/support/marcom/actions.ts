@@ -1,9 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { deleteUpload, saveUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
 import { z } from "zod";
 
 import {
@@ -12,7 +11,7 @@ import {
   MAX_PROFILE_IMG_SIZE,
 } from "./upload-limits";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "social-accounts");
+const UPLOAD_FEATURE = "social-accounts";
 
 const socialAccountFieldsSchema = z.object({
   platform: z.string().trim().min(1, "Platform is required"),
@@ -36,24 +35,12 @@ type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: { code: string; message: string } };
 
-async function saveProfileImage(file: File): Promise<string> {
-  const extension = path.extname(file.name) || `.${file.type.split("/")[1]}`;
-  const filename = `${crypto.randomUUID()}${extension}`;
-
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
-
-  return `/uploads/social-accounts/${filename}`;
+function saveProfileImage(file: File): Promise<string> {
+  return saveUpload(file, UPLOAD_FEATURE);
 }
 
-async function deleteProfileImage(profileImg: string): Promise<void> {
-  // basename() strips any directory component, so a tampered DB value can't
-  // reach outside the upload directory.
-  const diskPath = path.join(UPLOAD_DIR, path.basename(profileImg));
-  await unlink(diskPath).catch(() => {
-    // Already gone or locked — an orphaned file is not worth failing the request.
-  });
+function deleteProfileImage(profileImg: string): Promise<void> {
+  return deleteUpload(profileImg, UPLOAD_FEATURE);
 }
 
 export async function createSocialAccount(

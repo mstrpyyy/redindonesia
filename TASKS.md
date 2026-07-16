@@ -2,6 +2,31 @@
 
 This file tracks the tasks for the development agent (Claude).
 
+## [x] Task: Move user uploads out of `public/` (env-configured dir + Nginx)
+
+**Context:** Uploads written to `public/uploads` at runtime 404 in production until
+`pm2 restart`, because `next start` only serves `public/` files that existed at build
+time — and deploys wipe the directory. See ADR-008.
+**Approach:** Resolve the upload base directory from the `UPLOAD_DIR` env var, falling
+back to `public/uploads` for local dev. Extract generic save/delete helpers into
+`src/lib/uploads.ts` for reuse by future upload features (article cover images). URLs
+stored in the DB are unchanged (`/uploads/<feature>/<filename>`); Nginx serves the
+directory in production.
+**Files to create or modify:**
+- `src/lib/uploads.ts` — new: `saveUpload(file, feature)` / `deleteUpload(path, feature)`
+- `src/app/(admin)/admin/support/marcom/actions.ts` — delegate to the shared helpers
+- `ARCHITECTURE.md`, `DECISIONS.md` — ADR-008, Nginx config, VPS migration steps
+**Acceptance criteria:**
+- [x] With `UPLOAD_DIR` unset, uploads land in `public/uploads/<feature>/` (dev behavior
+  unchanged).
+- [x] With `UPLOAD_DIR` set, no file is ever written under `public/`.
+- [x] DB values remain relative `/uploads/...` URLs — no data migration needed.
+- [x] `tsc --noEmit` passes.
+**Do not:** Introduce object storage or change the 1MB upload limit.
+**Deploy note (manual, on VPS):** create `/var/lib/radian-elok/uploads` (owner
+`deploy`), move existing files from `public/uploads/`, set `UPLOAD_DIR` in the app
+env, add the Nginx `location /uploads/` block (see `ARCHITECTURE.md`), reload Nginx.
+
 ## [ ] Task: Add Instagram/TikTok highlights to Marcom & Promotion page
 
 **Context:** The Marcom & Promotion support page (`Tambahkan highlight akun Instagram

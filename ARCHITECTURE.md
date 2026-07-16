@@ -71,12 +71,18 @@ The application follows a **hybrid data architecture**:
   than a separate app or subdomain — no extra Nginx config needed since it's just
   another Next.js route.
 - **Editor**: Tiptap for rich text, persisted via Server Actions with Zod validation.
-- **Image uploads**: local disk, not a hosted service (see ADR-007). Server actions
-  write uploaded files to `public/uploads/<feature>/<uuid>.<ext>` (e.g.
-  `public/uploads/social-accounts/`) and store the relative `/uploads/...` path in the
-  DB. Next.js serves anything under `public/` directly, so no extra Nginx config is
-  needed. `public/uploads` is gitignored — it's runtime state on the VPS disk, not
-  versioned content.
+- **Image uploads**: local disk, not a hosted service (see ADR-008, superseding
+  ADR-007). Server actions call the shared helpers in `src/lib/uploads.ts`, which
+  write files to `<UPLOAD_DIR>/<feature>/<uuid>.<ext>` and store the relative
+  `/uploads/<feature>/<filename>` URL in the DB.
+  - **Production (VPS)**: `UPLOAD_DIR=/var/lib/radian-elok/uploads` (env var, owned
+    by the `deploy` user). Nginx serves this directory at `/uploads/` — files written
+    at runtime are never placed under `public/`, because the `next start` server only
+    serves `public/` assets that existed at build time, and deploys replace the app
+    directory.
+  - **Local dev**: `UPLOAD_DIR` is unset, so the helpers fall back to
+    `public/uploads`, which `next dev` serves from disk without a restart.
+    `public/uploads` is gitignored.
 
 ## Infrastructure & Deployment
 
@@ -92,6 +98,22 @@ The application follows a **hybrid data architecture**:
   - `red-indonesia.co.id` → existing WordPress site (PHP-FPM 7.4), untouched.
   - `demo.red-indonesia.co.id` → proxies to `localhost:3000` (this Next.js app). SSL via
     Certbot. DNS is an A record directly to the VPS IP (not a CNAME to Vercel).
+- **User uploads (VPS)**: persistent directory `/var/lib/radian-elok/uploads`, owned
+  by `deploy`, exposed to the app via `UPLOAD_DIR` in the PM2 environment (`.env`).
+  Nginx serves it directly, before the proxy pass, in the app's server block:
+
+  ```nginx
+  location /uploads/ {
+      alias /var/lib/radian-elok/uploads/;
+      expires 30d;
+      add_header Cache-Control "public, immutable"; # safe: filenames are UUIDs
+  }
+  ```
+
+  One-time migration when rolling this out: `sudo mkdir -p
+  /var/lib/radian-elok/uploads && sudo chown -R deploy:deploy /var/lib/radian-elok`,
+  then `mv ~/apps/red-indonesia/<repo>/public/uploads/* /var/lib/radian-elok/uploads/`
+  so existing DB paths keep resolving. Back up this directory alongside Postgres.
 - **Deploy flow**: build/test locally → `git push` → on VPS: `git pull && npm run build
   && pm2 restart red-indonesia`.
 - **Planned cutover** (not yet executed): once this app is fully built and verified on
