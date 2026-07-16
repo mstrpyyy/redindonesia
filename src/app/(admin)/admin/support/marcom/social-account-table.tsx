@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { Check, Copy, Globe, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
@@ -179,6 +179,7 @@ export function SocialAccountTable({ accounts }: { accounts: ISocialAccount[] })
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const dndId = useId();
   const copyResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensors = useSensors(
@@ -268,6 +269,7 @@ export function SocialAccountTable({ accounts }: { accounts: ISocialAccount[] })
 
       <div className="rounded-lg border">
         <DndContext
+          id={dndId}
           sensors={sensors}
           collisionDetection={closestCenter}
           modifiers={[restrictToVerticalAxis, restrictToParentElement]}
