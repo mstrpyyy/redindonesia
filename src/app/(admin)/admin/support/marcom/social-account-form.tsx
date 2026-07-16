@@ -89,7 +89,7 @@ export function SocialAccountForm({ account, onSuccess }: ISocialAccountFormProp
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="label">Username</Label>e
+        <Label htmlFor="label">Username</Label>
         <Input
           id="label"
           name="label"
