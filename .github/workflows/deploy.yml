@@ -19,6 +19,7 @@ jobs:
             cd ${{ secrets.VPS_APP_PATH }}
             git pull origin main
             npm install
+            npx prisma generate
             npx prisma migrate deploy
             npm run build
             pm2 restart red-indonesia
