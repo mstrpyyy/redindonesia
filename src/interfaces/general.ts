@@ -13,3 +13,11 @@ export interface ISocialAccount {
   url: string
   order: number
 }
+
+export interface IGallery {
+  id: string
+  title: string
+  description: string | null
+  images: string[]
+  order: number
+}

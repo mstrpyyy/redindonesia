@@ -1,7 +1,16 @@
-import React from 'react'
+import { AdminTitle } from '@/app/(admin)/components/admin-title'
+import { getGalleries } from '@/lib/galleries'
+import { GalleryTable } from './gallery-table'
 
-export default function GalleriesPage() {
+export default async function GalleriesPage() {
+  const galleries = await getGalleries()
+
   return (
-    <div>GalleriesPage</div>
+    <>
+      <AdminTitle parent={'Media'} title={'Galleries'} />
+      <div className="mt-6">
+        <GalleryTable galleries={galleries} />
+      </div>
+    </>
   )
 }

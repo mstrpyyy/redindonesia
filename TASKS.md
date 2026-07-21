@@ -46,6 +46,75 @@ whitelist, traversal guard, and immutable cache headers.
 **Do not:** Remove the Nginx `location /uploads/` block — it remains the fast path for
 direct browser requests.
 
+## [x] Task: Admin Media → Galleries CRUD table (drag-and-drop reorder)
+
+**Context:** `/admin/media/galleries` was an empty placeholder page. The client needs
+to manage the galleries that back the public `/media/galleries` page (title,
+description, a set of images) the same way `SocialAccount` is managed on the Marcom
+page.
+**Approach:** Mirror the `SocialAccount` CRUD + drag-reorder pattern (`@dnd-kit`,
+Server Actions, `src/lib/uploads.ts`). New `Gallery` model with `images String[]`
+(see ADR-011) instead of a join table, since no per-image metadata is needed yet.
+Raised `serverActions.bodySizeLimit` to `10mb` to fit multi-image submissions.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260721000000_gallery/` — new `Gallery` model
+- `next.config.ts` — `serverActions.bodySizeLimit: "10mb"`
+- `src/interfaces/general.ts` — `IGallery`
+- `src/lib/galleries.ts` — `getGalleries()`
+- `src/app/(admin)/admin/media/galleries/upload-limits.ts` — new
+- `src/app/(admin)/admin/media/galleries/actions.ts` — new: create/update/delete/reorder
+- `src/app/(admin)/admin/media/galleries/gallery-form.tsx` — new
+- `src/app/(admin)/admin/media/galleries/gallery-table.tsx` — new
+- `src/app/(admin)/admin/media/galleries/page.tsx` — wire up the table
+**Acceptance criteria:**
+- [x] Table shows Title, Description, Images (thumbnail stack), Actions columns.
+- [x] "Gallery List" heading with "Add new gallery" button on the same row.
+- [x] Rows can be reordered via drag-and-drop; order persists via `reorderGalleries`.
+- [x] Add/Edit gallery opens in a large dialog with Title/Description inputs and a
+  responsive image grid — a fixed `+` tile at index 0 opens the file picker, images
+  can be freely reordered via drag-and-drop and removed, up to 50 images total.
+- [x] Images are only uploaded to disk on submit, never on file selection.
+- [x] Gallery images are stored under a separate `/uploads/galleries` destination,
+  distinct from `/uploads/social-accounts`.
+- [x] Attempting to close the Add/Edit dialog (Escape, overlay click, close button)
+  while the title, description, or image set has unsaved changes prompts a "Discard
+  unsaved changes?" confirmation instead of closing immediately.
+- [x] While a save is in flight (Server Action pending), the Add/Edit dialog cannot
+  be closed at all — Escape, overlay click, and the close button (hidden while
+  saving) are all inert — since the in-flight request can't be cancelled.
+- [x] Title and Description are both required (client `required` attribute + server
+  validation); opening the dialog does not auto-focus the Title field.
+- [x] `tsc --noEmit` passes.
+**Do not:** Build the public `/media/galleries` wiring to the `Gallery` table in this
+task — that page still uses dummy data and is a separate task.
+
+## [x] Task: Wire public `/media/galleries` to the `Gallery` table
+
+**Context:** `src/app/(user)/media/galleries/page.tsx` currently renders a single
+hardcoded IMCAS gallery three times from a static file list. The admin CRUD table
+(added above) now manages real `Gallery` rows.
+**Approach:** Replace the static `imcasGalleryFiles` data with a Prisma query
+(`getGalleries()`, ordered by `order`), render one section per gallery instead of
+three copies of the same one, alternating `flex-row`/`flex-row-reverse` by index
+parity (matching the original hand-written layout). A gallery can hold up to 50
+images, so `GalleryViewer` was changed to accept only the first 6 image paths
+(`initialImages`) plus a `totalImages` count, and to lazily fetch the rest via a new
+`getGalleryImages` Server Action only when actually needed (lightbox opened, or
+carousel navigation runs past what's loaded) — not on initial page load.
+**Files to create or modify:**
+- `src/app/(user)/media/galleries/page.tsx`
+- `src/app/(user)/media/galleries/actions.ts` — new: `getGalleryImages(id)`
+- `src/app/(user)/components/GalleryViewer.tsx` — `initialImages`/`totalImages`/
+  `galleryId` props, progressive image loading
+**Acceptance criteria:**
+- [x] Page renders one section per `Gallery` row, ordered by `order`.
+- [x] Empty state when there are no galleries yet.
+- [x] Existing layout/styling (alternating image side, `GalleryViewer`) is preserved.
+- [x] Only the first 6 images per gallery are sent to the client on initial render;
+  the rest are fetched on demand, not shipped up front.
+- [x] `tsc --noEmit` passes.
+**Do not:** Change `GalleryViewer`'s props or the admin table built above.
+
 ## [ ] Task: Add Instagram/TikTok highlights to Marcom & Promotion page
 
 **Context:** The Marcom & Promotion support page (`Tambahkan highlight akun Instagram

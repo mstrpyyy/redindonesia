@@ -63,6 +63,8 @@ The application follows a **hybrid data architecture**:
     `status` (`"draft" | "published"`), `publishedAt?`, `createdAt`, `updatedAt`.
   - `SocialAccount` — `id`, `platform`, `label`, `profileImg` (relative path under
     `/uploads/social-accounts`), `url`, `order`, `createdAt`, `updatedAt`.
+  - `Gallery` — `id`, `title`, `description?`, `images` (`String[]`, relative paths
+    under `/uploads/galleries`), `order`, `createdAt`, `updatedAt` (see ADR-011).
 - **Auth model**: a single shared login for the whole client team — not multi-user,
   not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
   httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`
@@ -114,6 +116,16 @@ The application follows a **hybrid data architecture**:
       add_header Cache-Control "public, immutable"; # safe: filenames are UUIDs
   }
   ```
+
+  A large gallery submission passes through three independent body-size ceilings —
+  Nginx's `client_max_body_size`, then Next's `proxyClientMaxBodySize`
+  (`src/middleware.ts`, Next 16's "proxy"), then `serverActions.bodySizeLimit` (see
+  ADR-011) — all defaulting far below what galleries need (1MB/10MB/1MB
+  respectively) and each rejecting the request independently of the others raised.
+  `next.config.ts` already raises the latter two to `100mb`; Nginx's default
+  `client_max_body_size` (1MB) still needs `client_max_body_size 100m;` added to the
+  app's `server` block on the VPS to match — that step is manual, Nginx config isn't
+  part of this repo.
 
   One-time migration when rolling this out: `sudo mkdir -p
   /var/lib/radian-elok/uploads && sudo chown -R deploy:deploy /var/lib/radian-elok`,

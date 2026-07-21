@@ -250,3 +250,190 @@ are UUIDs). Verified locally against a production build: direct route 200, optim
   broken.
 - Two servers can answer `/uploads/*` (Nginx, then the app); their cache headers are
   kept equivalent and content is identical, so precedence doesn't matter.
+
+## ADR-010: `yet-another-react-lightbox` for gallery fullscreen viewing
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context:**
+`GalleryViewer` originally opened a shadcn/ui `Dialog` sized to content, with a
+hand-rolled prev/next viewer and a manually scroll-synced thumbnail list. That
+required several rounds of fixes for square-aspect thumbnails, overlap on `md` grid
+layouts, dialog height overflowing short viewports, and a `ring` selection outline
+getting clipped by the scroll container. Each fix patched a symptom of the same root
+cause: a content-sized dialog isn't the right shell for a fullscreen image viewer with
+a persistent thumbnail strip.
+
+**Options considered:**
+1. **Keep patching the custom `Dialog`** — no new dependency, but continues
+   reimplementing zoom, counter, and thumbnail-follow behavior that a purpose-built
+   library already solves, with more edge cases likely.
+2. **`yet-another-react-lightbox`** — actively maintained, TypeScript-native,
+   React 16–19 compatible, true fullscreen portal (not a sized dialog), with official
+   `Thumbnails` (bottom-docked strip), `Counter`, and `Zoom` plugins covering exactly
+   the behavior being hand-built.
+3. **`react-photo-view`** — lighter weight, good pinch-zoom, but no built-in bottom
+   thumbnail strip; would still require hand-building that part.
+4. **PhotoSwipe** — polished gesture UX, but vanilla-JS-first with a thinner React
+   integration; more wiring effort in an App Router setup.
+
+**Decision:**
+Adopt `yet-another-react-lightbox` with the `Zoom`, `Fullscreen`, and `Counter`
+plugins. `GalleryViewer.tsx` keeps its existing inline preview (main image, prev/next,
+4 thumbnails + "See All") and public props (`images`, `title`) unchanged — only the
+fullscreen modal was replaced, so `media/galleries/page.tsx` needed no changes.
+
+Two deviations from the library defaults were required to hit best-practice behavior:
+
+1. **Custom thumbnail strip instead of the `Thumbnails` plugin.** The built-in plugin
+   renders only a fixed ~5-item sliding window centered on the active slide, with no
+   way to scroll the full list. It is replaced by a custom bottom strip rendered via
+   `render.controls` that lists every slide in a horizontally scrollable track with
+   explicit paging buttons and auto-centers the active thumbnail. Space for it is
+   reserved with `styles={{ container: { paddingBottom } }}` — the library subtracts
+   container padding from the slide viewport (`useContainerRect`), so the strip sits in
+   reserved space rather than overlapping the image.
+2. **Slides carry intrinsic `width`/`height` so `Zoom` works.** With a custom
+   `render.slide`, the Zoom plugin does not measure the rendered element for image
+   slides — it reads dimensions from the slide object. Without them `maxZoom` stays `1`
+   and zoom is silently dead. `IGalleryImage` gained optional `width`/`height` (the CMS
+   should supply these); until then the component captures each image's natural size via
+   `next/image` `onLoad` and feeds it back into the slides, enabling zoom after first
+   load.
+
+Custom `render.slide` keeps `next/image` in the loop instead of the library's plain
+`<img>`, preserving Next's image optimization. The previous implementation is kept as
+`GalleryViewerOld.tsx` (renamed export `GalleryViewerOld`, currently unused) as a
+rollback reference.
+
+**Consequences:**
+- Fullscreen viewing and zoom (wheel/pinch/double-click/toolbar + native Fullscreen
+  button) are library-maintained; the thumbnail strip is the one hand-rolled piece,
+  chosen deliberately because the built-in plugin could not show a full scrollable list.
+- One new runtime dependency (`yet-another-react-lightbox`) to keep updated.
+- The zoom-dimensions coupling is a sharp edge: any future change to `render.slide`
+  must keep providing slide `width`/`height`, or zoom breaks with no error.
+- `GalleryViewerOld.tsx` is dead code kept intentionally for rollback; delete it once
+  the new viewer has been confirmed in production and is no longer needed as a
+  reference.
+- Verified end-to-end with Playwright against a production build: lightbox opens, the
+  strip lists all slides with paging controls and does not overlap the image, zoom
+  scales the active slide (~3.2×), and the Fullscreen control is present.
+
+## ADR-011: `Gallery` model with a `String[]` images column; raised Server Action body limit
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context:**
+The admin Media → Galleries page needed a CRUD table (title, description, images,
+drag-to-reorder), mirroring the existing `SocialAccount` pattern. Unlike
+`SocialAccount`, a gallery holds many images per row, and the default Server Action
+body limit (1MB, chosen in ADR-008 for single-file forms) cannot fit a multi-image
+submission.
+
+**Options considered:**
+1. **Separate `GalleryImage` table with a foreign key** — most normalized, supports
+   per-image metadata later, but adds a join for a feature that only needs an ordered
+   list of paths and no per-image fields today.
+2. **`images String[]` column on `Gallery`** — Postgres native array, no join, matches
+   the existing single-`order` reorder pattern used by `SocialAccount`; adding
+   per-image metadata later would require migrating to a join table anyway.
+3. **Keep the 1MB Server Action limit, upload images one request at a time** — avoids
+   a global config change, but forces the client into a multi-round-trip save flow
+   (partial failure mid-gallery, more error-handling surface) for a form that reads as
+   a single "save gallery" action everywhere else in the admin.
+4. **Raise `serverActions.bodySizeLimit` globally (chosen) vs. only for this route** —
+   Next.js only exposes this as a single global `next.config.ts` setting; there is no
+   per-route override.
+
+**Decision:**
+Added `Gallery { id, title, description?, images String[], order, createdAt,
+updatedAt }`. Reused `src/lib/uploads.ts` per-file (loop `saveUpload`/`deleteUpload`
+over the `"galleries"` feature dir — a separate destination from
+`/uploads/social-accounts`) instead of building new upload plumbing. The form's image
+grid is a single freely-reorderable list mixing kept existing images and staged new
+files (the `+` tile always sits at index 0, not part of the sortable set); images are
+only uploaded on submit, never as each file is picked. To let the client send that
+mixed order back, `updateGallery` accepts an `imageOrder` field — the full final
+order as a JSON array of kept image paths interleaved with a `"__new__"` placeholder
+per staged file, in the same sequence the corresponding `File`s were appended under
+`images` — and reconstructs the final `images` array server-side after uploading.
+Capped at 50 images per gallery, 2MB each. A full submission passes through three
+independent body-size ceilings, all of which must agree or the request fails before
+reaching `updateGallery`/`createGallery` (discovered the hard way: raising only
+`serverActions.bodySizeLimit` still failed with "Unexpected end of form" because
+`src/middleware.ts` — Next 16's "proxy" — enforces its own separate 10MB default):
+1. `experimental.serverActions.bodySizeLimit` — the Server Action's own limit.
+2. `experimental.proxyClientMaxBodySize` — the middleware/proxy layer every request
+   passes through first; independent of (1) and not implied by raising it.
+3. Nginx's `client_max_body_size` on the VPS — enforced ahead of both, at the reverse
+   proxy.
+All three raised to `100mb` (from Next's `1mb`/`10mb` defaults) to fit a worst-case
+full submission (50 × 2MB); the VPS Nginx config change is a manual step (see
+`ARCHITECTURE.md`) since Nginx config isn't part of this repo.
+
+**Consequences:**
+- All Server Actions in the app — not just the gallery ones — now accept bodies up to
+  100MB instead of 1MB. Acceptable since every existing upload form (`SocialAccount`,
+  future `Article` cover image) already validates its own file size client- and
+  server-side before submission; the global limit is a backstop, not the primary
+  guard. A local-disk-backed self-hosted VPS has no serverless payload ceiling to
+  worry about, unlike Vercel.
+- `updateGallery` trusts `imageOrder` only for token counts and existing-path
+  membership (each kept path must already belong to the gallery) — it does not trust
+  client-supplied ordering for anything beyond final array order, so a tampered
+  payload can at most reorder or omit a gallery's own images, never reference another
+  gallery's files.
+- There is no reorder-within-gallery endpoint separate from `updateGallery` — a
+  reorder-only save still resubmits the full form. Only the gallery-list order
+  (`order` column) has its own dedicated `reorderGalleries` action, matching the
+  `SocialAccount` pattern.
+- If per-image metadata (captions, alt text) is needed later, `images` will need to
+  become a proper `GalleryImage` relation — not a schema-compatible extension of the
+  current array column.
+
+## ADR-012: Public `/media/galleries` loads only 6 images per gallery up front; rest fetched on demand
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context:** With `/media/galleries` wired to the real `Gallery` table (up to 50
+images per row, see ADR-011), rendering every gallery's full `images` array on
+initial page load means a single page could ship hundreds of image paths and, more
+importantly, prime `next/image`'s optimizer/browser prefetching for images most
+visitors never open — `GalleryViewer` only ever displays 5 at a time (1 active + 4
+thumbnails) until the user opens the fullscreen lightbox.
+
+**Options considered:**
+1. **Ship the full `images` array to the client always (status quo pre-change)** —
+   simplest, but scales badly per-gallery as galleries grow toward the 50-image cap.
+2. **Slice to the first 6 images server-side; fetch the rest via a Server Action on
+   demand (chosen)** — `page.tsx` passes `initialImages` (first 6) + `totalImages`;
+   `GalleryViewer` calls the new `getGalleryImages(id)` action the first time it
+   actually needs more (lightbox opened, or carousel nav runs past what's loaded),
+   then merges the full list into its already-controlled `images` state.
+3. **Paginate the lightbox itself (fetch in pages of N while scrolling the
+   thumbnail strip)** — better for extreme gallery sizes, but more moving parts
+   (cursor state, loading placeholders mid-strip) for a page that today tops out at
+   50 images total; revisit if that cap is ever raised significantly.
+
+**Decision:** Option 2. `initialImages`/`totalImages`/`galleryId` replace
+`GalleryViewer`'s old `images` prop; a `loadStartedRef` guards against duplicate
+in-flight fetches, and `next`/`prev` navigation past the loaded set triggers the
+same fetch (modulo arithmetic over the currently-loaded length means clicking
+through wraps briefly within the first 6 until the fetch resolves, then the full
+set is available). Per-image `alt` text is generated client-side from `title` +
+index (`"<title> photo N"`) since `Gallery.images` stores bare paths, no per-image
+metadata.
+
+**Consequences:**
+- Initial page render cost no longer scales with a gallery's total image count —
+  only with the number of galleries (each contributing exactly `min(6, count)`
+  paths).
+- The image counter (`"N / total"`) reads `totalImages`, not the current in-memory
+  `images.length`, so it's accurate before the background fetch completes.
+- One additional round trip the first time a visitor actually engages with a
+  gallery (opens the lightbox or clicks past thumbnail 6) — acceptable since it's
+  gated on genuine interest, not paid on every page load.

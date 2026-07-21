@@ -35,6 +35,7 @@
     "react-intersection-observer": "^10.0.2",
     "react-lite-youtube-embed": "^3.5.1",
     "tailwind-merge": "^3.4.0",
+    "yet-another-react-lightbox": "^3.32.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -44,3 +44,6 @@ next-env.d.ts
 
 # user-uploaded content (deployed separately on the VPS, not versioned)
 /public/uploads
+
+/public/dummy
+
