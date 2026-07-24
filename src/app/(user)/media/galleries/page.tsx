@@ -38,9 +38,9 @@ export default async function MediaGalleries() {
               className={`flex lg:items-center gap-6 lg:gap-16 ${index % 2 === 1 ? "lg:flex-row-reverse flex-col" : "lg:flex-row flex-col"}`}
             >
               <div className="flex flex-col lg:w-200 2xl:w-250">
-                <h2 className="h2-format">{gallery.title}</h2>
+                <h2 className="h2-format max-lg:text-center">{gallery.title}</h2>
                 {gallery.description && (
-                  <p className="p-format text-pretty">{gallery.description}</p>
+                  <p className="p-format text-pretty max-lg:text-center!">{gallery.description}</p>
                 )}
               </div>
               <GalleryViewer

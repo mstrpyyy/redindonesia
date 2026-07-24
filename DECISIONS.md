@@ -437,3 +437,275 @@ metadata.
 - One additional round trip the first time a visitor actually engages with a
   gallery (opens the lightbox or clicks past thumbnail 6) — acceptable since it's
   gated on genuine interest, not paid on every page load.
+
+## ADR-013: Article editor — auto-generated slug, `excerpt` reused as "subtitle"
+
+**Date:** 2026-07-21
+**Status:** Accepted
+
+**Context:** Building the article create form (`/admin/media/articles/editor`)
+surfaced two gaps between the ask ("title, sub title (optional), thumbnail, rich
+text content") and the existing `Article` schema: there's no `subtitle` column
+(only `excerpt`), and `slug` is a required unique column with no field in the
+request to populate it from.
+
+**Options considered:**
+1. **Manual slug field in the form** — gives editorial control over the URL, but
+   wasn't asked for, and a bad/duplicate manual slug is a worse first-run experience
+   than just generating one from the title.
+2. **Auto-generate slug from title server-side (chosen)** — `slugify(title)` +
+   uniqueness retry (`-2`, `-3`, ... up to 20 attempts, then a random suffix
+   fallback) inside `createArticle`. No slug field in the form at all.
+3. **Add a new `subtitle` column** — keeps `excerpt` free for its likely original
+   purpose (SEO/listing summary distinct from an on-page subtitle), but is a schema
+   change for a field that's semantically identical to `excerpt` (optional short
+   line under the title) as far as this task's ask goes.
+4. **Reuse `excerpt`, labeled "Subtitle" in the form (chosen)** — no schema change;
+   ships today. Documented as an explicit assumption in `TASKS.md` since it's a
+   product-naming call, not a technical one — flagged for correction if `excerpt`
+   was meant to stay distinct.
+
+**Decision:** Options 2 and 4. The editor form has no slug input; `excerpt` is
+labeled "Subtitle" and is what the form's optional second field writes to.
+
+**Consequences:**
+- If a true distinction between "subtitle" (display) and "excerpt" (SEO/listing
+  summary) is needed later, that's an additive schema change (new `subtitle`
+  column) with a one-time backfill decision (copy `excerpt` → `subtitle`, leave
+  `excerpt` as-is, or leave `subtitle` empty) — not a breaking one.
+- Slugs are stable once created (`updateArticle`, when built, must not regenerate
+  the slug from an edited title — changing a published article's URL breaks
+  existing links/SEO). Recorded here so the follow-up edit task doesn't relitigate
+  it.
+- The retry-loop uniqueness check is a hard cap of 20 DB round trips per create;
+  the random-suffix fallback beyond that is unreachable in practice (would require
+  20 near-identical titles) but avoids a theoretical infinite loop.
+
+## ADR-014: Single editor route for create/edit; `publishedAt` set once, never cleared
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:** Building the article list table required deciding (a) whether create
+and edit live on the same route or split ones (`/new` vs `/[id]`, as the original
+stale `TASKS.md` draft sketched), and (b) what happens to `Article.publishedAt`
+when an article is unpublished and later republished, or edited without changing
+status.
+
+**Options considered — routing:**
+1. **Split routes** (`/admin/media/articles/new`, `/admin/media/articles/[id]`) —
+   clearer URL semantics, but duplicates the entire form-hosting page for what is
+   otherwise identical logic already handled by `ArticleForm`'s `article?` prop
+   (same pattern as `GalleryForm`).
+2. **One route, `?id=` decides mode (chosen)** — `editor/page.tsx` reads `id` from
+   `searchParams` (Next 16 async), loads the article via `getArticleById` if
+   present (404 if the id doesn't resolve), and passes it to `ArticleForm`. No
+   duplicated page shell.
+
+**Options considered — `publishedAt` semantics:**
+1. **Always stamp `publishedAt = now()` on every save while status is
+   "published"** — simplest, but destroys the original publish date on every
+   subsequent edit of an already-published article, which reads as wrong for any
+   "published on" display later.
+2. **Set once on first publish, never touch it again afterward (chosen)** — a
+   shared `computePublishedAt(currentPublishedAt, status)` used by both
+   `updateArticle` and the list table's `updateArticleStatus`: stamps `now()` only
+   the first time status becomes `"published"` (`currentPublishedAt` was `null`);
+   every other transition (re-publish, unpublish, edit-while-published) leaves it
+   untouched.
+
+**Decision:** Option 2 for routing, option 2 for `publishedAt`.
+
+**Consequences:**
+- `updateArticleStatus` (list-table toggle) and `updateArticle` (full form save)
+  share the exact same publish-date logic via `computePublishedAt` — a status
+  change from either surface behaves identically.
+- Unpublishing an article does not lose its original publish date — if it's
+  republished later, `publishedAt` still reflects when it was *first* made public,
+  not the most recent toggle.
+- The editor route has no separate "loading" URL segment for edit — `notFound()`
+  is called at the page level if `?id=` doesn't resolve to a real article, same as
+  a dynamic `[id]` route would 404 on a bad id.
+
+## ADR-015: Rich text toolbar images upload on insert, not on form submit; no orphan cleanup
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:** Expanding the editor toolbar (underline/italic already existed;
+added highlight, text align, text color, and inline images) meant deciding how
+an image inserted into the article *body* gets from "file picked" to "URL the
+Tiptap doc can reference." The thumbnail (ADR-013) defers its upload until form
+submit — that pattern doesn't work here, because the rich text document needs a
+real `<img src>` immediately to render the image in the editor as you type;
+there's no equivalent of "hold the File in state and append it to FormData
+later."
+
+**Options considered:**
+1. **Blob/data URL preview until submit, real upload on save** — would need the
+   entire submit flow to walk the saved HTML, find blob/data URLs, upload each,
+   and rewrite `content` before persisting. Real complexity for marginal benefit.
+2. **Upload immediately on insert (chosen)** — toolbar's image button opens a
+   file picker; on selection, `uploadContentImage` (new Server Action) validates
+   and saves the file via `saveUpload` under a new `articles-content` feature
+   dir (kept separate from `articles`, the thumbnail dir, since the two have
+   different lifecycles — see Consequences), returning a real `/uploads/...` URL
+   that's inserted via `editor.chain().setImage({ src })` right away.
+
+**Decision:** Option 2. `contentImageSchema` mirrors the thumbnail's validation
+(JPEG/PNG/WEBP/GIF, size cap — 3MB, slightly higher than the 2MB thumbnail cap
+since body images may reasonably need more detail) but is a separate schema/cap
+(`MAX_CONTENT_IMAGE_SIZE`) since the two aren't the same use case.
+
+**Consequences:**
+- **No orphan cleanup.** If a user inserts an image and then never saves the
+  article (navigates away, browser crash), that file stays on disk forever —
+  same tradeoff most CMSes with an "upload on insert" editor make (e.g.
+  WordPress's media library). Not addressed here; would need either a
+  reference-counting sweep job or deferring all uploads to submit (option 1).
+- **Deleting an article does not delete its content images**, unlike the
+  thumbnail (`deleteArticle` cleans up `coverImage` but never touches image
+  `src`s inside `content`). Content images aren't tracked anywhere outside the
+  HTML blob itself, so there's no list to walk without parsing `content`.
+- If this becomes a real disk-usage problem, the fix is a periodic job that
+  parses all `Article.content` for `/uploads/articles-content/...` references
+  and deletes files in that directory with zero references — not attempted now
+  since it's premature for the current scale.
+
+## ADR-016: Drafts require only one filled field; publishing requires all of them
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:** The create/edit form originally required title, content, and (on
+create) a thumbnail unconditionally — regardless of whether the user was saving a
+draft or publishing. That's the wrong bar for a draft, which by definition is an
+incomplete work in progress; requiring every field defeats the point of being able
+to save progress early.
+
+**Decision:** Split validation by `status`. Publishing keeps the original strict
+rule: title, content, and a thumbnail (existing or newly uploaded) are all
+required. Saving as a draft only requires *at least one* of title / subtitle /
+content / thumbnail to be non-empty — enforced via a `hasAnyField` check that
+looks across all four (thumbnail checked separately from the Zod schema, since
+it's a `File` on `FormData`, not a schema field). `articleFieldsSchema` became a
+`z.discriminatedUnion("status", [...])` so the per-field Zod rules (title/content
+`min(1)`) only apply on the `"published"` branch.
+
+Enforced in three places, all of which had to move in lockstep: `createArticle`,
+`updateArticle`, and — easy to miss — `updateArticleStatus`, the list table's
+one-click Draft⇄Published toggle. That toggle bypasses the form entirely, so
+without its own check it could publish an article with an empty title/content/no
+thumbnail, defeating the "complete before publishing" rule from the other two
+paths. It checks the existing row's `title`/`content`/`coverImage` directly rather
+than duplicating the Zod schema, since there's no `FormData` involved.
+
+**Consequences:**
+- The `required` HTML attribute was removed from the Title input — it never
+  actually enforced anything anyway (the form has no native `onSubmit`/`action`,
+  buttons manually build `FormData` and call the Server Action directly), and
+  leaving it in place was actively misleading given title is genuinely optional
+  for drafts now.
+- A previously-published article can't be edited into an incomplete state and
+  saved *as published* (still blocked), but nothing stops switching it to
+  "draft" first — an intentional escape hatch, not a gap: draft is explicitly
+  the "incomplete is fine" state.
+- The list table's status-toggle failure now surfaces as an inline error message
+  (new `onStatusError` prop on `ArticleRow`) instead of silently no-oping, which
+  it did before this change — a latent UX gap this fix also closed.
+
+## ADR-017: Status dropdown in the list table; publish always confirmed, unpublish never is
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:** The list table's status control was a clickable Badge that toggled
+Draft⇄Published on a single click — no dropdown, no confirmation. Two changes were
+requested: make status a proper dropdown, and require a confirmation step before
+publishing specifically (not unpublishing), from *both* the list table and the
+editor form.
+
+**Decision:**
+- Replaced the Badge-button with a `shadcn/ui` `Select` (Draft/Published), with the
+  current status still rendered as a colored `Badge` inside `SelectValue` so the
+  visual read stays the same at a glance.
+- Selecting "Published" from the dropdown does not call `updateArticleStatus`
+  directly — it opens a shared `AlertDialog` ("Publish this article? ... You can
+  unpublish it again later.") at the table level; only confirming actually submits
+  the change. Selecting "Draft" (unpublishing) calls the action immediately, no
+  confirmation.
+- In the editor form, the "Publish" button runs the same field validation it
+  always did (title/content/thumbnail required — ADR-016) *before* opening its own
+  confirmation `AlertDialog`; only on confirm does it call `submit("published")`.
+  "Save as draft" is unaffected — direct, no confirmation, matching the "only
+  publishing needs confirming" scope of the ask.
+- The dropdown is disabled per-row while that row's status change is in flight
+  (`isBusy` derived from `busyId === article.id`), not globally, so changing one
+  article's status doesn't visually lock the whole table.
+
+**Consequences:**
+- Publish confirmation now exists in exactly two places with the same guarantee
+  (validate-then-confirm) but two separate `AlertDialog` instances — one owned by
+  `ArticleTable` (shared across all rows, targeting whichever `publishTarget` was
+  set), one owned by `ArticleForm` (single article, no target-tracking needed).
+  There was no shared component extracted for this since the two call sites differ
+  enough (table needs a target-article, form already has its one article in
+  closure) that a shared component would mostly just be indirection.
+- If `updateArticleStatus`'s server-side re-validation still rejects the publish
+  attempt after the user confirmed (e.g. stale client state), the dialog has
+  already closed and the failure surfaces as the table's inline error message
+  (`onStatusError`/`setError`), not a dialog-level error — acceptable since this
+  race is rare (would require the article's own required fields becoming invalid
+  between page load and the confirm click, which nothing else in this admin does
+  concurrently).
+
+## ADR-018: Article detail page — static generation + targeted on-demand revalidation
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:** `/media/articles/[slug]` needed the best available combination of
+performance and SEO for a public, content-driven page, while staying correctly in
+sync with an admin that can publish/edit/unpublish/delete at any time.
+
+**Options considered — rendering strategy:**
+1. **Server Component, dynamically rendered per request (no `generateStaticParams`)**
+   — always fresh, zero staleness risk, but pays a DB round trip on every visit;
+   no advantage here since content only changes via the admin, not per-request.
+2. **Static generation with `generateStaticParams` + on-demand revalidation
+   (chosen)** — every published article is prerendered at build time; articles
+   published afterward still resolve on first request (`dynamicParams` defaults to
+   `true`) and are cached from then on. Freshness comes from `revalidatePath`
+   calls in the admin actions, not a time-based `revalidate` interval — the page
+   is only ever re-rendered when something actually changed.
+3. **Client-side fetch (SPA-style)** — rejected outright: no content in the
+   initial HTML, worse for SEO and first paint, and there's no interactivity here
+   that would justify it.
+
+**Options considered — rendering `content`:**
+1. **Sanitize with a library (e.g. DOMPurify) before rendering** — the safer
+   general-purpose default for arbitrary HTML, but unnecessary overhead here:
+   `content` is never user-submitted, only ever written by the Tiptap editor
+   behind the authenticated `/admin` — the trust boundary is "whoever has admin
+   credentials," same as the thumbnail/title/every other admin-authored field.
+2. **`dangerouslySetInnerHTML` directly (chosen)** — matches the trust level
+   already assumed everywhere else in this codebase for admin input.
+
+**Decision:** Options 2 and 2. `revalidateArticlePages()` (in the admin's
+`editor/actions.ts`) now takes an optional `slug` and revalidates
+`/media/articles/<slug>` in addition to the two list pages it already did —
+without this, a static param generated at build time would keep serving its
+build-time snapshot forever after an edit, unpublish, or delete, since none of
+those actions previously touched the detail page's own cache entry.
+
+**Consequences:**
+- New articles published after the last build are one request slower (render +
+  cache) than ones baked in at build time — normal ISR-with-on-demand-revalidation
+  behavior, not a bug.
+- If `Article.content` is ever allowed to include user-submitted or
+  third-party-sourced HTML (not just admin-authored), `dangerouslySetInnerHTML`
+  here would need to be revisited with sanitization — the current choice is
+  specifically scoped to "trusted admin input," not HTML in general.
+- OpenGraph/Twitter image URLs are relative (no `metadataBase` set anywhere in the
+  app yet) — flagged in `TASKS.md` as a known gap rather than fixed here, since it
+  requires picking the canonical production domain, a decision beyond this page.

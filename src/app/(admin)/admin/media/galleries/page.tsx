@@ -8,9 +8,7 @@ export default async function GalleriesPage() {
   return (
     <>
       <AdminTitle parent={'Media'} title={'Galleries'} />
-      <div className="mt-6">
-        <GalleryTable galleries={galleries} />
-      </div>
+      <GalleryTable galleries={galleries} />
     </>
   )
 }

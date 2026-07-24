@@ -59,8 +59,11 @@ The application follows a **hybrid data architecture**:
 - **Schema** (`prisma/schema.prisma`):
   - `AdminAccount` — `id`, `username` (unique), `passwordHash`, `updatedAt`. Exactly one
     row is expected; there is no signup flow.
-  - `Article` — `id`, `title`, `slug` (unique), `excerpt?`, `content`, `coverImage?`,
-    `status` (`"draft" | "published"`), `publishedAt?`, `createdAt`, `updatedAt`.
+  - `Article` — `id`, `title`, `slug` (unique, auto-generated from `title`, see
+    ADR-013), `excerpt?` (labeled "Subtitle" in the editor form, ADR-013),
+    `content` (Tiptap-produced HTML), `coverImage?` (relative path under
+    `/uploads/articles`), `status` (`"draft" | "published"`), `publishedAt?`,
+    `createdAt`, `updatedAt`.
   - `SocialAccount` — `id`, `platform`, `label`, `profileImg` (relative path under
     `/uploads/social-accounts`), `url`, `order`, `createdAt`, `updatedAt`.
   - `Gallery` — `id`, `title`, `description?`, `images` (`String[]`, relative paths

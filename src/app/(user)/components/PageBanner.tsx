@@ -39,7 +39,7 @@ export const PageBanner = ({ defImage, smImage, mdImage, children, alt }: IPageB
       />
       <div className="absolute left-0 w-full bottom-0 bg-linear-to-t from-black/90 to-transparent z-0 h-2/3"/>
 
-      <h1 className="text-shadow-md absolute bottom-14 left-1/2 -translate-x-1/2 w-full text-center text-5xl sm:text-6xl lg:text-8xl font-bold">
+      <h1 className="text-shadow-md absolute bottom-14 left-1/2 -translate-x-1/2 w-full text-center banner-title font-bold text-balance">
         {children}
       </h1>      
     </section>

@@ -56,11 +56,11 @@ export const Sidebar = () => {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 h-screen flex flex-col relative">
+    <aside className="w-64 h-screen flex flex-col sticky top-0 self-start shrink-0">
       <div className="absolute top-0 bottom-0 right-0 w-[2px] bg-border" />
       <div className="w-36 mx-auto">
         <Link href="/admin">
-          <Image 
+          <Image
             src={'/image/logo-red-black.png'}
             alt='logo'
             width={362}
@@ -85,7 +85,7 @@ export const Sidebar = () => {
                     <li key={index} className="z-10" >
                       <a
                         href={item.slug}
-                        className={`flex items-center pl-11 pr-4 py-2 text-sm 
+                        className={`flex items-center pl-11 pr-4 py-2 text-sm
                           ${pathname === item.slug ? 'border-r-[2px] border-r-brand-red bg-secondary/50' : 'hover:bg-secondary/50 border-r-[2px]'}
                         `}
                       >
@@ -99,7 +99,6 @@ export const Sidebar = () => {
           )
         })}
       </nav>
-
     </aside>
   )
 }

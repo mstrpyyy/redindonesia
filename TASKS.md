@@ -239,31 +239,148 @@ publishedAt with links to edit each one and a "New Article" action.
 - [ ] Uses shadcn/ui `Table`.
 - [ ] Empty state when there are no articles yet.
 
-## [ ] Task: Article editor (`/admin/articles/new`, `/admin/articles/[id]`)
+## [x] Task: Article create form (`/admin/media/articles/editor`)
 
-**Context:** Create and edit articles with rich text content.
-**Approach:** Tiptap editor bound to `Article.content`; save via Server Actions,
-validate with Zod before writing to the DB.
+**Context:** Create articles with rich text content. Image upload storage was
+already decided (local disk via `src/lib/uploads.ts`, ADR-007/008/009) and reused
+here rather than re-litigated per the old `Gemini decision needed` note below, which
+is now stale.
+**Approach:** Tiptap editor (`@tiptap/react` + `starter-kit` + `underline`/`link`/
+`placeholder` extensions) bound to `Article.content` as HTML; save via a Server
+Action, validated with Zod. Slug is auto-generated from the title server-side
+(`slugify` + uniqueness retry loop, `-2`/`-3`/... suffix on collision) rather than a
+manual field — no manual-slug UI was asked for. Two submit actions ("Save as draft"
+/ "Publish") map directly to `Article.status`; `publishedAt` is set to now only on
+publish.
 **Files to create or modify:**
-- `src/app/admin/articles/new/page.tsx`
-- `src/app/admin/articles/[id]/page.tsx`
-- `src/app/admin/articles/actions.ts`
+- `src/app/(admin)/admin/media/articles/editor/upload-limits.ts` — new
+- `src/app/(admin)/admin/media/articles/editor/actions.ts` — new: `createArticle`
+- `src/app/(admin)/admin/media/articles/editor/rich-text-editor.tsx` — new: Tiptap
+  wrapper + toolbar
+- `src/app/(admin)/admin/media/articles/editor/article-form.tsx` — new
+- `src/app/(admin)/admin/media/articles/editor/page.tsx` — wire up the form
+- `src/interfaces/general.ts` — `IArticle`
+- `src/app/globals.css` — `.tiptap-content` styles for the editor's rendered HTML
 **Acceptance criteria:**
-- [ ] Title, slug, excerpt, cover image, status, content are all editable.
-- [ ] Slug is unique (surfaced as a form error, not a raw DB error).
-- [ ] Draft vs. published status controls whether it appears publicly.
-**Gemini decision needed if:** Image upload storage approach (local disk vs.
-Cloudinary/other) isn't decided yet — do not scaffold upload handling until resolved.
+- [x] Title, optional subtitle, thumbnail, and rich text content are all editable.
+- [x] Slug is auto-generated and unique; no raw DB unique-constraint error can reach
+  the user.
+- [x] "Save as draft" vs. "Publish" controls `Article.status`/`publishedAt`.
+- [x] Title capped at 200 characters, Subtitle at 300 (client `maxLength` + server
+  Zod validation), both with a live character counter. Thumbnail capped at 2MB.
+- [x] Saving as draft only requires at least one of title/subtitle/content/
+  thumbnail to be filled — not all of them. Publishing still requires title,
+  content, and thumbnail. Enforced both client-side and server-side (including
+  the list table's quick status-toggle, which bypasses the form entirely).
+- [x] `tsc --noEmit` passes.
+**Do not:** Build the edit-by-id route or the article list page in this task — this
+covers create only. Both are tracked below.
+**Assumption:** "Sub title" reuses the existing `Article.excerpt` column (labeled
+"Subtitle" in the form) rather than adding a new column — both are an optional short
+line under the title; a separate field would duplicate `excerpt` without a clear
+distinction. Flag if `excerpt` was meant to stay a separate SEO/listing summary.
 
-## [ ] Task: Wire public `/media/articles` to the `Article` table
+## [x] Task: Article list page + edit-by-id (`/admin/media/articles`)
 
-**Context:** The existing site already has a static `/media/articles` route; it needs
-to read published articles from the database instead of static data.
-**Approach:** Replace static data source with a Prisma query filtered to
-`status: "published"`, ordered by `publishedAt desc`.
+**Context:** `/admin/media/articles` was an empty placeholder. The create form
+(above) had no way to view, edit, delete, or publish/unpublish what's been saved.
+**Approach:** Mirrored the `Gallery`/`SocialAccount` admin table pattern — server
+component queries `Article` via `getArticles()` (`src/lib/articles.ts`), a
+`shadcn/ui` `Table` of thumbnail/title/subtitle/status. The single `editor/page.tsx`
+route serves both create and edit — `?id=<id>` present loads that article via
+`getArticleById` and passes it to `ArticleForm` as an `article?: IArticle` prop
+(like `GalleryForm`); absent, it's a blank create form. Editing does not require
+re-uploading a thumbnail (kept unless replaced) and never regenerates the slug from
+an edited title (see ADR-013). Status is changeable two ways: the full edit form's
+"Save as draft"/"Publish" buttons, or a Draft/Published `Select` dropdown directly
+in the list table (`updateArticleStatus`) — the latter needed since the ask called
+out changing publicity status as a capability distinct from editing. Publishing —
+from either surface — always requires confirming an `AlertDialog` first (see
+ADR-017); unpublishing does not.
 **Files to create or modify:**
-- `src/app/(pages)/media/articles/page.tsx`
+- `src/lib/articles.ts` — new: `getArticles()`, `getArticleById(id)`
+- `src/app/(admin)/admin/media/articles/page.tsx` — table + "Create article" link
+- `src/app/(admin)/admin/media/articles/article-table.tsx` — new
+- `src/app/(admin)/admin/media/articles/editor/actions.ts` — added `updateArticle`,
+  `deleteArticle`, `updateArticleStatus`
+- `src/app/(admin)/admin/media/articles/editor/article-form.tsx` — accepts optional
+  `article` prop for edit mode
+- `src/app/(admin)/admin/media/articles/editor/page.tsx` — reads `?id=` (async
+  `searchParams`), loads the article, 404s on an unknown id
+- `src/components/ui/badge.tsx` — new (shadcn)
 **Acceptance criteria:**
-- [ ] Only published articles are visible publicly.
-- [ ] Existing page layout/styling is preserved.
-- [ ] Draft articles are never reachable via direct slug URL either.
+- [x] Lists all articles with thumbnail/title/subtitle/status visible.
+- [x] Empty state when there are no articles yet.
+- [x] Edit action redirects to the editor pre-filled with that article's data.
+- [x] Delete action requires confirmation before removing the article and its
+  thumbnail.
+- [x] Status (draft/published) can be changed directly from the list, without
+  opening the editor.
+- [x] Editing an existing article preserves its slug (slug is not regenerated from
+  title changes on update — only on create).
+- [x] `tsc --noEmit` passes.
+
+## [x] Task: Wire public `/media/articles` to the `Article` table
+
+**Context:** `/media/articles` was an empty placeholder (`<div className="h-150">`
+below the banner). It needs to read published articles from the database instead.
+**Approach:** Server Component (no `"use client"`) querying `Article` directly via a
+new lean `getPublishedArticles()` — filtered to `status: "published"`, ordered by
+`publishedAt desc`, and `select`-ing only the fields a list card needs (title, slug,
+excerpt, coverImage, publishedAt) rather than the full row, since `content` can be a
+large Tiptap-produced HTML blob that a list view never renders. Fully server-rendered
+(no client fetch/waterfall) for both performance and SEO — the article list is
+present in the initial HTML, crawlable without JS. `revalidatePath("/media/articles")`
+already fires from every create/update/delete/status-change action (added earlier for
+the admin work), so the page stays fresh via on-demand revalidation rather than
+needing a time-based `revalidate` interval.
+**Files to create or modify:**
+- `src/lib/articles.ts` — added `getPublishedArticles()`
+- `src/app/(user)/media/articles/page.tsx` — grid of article cards, `Metadata` export
+**Acceptance criteria:**
+- [x] Only published articles are visible publicly.
+- [x] Cards link to `/media/articles/[slug]`, ordered newest-published-first.
+- [x] Empty state when nothing is published yet.
+- [x] Page has its own SEO `Metadata` (title/description) rather than inheriting only
+  the root layout's.
+- [x] `tsc --noEmit` passes.
+**Do not:** Build the `/media/articles/[slug]` detail page in this task — see the
+follow-up task below. Cards link there, but that route doesn't exist yet.
+
+## [x] Task: Public article detail page (`/media/articles/[slug]`)
+
+**Context:** The article list linked every card to `/media/articles/<slug>`, which
+didn't exist yet — those links 404'd.
+**Approach:** Dynamic route `[slug]/page.tsx` with `generateStaticParams` (SSG —
+every published article prerendered at build time; `dynamicParams` defaults to
+`true` so articles published after build still resolve on first request and cache
+from then on) and `generateMetadata` (title/description/OpenGraph/Twitter card from
+the article's title/excerpt/coverImage). Renders `content` as raw HTML
+(`dangerouslySetInnerHTML`, wrapped in `.tiptap-content` for the shared Tiptap
+styling) since it's server-authored HTML from the admin's rich text editor, not
+user-submitted content. Also emits `application/ld+json` `Article` structured data
+for search engine rich results. Fetched via a new `getPublishedArticleBySlug(slug)`
+gated to `status: "published"` — a draft's slug 404s publicly even if guessed.
+**Files to create or modify:**
+- `src/lib/articles.ts` — added `getPublishedArticleBySlug(slug)`,
+  `getPublishedArticleSlugs()` (lean, slug-only, for `generateStaticParams`)
+- `src/app/(user)/media/articles/[slug]/page.tsx` — new
+- `src/app/(admin)/admin/media/articles/editor/actions.ts` — `revalidateArticlePages`
+  now also takes an optional `slug` and revalidates that specific detail page (it
+  previously only revalidated the list pages, which would have left a stale
+  prerendered detail page after an edit/unpublish/delete)
+**Acceptance criteria:**
+- [x] A published article's slug renders its full content.
+- [x] A draft's slug 404s publicly (`notFound()`), even with the exact correct slug.
+- [x] An unknown slug 404s.
+- [x] Page metadata (title, description, OpenGraph/Twitter image) reflects that
+  article; structured data (JSON-LD) is present for the article.
+- [x] `tsc --noEmit` passes.
+**Known gap:** No `metadataBase` is set anywhere in the app (root layout or
+`next.config.ts`), so the OpenGraph/Twitter image URLs here resolve as relative
+paths rather than fully-qualified URLs — Next.js accepts this without erroring,
+but some link-preview crawlers (e.g. link unfurling in chat apps) expect an
+absolute URL. Fixing it means picking the canonical production domain
+(`demo.red-indonesia.co.id` today, per the planned cutover in `ARCHITECTURE.md`
+eventually `red-indonesia.co.id`) — a site-wide decision beyond this task's scope,
+not something to guess at silently here.

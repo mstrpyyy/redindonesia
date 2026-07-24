@@ -20,7 +20,7 @@ export default function userLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex">
+    <div className="flex relative">
       <Sidebar />
       <ContentWrapper>
         {children}

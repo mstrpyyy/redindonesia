@@ -8,9 +8,7 @@ export default async function MarcomPage() {
   return (
     <>
       <AdminTitle parent={'Support'} title={'Marcom & Promotion'} />
-      <div className="mt-6">
-        <SocialAccountTable accounts={accounts} />
-      </div>
+      <SocialAccountTable accounts={accounts} />
     </>
   );
 }
