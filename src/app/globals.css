@@ -135,7 +135,6 @@ html {
   animation: spinOut 0.7s ease-in forwards;
 }
 
-
 /* Thumb-only scrollbar */
 .scrollbar-thumb-only {
   scrollbar-width: 30px;              /* Firefox */
@@ -164,6 +163,10 @@ html {
   @apply sm:w-[560px] md:w-[688px] lg:w-[900px] xl:w-[1000px] 2xl:w-[1200px];
 }
 
+.h1-format {
+  @apply text-3xl sm:text-4xl md:text-6xl xl:text-7xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
+}
+
 .h2-format {
   @apply text-3xl sm:text-4xl xl:text-5xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
 }
@@ -184,12 +187,20 @@ html {
   @apply text-base sm:text-lg xl:text-xl font-semibold;
 }
 
+.p-lg-format {
+  @apply text-xl md:text-2xl xl:text-3xl font-light text-justify leading-8 2xl:leading-10;
+}
+
 .p-format {
   @apply lg:text-lg 2xl:text-xl font-light text-justify leading-8 2xl:leading-10;
 }
 
 .p-sm-format {
   @apply text-sm lg:text-base 2xl:text-lg font-light text-justify leading-6 lg:leading-7 2xl:leading-8;
+}
+
+.p-card-format {
+  @apply text-xs lg:text-sm 2xl:text-base font-light text-justify leading-5 lg:leading-6 2xl:leading-7;
 }
 
 .banner-title {
@@ -207,7 +218,6 @@ html {
 .text-shadow {
   @apply text-shadow-[0px_0.5px_2px_rgba(0,0,0,1)]
 }
-
 
 .radial-gradient1 {
   background: radial-gradient(
@@ -264,6 +274,13 @@ html {
 .tiptap-content p {
   margin-bottom: 0.75rem;
 }
+/* A blank line (pressing Enter on an already-empty paragraph) saves as a
+   genuinely empty <p></p> — with zero content it collapses to zero height in
+   the browser, so the blank line just disappears on render. A non-breaking
+   space gives it real content, so it takes up a normal line of height. */
+.tiptap-content p:empty::before {
+  content: "\00a0";
+}
 .tiptap-content ul,
 .tiptap-content ol {
   margin-bottom: 0.75rem;
@@ -301,4 +318,49 @@ html {
 .tiptap-content mark {
   border-radius: 0.15rem;
   padding: 0 0.1rem;
+}
+
+/* Category page body (`CategoryPageView`) — paired with `.tiptap-content` on
+   the same element for its list/link/image styling, but h2/p match the rest
+   of the public site's `.h2-format`/`.p-format` type scale instead of
+   `.tiptap-content`'s more compact article defaults. Must come after the
+   `.tiptap-content` rules above to win (equal selector specificity). */
+.tiptap-content-category h2 {
+  @apply text-3xl lg:text-4xl xl:text-5xl font-semibold leading-10 sm:leading-12 xl:leading-16 text-pretty!;
+  margin-top: 3rem;
+  margin-bottom: 2rem;
+}
+.tiptap-content-category h3 {
+  @apply text-xl sm:text-2xl xl:text-3xl font-semibold leading-10 sm:leading-12;
+  margin-top: 3rem;
+  margin-bottom: 2rem;
+}
+/* No line sits above a heading that opens the content, so it gets no extra
+   top gap — only the ones with something above them do. */
+.tiptap-content-category h2:first-child,
+.tiptap-content-category h3:first-child {
+  margin-top: 0;
+}
+.tiptap-content-category p {
+  @apply text-xl 2xl:text-2xl font-light text-justify leading-8 2xl:leading-10;
+  margin-bottom: 1.5rem;
+}
+
+/* Editor-only (the category body's RichTextEditor, contentClassName prop) —
+   the public page's h2/h3/p sizes above top out at 3rem/1.875rem/1.5rem,
+   hero-banner scale that overwhelms the compact edit box. Same h2:h3:p ratio
+   (2 : 1.25 : 1) at a size that actually fits an editing surface, flat
+   (no responsive breakpoints — the box's width doesn't change with the
+   viewport). Must come after `.tiptap-content-category` above to win. */
+.tiptap-content-category-compact h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+.tiptap-content-category-compact h3 {
+  font-size: 1.3rem;
+  line-height: 1.3;
+}
+.tiptap-content-category-compact p {
+  font-size: 1rem;
+  line-height: normal;
 }

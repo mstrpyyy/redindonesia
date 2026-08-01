@@ -8,12 +8,12 @@ import { useEffect, useEffectEvent, useState } from "react"
 import { NavButton } from "./NavButton"
 import { LargeDropdown } from "./LargeDropdown"
 import { SmallDropdown } from "./SmallDropdown"
-import { navMenus } from "@/lib/data"
 import { SidebarMenu } from "./Sidebar"
 import Image from "next/image"
 import Link from "next/link"
+import type { INavbarMenu } from "@/interfaces/general"
 
-export const Navbar = () => {
+export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
   const pathname = usePathname()
   const pathSegment = pathname.split('/')[1] ? '/' + pathname.split('/')[1] : '/'
   const [darkenBg, setDarkenBg] = useState(false)
@@ -34,10 +34,10 @@ export const Navbar = () => {
   })
     
   useEffect(() => {
-    updateScrollEvent(window.scrollY > 10)
+    updateScrollEvent(window.scrollY > 25)
     
     const handleScroll = () => {
-      setScrolled(window.scrollY > 10)
+      setScrolled(window.scrollY > 25)
     }
 
     window.addEventListener('scroll', handleScroll)
@@ -75,7 +75,7 @@ export const Navbar = () => {
       <nav className={`max-md:hidden ml-auto mr-8 ${!hideSearch && 'lg:mx-auto'}`}>
         <ul className="flex items-center justify-center gap-4 lg:gap-6 xl:gap-10">
           {
-            navMenus.map((menu, index) => {
+            menus.map((menu, index) => {
               if (menu.type === 'largeDropdown' && menu.menu) {
                 return (
                   <li key={index}>
@@ -139,6 +139,7 @@ export const Navbar = () => {
       </button>
 
       <SidebarMenu
+        menu={menus}
         pathname={pathSegment}
         DROPDOWNSIZE={DROPDOWNSIZE}
         TOP_HEIGHT={TOP_HEIGHT}

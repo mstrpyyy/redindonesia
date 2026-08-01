@@ -52,3 +52,117 @@ model Article {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
+
+// Self-referential tree backing the admin-managed "Devices" and "Products"
+// menus (see ADR-019). `type` roots the tree ("device" | "product", same
+// string-enum convention as Article.status) — depth 1 nodes have parentId
+// null. `depth` (1-3) is stored rather than derived so the max-depth-3 rule
+// can be enforced with a single read instead of a recursive parent walk.
+// Sibling slug uniqueness is enforced in the server action, not here: a
+// unique([type, parentId, slug]) index can't work because Postgres never
+// treats NULL as equal to NULL, so it wouldn't catch duplicate depth-1 slugs
+// (which all share parentId = null).
+model Category {
+  id        String     @id @default(cuid())
+  type      String
+  name      String
+  slug      String
+  depth     Int
+  order     Int        @default(0)
+  parentId  String?
+  parent    Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Category[] @relation("CategoryChildren")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  products  Product[]
+
+  // A node is either a real page (banner/title/description required, body/
+  // youtubeUrl optional) or stays a plain breadcrumb (all fields null) — see
+  // ADR-033. `name`/slug still drive the tree and breadcrumb regardless of
+  // `isPage`; `title` is the page's own heading, deliberately separate so it
+  // can read differently from the compact nav label.
+  //
+  // Four banner sizes, one per orientation/breakpoint, mirroring the
+  // hardcoded sm/md/lg/xl banner images the homepage/about hero sections
+  // already use (see ADR-035): bannerXlUrl (2560x1440, desktop landscape) is
+  // the only one required — the others fall back to it on the public side.
+  isPage       Boolean @default(false)
+  bannerSmUrl  String? // 1440x2560 — mobile portrait
+  bannerMdUrl  String? // 1536x2048 — tablet portrait
+  bannerLgUrl  String? // 2048x1536 — tablet/small-desktop landscape
+  bannerXlUrl  String? // 2560x1440 — desktop landscape, required when isPage
+  title        String?
+  description  String?
+  body         String? @db.Text
+  youtubeUrl   String?
+  // All optional regardless of `isPage` — a page can have a YouTube URL with
+  // no extra media dressing. `youtubeThumbnailUrl` is a custom poster shown
+  // with a click-to-play overlay instead of the iframe loading immediately;
+  // unset falls back to embedding the iframe directly, same as before this
+  // field existed. `youtubeCaption`/`youtubeDescription` are a short heading
+  // (h3) and paragraph (p) shown alongside the video.
+  youtubeThumbnailUrl String?
+  youtubeCaption      String?
+  youtubeDescription  String?
+  // One of HERO_TEXT_COLOR_VALUES (src/lib/hero-text-colors.ts). Nullable so
+  // rows created before this column falls back to the same peach the hero
+  // was hardcoded to before this was admin-editable (ADR-045).
+  heroTextColor       String?
+
+  @@index([type, parentId])
+}
+
+// A device/product detail entry, assigned to any single `Category` node
+// (not necessarily a depth-3 leaf — some brands have no sub-brand level and
+// need products attached directly at depth 2, see ADR-020). `segments` is an
+// ordered array of typed content blocks (hero, highlight, treatments grid,
+// 360 viewer, tech spec accordion, applicator carousel, before/after,
+// document download — see src/interfaces/segments.ts for the exact shapes)
+// rather than one column per section: the public detail page's sections are
+// each a different repeating shape and vary per product (some skip a 360
+// viewer, some have two before/after blocks), so a fixed relational schema
+// would mean a migration every time a new section style is needed. Same
+// "JSON over exploding into join tables" precedent as Gallery.images
+// (ADR-011), just one level richer.
+model Product {
+  id          String   @id @default(cuid())
+  type        String
+  name        String
+  slug        String
+  tagline     String?
+  thumbnail   String?
+  // One of CARD_BACKGROUND_VALUES (src/lib/card-backgrounds.ts). Nullable so
+  // rows created before this column fall back to the default tint.
+  cardBackground String?
+  segments    Json     @default("[]")
+  // "hidden" | "public" — renamed from draft/published (ADR-040); a hidden
+  // item is a work in progress, only enforced complete once made public.
+  status      String   @default("hidden")
+  order       Int      @default(0)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  // Flat and reusable within its own type, unlike `Category` (a tree, one per
+  // product, drives the page's own URL) — tags are purely for
+  // filtering/discovery. Scoped to `type` the same way `Category` is: a
+  // "Dermatology" product tag and a "Dermatology" device tag are two
+  // distinct rows, never shared. See ADR-041.
+  tags        Tag[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([type, categoryId])
+}
+
+// Reuse is enforced in code, not just the DB constraint (`createTag` in
+// tag-actions.ts does a case-insensitive lookup, scoped to `type`, before
+// creating) — see ADR-041 for why a case-sensitive `@@unique` alone isn't
+// enough on its own to prevent near-duplicates like "Dermatology"/"dermatology".
+model Tag {
+  id        String    @id @default(cuid())
+  type      String
+  name      String
+  createdAt DateTime  @default(now())
+  products  Product[]
+
+  @@unique([type, name])
+}

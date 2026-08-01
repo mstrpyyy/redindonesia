@@ -17,7 +17,7 @@ interface IColorPickerButtonProps {
 
 // A Google Docs/Word-style color picker: a grid of common presets, a custom
 // color input for anything else, and a "None" action to remove the color.
-// Shared by the toolbar's text color and highlight color controls.
+// Shared by RichTextEditor's text color and highlight color controls.
 export function ColorPickerButton({
   label,
   icon,

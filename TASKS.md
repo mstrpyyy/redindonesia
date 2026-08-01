@@ -384,3 +384,537 @@ absolute URL. Fixing it means picking the canonical production domain
 (`demo.red-indonesia.co.id` today, per the planned cutover in `ARCHITECTURE.md`
 eventually `red-indonesia.co.id`) — a site-wide decision beyond this task's scope,
 not something to guess at silently here.
+
+## [x] Task: `Category` model + admin tree-management UI for Devices/Products
+
+**Context:** The "Devices" and "Products" navbar menus were hardcoded in
+`src/lib/data.ts` (`deviceProductMenu`), max 3 levels deep under each root (e.g.
+Products → Cosmeceutical → Tegoder Cosmetics → Tegoder Face). The admin routes
+`/admin/product-device/devices` and `/admin/product-device/products` already
+existed as stubs. See ADR-019.
+**Approach:** One self-referential `Category` Prisma model (`type: "device" |
+"product"` discriminator, `depth` stored 1-3, `order` scoped per sibling group,
+`onDelete: Cascade`), shared CRUD + reorder server actions parameterized by
+`type`, and a recursive tree UI: expand/collapse per node, add-root/add-child
+(disabled past depth 3)/edit/delete (with a sub-category-count warning) via
+Dialog/AlertDialog, and same-parent-only drag reordering (`@dnd-kit`, one
+`SortableContext` per sibling group so a drag can never move a node to a
+different parent).
+**Files to create or modify:**
+- `prisma/schema.prisma` — new `Category` model + migration
+  `20260727050029_add_category`
+- `src/interfaces/general.ts` — new `ICategory`
+- `src/lib/categories.ts` — new: `getCategoryTree(type)` (flat rows → nested tree)
+- `src/app/(admin)/admin/product-device/actions.ts` — new: `createCategory`,
+  `updateCategory`, `deleteCategory`, `reorderCategories`
+- `src/app/(admin)/admin/product-device/limits.ts` — new: `MAX_CATEGORY_DEPTH`,
+  `MAX_CATEGORY_NAME_LENGTH`
+- `src/app/(admin)/admin/product-device/category-tree.tsx` — new: the recursive
+  tree UI, shared by both admin pages
+- `src/app/(admin)/admin/product-device/devices/page.tsx`,
+  `.../products/page.tsx` — wired to `getCategoryTree` + `<CategoryTree>`
+  (also fixed both stubs' component name, previously both named `DevicesPage`)
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-019)
+**Acceptance criteria:**
+- [x] Both admin pages render their respective tree, starting from the DB
+  (`[]` renders an empty state, not an error).
+- [x] Adding a category at depth 3 disables "Add sub-category" on that node;
+  the server independently rejects a depth-4 create even if attempted directly.
+- [x] Editing a name regenerates its slug only when the name actually changed;
+  siblings can reuse a slug already used under a different parent.
+- [x] Deleting a node with sub-categories deletes the whole subtree (cascade)
+  and the confirmation dialog states how many will go with it.
+- [x] Dragging a node only reorders it among its own siblings — there is no way
+  to drag it to a different parent or depth.
+- [x] `tsc --noEmit` passes; `eslint` reports nothing new.
+**Do not:** Wire the public `/devices/...`/`/products/...` catalog routes or the
+navbar's `deviceProductMenu` to `Category` in this task — see the follow-up task
+below. Do not create a `Product` model here; this task is the category tree only.
+
+## [x] Task: `Product` model + admin CRUD for device/product items (segments)
+
+**Context:** Follow-up to the category tree task (ADR-019). Devices/products
+need actual leaf-level content (not just taxonomy) assignable to any
+`Category` node, editable via the admin. See ADR-020.
+**Approach:** `Product` model with `type`/`categoryId`/`name`/`slug`/
+`tagline?`/`thumbnail?`/`status`/`order` plus a `segments: Json` array of
+typed content blocks (hero, highlight, treatments grid, 360 viewer, tech spec
+accordion, applicator carousel, before/after, document download — the exact
+section styles used by the existing hardcoded device detail page). Segment
+field definitions are data-driven (`segment-types.ts`) and rendered by one
+generic form engine (`segments-builder.tsx`) rather than nine bespoke forms.
+Category assignment via a breadcrumb-labeled `Select` (`category-picker.tsx`).
+Admin list/create/edit mirrors the Article pattern (table + full-page editor,
+`?type=&id=` query params, one shared editor route for both device and
+product items).
+**Files to create or modify:**
+- `prisma/schema.prisma` — new `Product` model + migration `20260727070805_add_product`
+- `src/interfaces/segments.ts` — new: per-segment-type shapes (`IProductSegment` union)
+- `src/interfaces/general.ts` — new `IProduct`, `IProductListItem`
+- `src/lib/products.ts` — new: `getProductItems(type)`, `getProductById(id)`
+- `src/app/(admin)/admin/product-device/segment-types.ts` — new: field configs per segment type
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — new: generic segment field renderer + repeater
+- `src/app/(admin)/admin/product-device/category-picker.tsx` — new: breadcrumb `Select`
+- `src/app/(admin)/admin/product-device/product-actions.ts` — new: `createProduct`, `updateProduct`, `deleteProduct`, `updateProductStatus`, `reorderProducts`
+- `src/app/(admin)/admin/product-device/product-form.tsx`, `item-table.tsx` — new
+- `src/app/(admin)/admin/product-device/devices/items/page.tsx`,
+  `products/items/page.tsx`, `items/editor/page.tsx` — new
+- `src/app/(admin)/admin/product-device/limits.ts` — added product/thumbnail constants
+- `src/app/(admin)/components/sidebar.tsx` — added "Product/Device Items" nav links
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-020)
+**Acceptance criteria:**
+- [x] Both `/admin/product-device/{devices,products}/items` list their type's
+  items with thumbnail, name, category breadcrumb, and status.
+- [x] Creating/editing an item requires a category of the matching `type` and
+  a thumbnail before it can be published (drafts don't require either).
+- [x] Segments can be added, reordered, and removed per item; each segment
+  type only shows the fields that type actually needs.
+- [x] Reordering items (drag) and changing status persist via server actions,
+  matching the existing `Gallery`/`Article` list conventions.
+- [x] `tsc --noEmit` passes, `eslint` reports nothing new, `next build` succeeds.
+**Do not:** Wire the public `/devices/...`/`/products/...` routes or the navbar
+to `Category`/`Product` in this task, or add real file-upload widgets for
+segment image/file fields (plain URL inputs for now) — see the follow-up task
+below.
+
+## [x] Task: Real upload widgets for hero/certification/document segment fields
+
+**Context:** Follow-up to the task above (ADR-020 deferred all segment
+image/file fields as plain URL inputs). In practice the hero background,
+hero/document downloadable files, and certification logo+certificate are
+always a real upload, never a pasted URL. See ADR-021.
+**Approach:** New `"image"`/`"file"` field types upload immediately on select
+(same pattern as the rich text editor's inline content images, ADR-015) via a
+new `uploadSegmentAsset` action, storing the returned URL — no change needed
+to `validateSegments`/save logic since the field is still just a string by
+submit time. Hero's `imgAlt` field removed from the form entirely; the server
+now derives it from the hero's own `title`.
+**Files to create or modify:**
+- `src/app/(admin)/admin/product-device/segment-upload-actions.ts` — new: `uploadSegmentAsset`
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — new `UploadField` component, wired into `FieldInput`
+- `src/app/(admin)/admin/product-device/segment-types.ts` — `imgUrl`/`heroDocs[].href`/`document.fileUrl`/`certifications[].imageUrl` → `"image"`/`"file"`; `certifications[].fileUrl` added, `href` removed; `imgAlt` field removed from hero
+- `src/app/(admin)/admin/product-device/product-actions.ts` — `normalizeSegments` forces hero `imgAlt = title` server-side
+- `src/app/(admin)/admin/product-device/product-form.tsx` — new hero default (`imgAlt`)
+- `src/app/(admin)/admin/product-device/limits.ts` — segment upload size/type constants
+- `src/interfaces/segments.ts` — `ICertification` shape change
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-021)
+**Acceptance criteria:**
+- [x] Selecting a file for one of the converted fields uploads it immediately and shows a preview (image) or a filename link (file), without needing to submit the form first.
+- [x] Hero's alt text is never manually entered and always equals its title, even after the title is edited later.
+- [x] `tsc --noEmit` passes, `eslint` reports nothing new, `next build` succeeds.
+**Do not:** Convert every remaining segment "url" field to an upload widget —
+only the fields listed above are always a real upload in practice; the rest
+(highlight/treatments/applicators/before-after images, 360 viewer frame
+template) stay plain URL inputs.
+
+## [x] Task: Typed certification "styles" (Halal/Kemenkes/Other) via dropdown
+
+**Context:** Follow-up to the task above. Hero certifications only ever come
+in three real styles — Halal Indonesia, Kemenkes (needs an AKL number), and a
+custom "Other" (needs a title, no logo) — which a generic one-shape-fits-all
+list form can't express well. See ADR-022.
+**Approach:** `ICertification` becomes a discriminated union on `certType`.
+Clicking "Add certification" opens a dropdown offering the three styles;
+picking one creates an item pre-populated with that style's fixed fields
+(Halal/Kemenkes's logo, never editable) and only relevant fields render. A
+bespoke `CertificationsField` component replaces the generic `ListField` for
+this one key. New heroes start with no certifications pre-filled — every
+entry, including Halal/Kemenkes, is added explicitly.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `ICertification` → `IHalalCertification | IKemenkesCertification | IOtherCertification`
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — new `CertificationsField`, `createCertification`; special-cased in `SegmentCard`'s field loop
+- `src/app/(admin)/admin/product-device/segment-types.ts` — `certifications` field drops `itemFields` (no longer used by the generic engine)
+- `src/app/(admin)/admin/product-device/product-form.tsx` — removed the Halal/Kemenkes default-prefill added in the previous task
+- `DECISIONS.md` (ADR-022, and an amendment note on ADR-021's now-reverted default-prefill consequence)
+**Acceptance criteria:**
+- [x] "Add certification" shows exactly three choices: Halal Indonesia, Kemenkes, Other.
+- [x] Halal shows only a certificate file upload; Kemenkes shows an AKL Number field plus certificate file; Other shows a Title field plus certificate file.
+- [x] Halal/Kemenkes's logo and label are set automatically and not editable in the form.
+- [x] A new hero's certifications list starts empty.
+- [x] `tsc --noEmit` passes, `eslint` reports nothing new, `next build` succeeds.
+**Do not:** Add server-side per-`certType` validation in this task — `validateSegments` still only checks top-level segment fields, not list item shapes, consistent with every other list field.
+
+## [x] Task: Split the device/product editor into completion-tracked tabs
+
+**Context:** The editor was one long scroll — Product Identity, Product
+Thumbnail and Page Segments stacked vertically — so the segments builder
+(which grows unboundedly) buried the two short sections above it, and there
+was no way to see at a glance what still needed filling in.
+**Approach:** Add a `Tabs` shadcn primitive (the unified `radix-ui` package is
+already a dependency, same import style as `accordion.tsx`) and split the
+three sections into tab panels under the "Device Editor" heading. Each trigger
+carries a `CircleCheck` icon: `text-muted-foreground/50` while that tab's
+required content is missing, `text-emerald-600` once it's filled. Cancel /
+Save as draft / Publish stay outside the tabs as a shared footer, and a failed
+submit switches to the tab holding the offending field.
+**Files to create or modify:**
+- `src/components/ui/tabs.tsx` — new: shadcn `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent`
+- `src/app/(admin)/admin/product-device/product-form.tsx` — tab shell, per-tab completeness, hero mirroring moved here
+- `src/app/(admin)/admin/product-device/segment-types.ts` — new `isSegmentComplete` helper
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — dropped the two mirroring effects; hero card now gets `productName`/`productTagline`
+- `DECISIONS.md` (ADR-023)
+**Acceptance criteria:**
+- [x] The editor shows three tabs — Product Identity, Product Thumbnail, Page Segments — under the editor heading.
+- [x] Each tab's icon is grey when incomplete and green when complete: Identity needs Name + Category, Thumbnail needs an image, Page Segments needs every segment's required fields filled.
+- [x] Editing Name/Tagline on the Identity tab still updates a hero pinned with "Same as name/tagline", even though the Segments tab is unmounted.
+- [x] Submitting with a missing Name or Category switches to the Identity tab; publishing without a thumbnail switches to the Thumbnail tab.
+- [x] `tsc --noEmit` passes and `eslint` reports nothing new.
+**Do not:** Gate saving on tab completeness — the indicators are informational; a draft with empty tabs must still save, exactly as before.
+
+## [x] Task: Live catalogue-card preview in place of the thumbnail example image
+
+**Context:** Follow-up to the task above. The Product Thumbnail tab's "Show
+example" toggle revealed a static PNG of a well-formatted thumbnail — it never
+showed the admin's own item, and it goes stale whenever the public card's
+styling changes. See ADR-024.
+**Approach:** Extract the catalogue card out of `DeviceList.tsx` into its own
+`DeviceCard` component and render that same component in the editor, fed by the
+form's live Name, Tagline and thumbnail preview. AOS attributes stay at the
+`DeviceList` call site (passed through rest props) so the admin doesn't inherit
+scroll animations. The preview is `pointer-events-none` + `aria-hidden`.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/DeviceCard.tsx` — new: the extracted card, plus an empty-`imgUrl` placeholder branch
+- `src/app/(user)/components/catalogue/DeviceList.tsx` — maps to `DeviceCard`; local `IDeviceList` removed
+- `src/interfaces/general.ts` — new `IDeviceCardItem`
+- `src/app/(admin)/admin/product-device/product-form.tsx` — "Show example" toggle and its state replaced by the preview
+- `DECISIONS.md` (ADR-024)
+**Acceptance criteria:**
+- [x] The Product Thumbnail tab shows a card that updates live as Name, Tagline and the chosen image change.
+- [x] The preview is the same component the public catalogue renders, not a copy of its markup.
+- [x] The preview renders before an image is chosen, with a placeholder in the image slot.
+- [x] The preview's "View Product" link is not clickable or focusable from the editor.
+- [x] The public `/devices/[category]/[brand]` grid is unchanged, AOS animations included.
+- [x] `tsc --noEmit` passes, `eslint` reports nothing new, `next build` succeeds.
+**Do not:** Pull admin-only concerns into `DeviceCard` — it stays a public
+component that the editor happens to mount.
+
+## [x] Task: Per-product catalogue card background tint
+
+**Context:** Every catalogue card rendered the same hardcoded peach gradient
+(`from-brand-peach/20 to-white`). Admins want to pick a tint per item so
+cards in a grid can be told apart at a glance.
+**Approach:** A closed set of tints in `src/lib/card-backgrounds.ts` (the brand
+peach plus Tailwind's default 500-shade palette), each
+with its full Tailwind class string written out (never composed — the scanner
+only sees complete class names). `DeviceCard` resolves `item.background`
+through `getCardBackground`, which falls back to peach for null/unknown. The
+picker is a `Select` with a colour swatch per option, sitting under the
+thumbnail field so it's next to the live preview it drives. Persisted as a
+nullable `Product.cardBackground` column, validated server-side with
+`z.enum(CARD_BACKGROUND_VALUES)`.
+**Files to create or modify:**
+- `src/lib/card-backgrounds.ts` — new: the six options, `getCardBackground`, `CARD_BACKGROUND_VALUES`
+- `prisma/schema.prisma` + `prisma/migrations/20260728000000_add_product_card_background/` — nullable `cardBackground` column
+- `src/interfaces/general.ts` — `IDeviceCardItem.background`, `IProduct.cardBackground`
+- `src/app/(user)/components/catalogue/DeviceCard.tsx` — resolves the tint instead of hardcoding it
+- `src/app/(admin)/admin/product-device/product-form.tsx` — swatch picker, wired to the preview and the payload
+- `src/app/(admin)/admin/product-device/product-actions.ts` — Zod enum + persistence on create/update
+- `src/lib/products.ts` — reads the column back
+- `ARCHITECTURE.md` (Product model), `DECISIONS.md` (ADR-025)
+**Acceptance criteria:**
+- [x] The Thumbnail tab has a Card Background dropdown listing every tint, each with a colour swatch, and the swatch shows on the closed trigger too.
+- [x] Choosing a tint updates the live preview card immediately.
+- [x] The choice survives save and reload.
+- [x] A product with no stored value (every row predating the column) renders the original peach tint.
+- [x] An invalid value posted to the server is rejected by Zod, not written through.
+**Do not:** Build the class string from fragments (`from-${colour}/20`) — Tailwind
+compiles nothing for it. Add new tints to `CARD_BACKGROUNDS` as complete strings.
+
+## [x] Task: Move hero documents and certifications to a "Product Files" tab
+
+**Context:** Downloadable documents and certification badges were two fields
+buried inside the hero segment card, rendered through the generic field engine
+as stacked bordered sub-cards — a lot of chrome for what is really two flat
+lists. They're also conceptually product-level assets, not page-layout content.
+See ADR-026.
+**Approach:** Move only the *editing*, not the data — both still live on the
+hero segment's record, since the public `HeroDevice` renders them and ADR-020's
+"segments mirror component props" rule still holds. Drop the two field defs
+from the hero's `fields` array so the segments builder stops rendering them,
+seed the keys in `withHeroSegment` instead of `createEmptySegmentData`, and add
+a `ProductFilesEditor` on a new tab with one row per entry.
+**Files to create or modify:**
+- `src/app/(admin)/admin/product-device/upload-field.tsx` — new: `UploadField` extracted out of segments-builder so both editors share it
+- `src/app/(admin)/admin/product-device/product-files-editor.tsx` — new: the two list editors, `createCertification`, completeness helpers
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — drops `UploadField`, `CertificationsField`, `createCertification`, the logo constants, and the hero certifications special-case
+- `src/app/(admin)/admin/product-device/segment-types.ts` — hero loses its `heroDocs`/`certifications` field defs
+- `src/app/(admin)/admin/product-device/product-form.tsx` — new tab, seeds the two keys, `filesComplete`, `updateHeroFiles`
+- `DECISIONS.md` (ADR-026)
+**Acceptance criteria:**
+- [x] The editor has a fourth tab, "Product Files", between Product Thumbnail and Page Segments.
+- [x] The hero segment card no longer shows documents or certifications.
+- [x] Documents are one row each: name input, file upload, remove.
+- [x] "Add certification" opens a dropdown of the three styles and creates the row with the chosen one.
+- [x] Certifications are one row each: the style as a fixed label, a number/name input, file upload, remove — the middle input is a certificate number for Halal, an AKL number for Kemenkes, and a name for "Other".
+- [x] A row's style cannot be changed after it's added; correcting it means removing the row and adding another.
+- [x] Existing products keep their stored documents and certifications, and the public hero renders them unchanged.
+**Do not:** Move the data itself off the hero segment — the public `HeroDevice`
+reads it from there, and relocating it would need a data migration for no gain.
+
+## [x] Task: Wire public Category pages (`/devices/[category]`, `/devices/[category]/[brand]`) to `Category` CMS data
+
+**Context:** Follow-up to ADR-019/ADR-033/ADR-034. `/devices/[category]/page.tsx`
+was a bare unwired stub and `/devices/[category]/[brand]/page.tsx` ignored its
+route params entirely, rendering the same hardcoded "Alma Laser" content no
+matter which category/brand was requested. `Category` carries optional page
+content (`isPage`/banner sizes/`title`/`description`/`body`/`youtubeUrl` —
+ADR-033/ADR-035), unused by any public page until now. Only one real `isPage`
+row existed to test against (`ALMA LASER`, depth 2) — this pass is scoped to
+just the `Category` rendering, not `Product`/segments (zero `Product` rows
+exist yet, so there's nothing to wire or test there). See ADR-036.
+**Approach:** `getCategoryBySlugPath(type, slugPath)` (`src/lib/categories.ts`)
+resolves a category strictly through parent→child slug links. Both page
+routes resolve their own slug path and render one shared `CategoryPageView`
+(`components/catalogue/`): hero/body/YouTube when `isPage`, otherwise a plain
+heading, then a grid of either the category's own sub-categories or (leaf) its
+published `Product` rows via new `getPublishedProductCards()`. `HeroDevice`
+gained an optional responsive `bannerUrls` prop (sm/md/lg/xl, same breakpoint
+pattern as the homepage hero) alongside its original single `imgUrl`.
+`DeviceFilterList`'s `filterList` is now optional (no real filter taxonomy
+exists behind the old hardcoded Categories/Treatments/Technologies options).
+**Files to create or modify:**
+- `src/lib/categories.ts` — `getCategoryBySlugPath()`
+- `src/lib/products.ts` — `getPublishedProductCards()`
+- `src/lib/utils.ts` — `getYoutubeEmbedUrl()`
+- `src/app/(user)/components/catalogue/Hero.tsx` — optional `bannerUrls` prop
+- `src/app/(user)/components/catalogue/DeviceList.tsx` — optional `filterList`,
+  new `heading`/`emptyMessage` props
+- `src/app/(user)/components/catalogue/CategoryPageView.tsx` — new, shared by
+  both routes below
+- `src/app/(user)/devices/[category]/page.tsx`,
+  `src/app/(user)/devices/[category]/[brand]/page.tsx` — resolve real
+  `Category` data, `notFound()` on an unmatched slug path
+- `DECISIONS.md` (ADR-036)
+**Acceptance criteria:**
+- [x] `/devices/medical-aesthetic-devices/alma-laser` renders the real
+  `ALMA LASER` row — all four banner sizes, title, description, rich-text
+  body, and YouTube embed — verified against the dev DB.
+- [x] `/devices/medical-aesthetic-devices` (isPage: false) renders a plain
+  heading and a grid linking to its two children (`ALMA LASER`, `ALMA BEAUTY`).
+- [x] An unmatched category/brand slug path 404s.
+- [x] A leaf category with no published products shows an empty state
+  instead of an error (`ALMA LASER` has zero `Product` rows today).
+- [x] `tsc --noEmit` passes.
+**Do not:** Wire `Product`/segments rendering, the `[category]/[brand]/[product]`
+route, or the Products navbar in this task — see the follow-up task below.
+
+## [x] Task: Category editor — mirror public typography, richer YouTube media, clearer Name/Title
+
+**Context:** Three gaps in the `Category` page editor found while reviewing it
+against the now-wired public pages (ADR-036). See ADR-037.
+**Approach:** (1) `RichTextEditor` gained an optional `contentClassName` prop;
+the category body editor passes `tiptap-content-category` so it mirrors the
+public page's own h2/h3/p typography and spacing while writing, not the more
+compact article-editor defaults. (2) `Category` gained `youtubeThumbnailUrl`/
+`youtubeCaption`/`youtubeDescription` (all optional, migration
+`20260730033926_category_youtube_media`); the admin form's bare YouTube URL
+input became a bordered "Video" section (URL, thumbnail upload, caption,
+description), and the public `MediaDevice` shows a click-to-play poster when a
+thumbnail is set (unset falls back to the previous immediate-embed behavior)
+plus the caption/description as an h3/p above it. (3) Added one-line helper
+copy under "Name" and "Title" spelling out the URL/breadcrumb/nav-label vs.
+page-heading distinction (ADR-033) directly in the form.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260730033926_category_youtube_media/`
+- `src/interfaces/general.ts` — `ICategory` gains the three fields
+- `src/lib/categories.ts` — `getCategoryTree` row mapping
+- `src/app/(admin)/admin/product-device/limits.ts` — caption/description length constants
+- `src/app/(admin)/admin/product-device/actions.ts` — `uploadCategoryVideoThumbnail`,
+  `categoryPageContentSchema`/`ICategoryPageContent`/`parseCategoryPageContent`
+- `src/app/(admin)/admin/product-device/category-tree.tsx` — Video section,
+  Name/Title helper text, `contentClassName` wiring
+- `src/components/rich-text-editor.tsx` — `contentClassName` prop
+- `src/app/(user)/components/catalogue/Media.tsx` — thumbnail/caption/description props, click-to-play
+- `src/app/(user)/components/catalogue/CategoryPageView.tsx` — passes the three new fields through
+- `DECISIONS.md` (ADR-037)
+**Acceptance criteria:**
+- [x] Typing in the category body editor renders with the same h2/h3/p
+  sizing and spacing the public page uses, not the article editor's defaults.
+- [x] The Video section accepts a URL, an optional custom thumbnail, an
+  optional caption, and an optional description — all independently optional.
+- [x] A category with only a YouTube URL (no thumbnail) still embeds and
+  plays exactly as before (verified against `ALMA LASER`, unaffected by this
+  change).
+- [x] A category with a thumbnail set shows a poster + play button instead of
+  an immediately-loaded iframe; clicking it swaps to the actual embed.
+- [x] "Name" and "Title" each have a one-line explanation of what they're for
+  and how they differ.
+- [x] `tsc --noEmit` passes; verified against the dev DB and a running dev server.
+**Do not:** Auto-derive a fallback thumbnail from the YouTube video ID — the
+thumbnail is admin-provided only; skipping it keeps the previous embed
+behavior instead of guessing at a poster.
+
+## [x] Task: Wire `Product`/segments rendering to the public `/devices/...` detail page + SEO
+
+**Context:** Split off from the task above (ADR-036). `Product.categoryId` can
+point to a category at depth 1, 2, or 3 (`MAX_CATEGORY_DEPTH`), so a product's
+URL is 2-4 segments deep depending on where it's filed — the routing choice
+this task's predecessor deferred.
+**Approach:** One catch-all `src/app/(user)/devices/[...slug]/page.tsx`
+replaces the fixed `[category]/page.tsx`, `[category]/[brand]/page.tsx`, and
+the fully-hardcoded `[category]/[brand]/[product]/page.tsx` — it resolves the
+full slug path as a `Category` first (unchanged behavior from before), else
+resolves all-but-last as the category and the last segment as a published
+`Product`'s own slug under it. A new `ProductPageView` maps every non-hero
+segment type onto its real public component; the hero's `heroDocs`/
+`certifications` render through `HeroDevice`'s existing `children` slot.
+**Files to create or modify:**
+- `src/lib/categories.ts` — extracted `findCategoryInTree` so a caller
+  checking two slug paths against the same tree fetches it once
+- `src/lib/products.ts` — new `getPublishedProductBySlug(categoryId, slug)`
+- `src/lib/devices-route.ts` — new: `resolveDevicesRoute(type, slugPath)`,
+  shared category-vs-product resolver (takes `type` so it can serve a future
+  `/products/...` catch-all with no rework)
+- `src/app/(user)/devices/[...slug]/page.tsx` — new, replaces the 3 files below
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — new
+- `src/app/(user)/components/catalogue/GridFeature.tsx` — `columns`/
+  `backgroundColor` props so the `treatments` segment's own fields actually
+  drive it (previously hardcoded `bg-black`/`md:grid-cols-2`)
+**Acceptance criteria:**
+- [x] A published product's URL (at whatever depth it's filed) renders its
+  own segments through the real catalogue components, in admin-chosen order.
+- [x] Existing category URLs at every depth render unchanged.
+- [x] A draft product's URL, or an unknown product/category slug, 404s.
+- [x] `generateMetadata` reflects the product's own name/tagline/hero image.
+- [x] A `showInNav` segment's nav link scrolls to its own section.
+**Do not:** Wire the `/products/...` route tree or the Products navbar (see the
+follow-up task below), or retrofit `DropdownDevice`'s hardcoded "Technology"
+header / `DocumentDevice`'s fully hardcoded content — both render exactly as
+they did before; a `techSpecs` segment's own header is ignored, and every
+`document` segment currently shows identical placeholder content regardless of
+the product.
+
+## [x] Task: Products navbar + route tree
+
+**Context:** Split off from the task above — deferred because it needed its
+own pass, not because it was blocked on anything. Picked back up when the
+admin asked for the navbar's Products dropdown to show real categories
+instead of the static `deviceProductMenu` data (see ADR-042).
+**Approach:** `resolveDevicesRoute` (`src/lib/devices-route.ts`) already took
+a `type: "device" | "product"` param for exactly this — the `/products/...`
+route tree is a near-identical copy of the `/devices/...` catch-all
+(ADR-038) with `type: 'product'`, since `ProductPageView`/`CategoryPageView`/
+`getPublishedProductCards` were already generic across type. Wiring the
+navbar followed ADR-034's own Devices precedent, just applied to the
+Products branch too.
+**Files to create or modify:**
+- `src/app/(user)/products/[...slug]/page.tsx` — new, mirrors the Devices
+  catch-all
+- `src/lib/categories.ts` — new `getPublicProductCategoryTree` (cached,
+  mirrors `getPublicDeviceCategoryTree`)
+- `src/lib/data.ts` — `buildNavMenus` now splices both live trees, each
+  falling back to its own static branch independently
+- `src/app/(user)/layout.tsx` — fetches both trees, passes both in
+**Acceptance criteria:**
+- [x] The navbar's Products dropdown shows live `Category` data, the same
+  way Devices already did.
+- [x] Clicking a real product category in the nav lands on a working page
+  instead of a 404.
+- [x] An empty/failed product category fetch falls back to the static
+  branch without blanking the Devices branch (or vice versa).
+**Do not:** Assume `/products/...` must mirror `/devices/...`'s exact catch-all
+shape without checking whether `Product`-type categories have the same
+variable-depth situation Device-type ones do. (They do — same `Category`
+model, same `MAX_CATEGORY_DEPTH`.)
+
+## [ ] Task: `DropdownDevice`/`DocumentDevice` data-driven retrofits
+
+**Context:** Split off from the Products navbar task above — unrelated to
+routing/navigation, deferred because it needs its own pass.
+**Approach:** Not yet designed. At minimum: give `DropdownDevice` a `header`
+prop (`techSpecs` segments already carry their own `header` field, currently
+ignored) and make `DocumentDevice` accept real props (`heading`/`subheading`/
+`fileUrl`/`thumbnailUrl`/`alt`) instead of its fully hardcoded Alma Harmony
+content.
+**Files to create or modify:** TBD.
+**Acceptance criteria:**
+- [ ] TBD once approach is decided.
+**Do not:** Change `techSpecs`/`document` segments' own field shapes —
+this is a rendering-side retrofit only.
+
+## [x] Task: Reusable, type-scoped tags on Device/Product Identity
+
+**Context:** The admin wants devices/products taggable (e.g. "Dermatology",
+"Skin Restoration") for filtering, with tags created once and reused across
+items — not a standalone Tags management page, and explicitly not shared
+between the Devices and Products catalogs (see ADR-041).
+**Approach:** New `Tag` model, many-to-many with `Product`, scoped by
+`type` (`@@unique([type, name])`) the same way `Category` already is. A
+custom `TagPicker` combobox (Popover + search Input + scrollable list +
+inline "Add ..." create) lives directly on the Identity tab — no new admin
+page. `createTag` does a case-insensitive, type-scoped lookup before
+creating, so re-typing an existing name (in any casing) reuses it instead of
+making a near-duplicate.
+**Files to create or modify:**
+- `prisma/schema.prisma` — new `Tag` model, `Product.tags` relation
+- `prisma/migrations/20260731130000_add_tag/` — new
+- `src/interfaces/general.ts` — new `ITag`, `IProduct.tags`
+- `src/lib/tags.ts` — new, `getTags(type)`
+- `src/lib/products.ts` — `getProductById`/`getPublishedProductBySlug` now
+  include and map `tags`
+- `src/app/(admin)/admin/product-device/tag-actions.ts` — new, `createTag`
+- `src/app/(admin)/admin/product-device/tag-picker.tsx` — new
+- `src/app/(admin)/admin/product-device/product-form.tsx` — `tags` prop,
+  picker on the Identity tab, `tagIds` in the submitted `FormData`
+- `src/app/(admin)/admin/product-device/product-actions.ts` —
+  `resolveTagIds` (re-validated against the DB, type-scoped) wired into
+  `createProduct`/`updateProduct`
+- `src/app/(admin)/admin/product-device/items/editor/page.tsx` — fetches
+  and passes `tags`
+**Acceptance criteria:**
+- [x] Tags can be searched, picked, and created inline from a scrollable
+  dropdown on the Identity tab, with no separate Tags page.
+- [x] Typing an existing tag's name (any casing) selects the existing tag
+  instead of creating a duplicate.
+- [x] A tag created while editing a Device never appears, or can be
+  attached, while editing a Product — and vice versa.
+- [x] Saving persists exactly the selected set of tags (additions and
+  removals both reflected).
+**Do not:** Build a public-facing tag filter UI or a standalone tag
+management page — out of scope for this pass; see the follow-up task below.
+
+## [ ] Task: Public catalogue filtering by tag
+
+**Context:** Follow-up to the task above — tags exist and can be assigned,
+but nothing on the public `/devices`/`/products` catalogue pages lets a
+visitor filter by them yet.
+**Approach:** Not yet designed.
+**Files to create or modify:** TBD.
+**Acceptance criteria:**
+- [ ] TBD once approach is decided.
+**Do not:** Assume the filter UI/query shape without checking how the
+existing catalogue grid (`GridFeature.tsx`/`DeviceList.tsx`) paginates or
+loads today.
+
+## [x] Task: Surface "hidden from navbar" state in the category admin tree
+
+**Context:** ADR-043 made `mapCategoriesToNavMenu` drop any category branch
+with no page anywhere in it from the live navbar. `category-tree.tsx` had no
+way to tell an admin that a branch they're looking at is currently invisible
+in the live nav for exactly that reason. Per-row badge chosen over a
+top-of-page summary banner — shows the state at the exact node it applies to,
+where the admin is already looking, rather than a list that gets harder to
+read as the tree grows. Applies to both Devices and Products — one shared
+`CategoryTree` component serves both.
+**Approach:** `hasPageInBranch` moved out of `src/lib/categories.ts` (which
+imports `prisma`/`next/cache`, both server-only) into a new dependency-free
+`src/lib/category-visibility.ts`, so the exact same check backs both the
+public nav's filtering and this Client Component's badge instead of two
+implementations that could drift apart.
+**Files to create or modify:**
+- `src/lib/category-visibility.ts` — new, `hasPageInBranch`
+- `src/lib/categories.ts` — imports it instead of defining its own copy
+- `src/components/ui/tooltip.tsx` — new shadcn-style wrapper (`radix-ui`'s
+  `Tooltip`, already a dependency) with a short 150ms `delayDuration` — a
+  native `title` attribute's hover delay read as too slow
+- `src/app/(admin)/admin/product-device/category-tree.tsx` — an `EyeOff`
+  icon next to a node's name when `!hasPageInBranch(node)`, wrapped in that
+  `Tooltip` explaining why on hover
+**Acceptance criteria:**
+- [x] A category branch with no page anywhere in it shows an `EyeOff`
+  indicator in the admin tree (for both Devices and Products) that reveals
+  why on hover.
+- [x] A node that's a page itself, or has a page anywhere beneath it, never
+  shows the badge.
+**Do not:** Duplicate `hasPageInBranch`'s logic by hand — both call sites
+import the same function from `src/lib/category-visibility.ts`.

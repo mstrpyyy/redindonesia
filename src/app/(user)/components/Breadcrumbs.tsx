@@ -19,7 +19,7 @@ export const Breadcrumbs = () => {
   };
 
   return (
-    <nav className="text-neutral-300 text-xxs sm:text-xs max-sm:flex-wrap flex items-center">
+    <nav className="text-white text-xxs sm:text-xs max-sm:flex-wrap flex items-center">
       <Link href="/" className="relative group">
         <Home className='size-4' />
         <div className='w-full border-b border-b-white absolute -bottom-0 hidden group-hover:block' />

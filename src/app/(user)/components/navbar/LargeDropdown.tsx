@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react"
 import { Fragment, useRef, useState, useEffect } from "react"
-import Link from "next/link"
 import { INavbarMenu } from "@/interfaces/general"
+import { NavMenuLink } from "./NavMenuLink"
 
 interface ILargeDropdown {
   name: string,
@@ -154,30 +154,33 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 px-12 py-8 flex-1 overflow-y-auto scrollbar-thumb-only">
       {activeMenu?.menu?.map((menu) => (
         <div key={menu.slug}>
-          <Link 
-            href={`/${activeMenu.slug}/${menu.slug}`} 
-            className="font-bold text-red-500 text-lg my-4 block w-fit hover:underline"
+          <NavMenuLink
+            href={`/${activeMenu.slug}/${menu.slug}`}
+            isPage={menu.isPage}
+            className={`font-bold text-red-500 text-lg my-4 block w-fit ${menu.isPage === false ? '' : 'hover:underline'}`}
           >
             {menu.name}
-          </Link>
+          </NavMenuLink>
 
           {menu.menu?.map((child) => (
             <div key={child.slug}>
-              <Link 
-                href={`/${activeMenu.slug}/${menu.slug}/${child.slug}`} 
-                className={`mt-4 mb-2 block w-fit hover:underline font-normal`}
+              <NavMenuLink
+                href={`/${activeMenu.slug}/${menu.slug}/${child.slug}`}
+                isPage={child.isPage}
+                className={`mt-4 mb-2 block w-fit font-normal ${child.isPage === false ? '' : 'hover:underline'}`}
               >
                 {child.name}
-              </Link>
+              </NavMenuLink>
 
               {child.menu?.map((grandchild) => (
-                <Link 
+                <NavMenuLink
                   key={grandchild.slug}
-                  href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}`} 
-                  className="font-extralight pl-6 my-2 block w-fit hover:underline"
+                  href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}`}
+                  isPage={grandchild.isPage}
+                  className={`font-extralight pl-6 my-2 block w-fit ${grandchild.isPage === false ? '' : 'hover:underline'}`}
                 >
                   {grandchild.name}
-                </Link>
+                </NavMenuLink>
               ))}
             </div>
           ))}

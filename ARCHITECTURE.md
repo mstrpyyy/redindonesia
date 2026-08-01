@@ -42,10 +42,14 @@ PT. Radian Elok Distriversa is a catalog and marketing website for medical aesth
 ## Data Flow
 
 The application follows a **hybrid data architecture**:
-- Static catalog/marketing content (navigation, product lists, brand information) is
+- Static marketing content (navigation labels, brand logos, homepage carousels) is
   managed in `src/lib/data.ts` as constant objects.
-- CMS content (articles) is stored in PostgreSQL and read via Prisma. `/media/articles`
-  queries `Article` directly rather than static data.
+- CMS content (articles, the device/product category tree) is stored in PostgreSQL and
+  read via Prisma. `/media/articles` queries `Article` directly; the admin
+  `/admin/product-device/{devices,products}` pages query `Category` (see ADR-019) —
+  neither reads from `src/lib/data.ts`'s `deviceProductMenu`, which is no longer the
+  source of truth for either tree (still used as-is for the public navbar dropdown
+  until that's wired to `Category` too, see TASKS.md).
 - All rendering is performed server-side where possible, with client-side interactivity
   for dropdowns, carousels, and animations.
 
@@ -68,6 +72,37 @@ The application follows a **hybrid data architecture**:
     `/uploads/social-accounts`), `url`, `order`, `createdAt`, `updatedAt`.
   - `Gallery` — `id`, `title`, `description?`, `images` (`String[]`, relative paths
     under `/uploads/galleries`), `order`, `createdAt`, `updatedAt` (see ADR-011).
+  - `Category` — self-referential tree backing the admin-managed "Devices" and
+    "Products" menus (see ADR-019). `id`, `type` (`"device" | "product"`, same
+    string-enum convention as `Article.status`), `name`, `slug`, `depth` (1-3,
+    stored rather than derived so the max-depth-3 rule is a single read, not a
+    recursive parent walk), `order` (scoped per sibling group), `parentId?`
+    (`null` for depth-1 nodes), `createdAt`, `updatedAt`. `onDelete: Cascade` on
+    the self-relation means deleting a node deletes its whole subtree. Sibling
+    slug uniqueness (scoped to `type` + `parentId`) is enforced in the server
+    action, not a DB constraint — Postgres never treats `NULL` as equal to
+    `NULL`, so a `@@unique([type, parentId, slug])` index can't catch duplicate
+    depth-1 slugs (they all share `parentId = null`).
+  - `Product` — a device/product detail entry (see ADR-020). `id`, `type`
+    (`"device" | "product"`), `name`, `slug` (unique per `type`), `tagline?`,
+    `thumbnail?` (relative path under `/uploads/products`), `cardBackground?`
+    (one of the tints in `src/lib/card-backgrounds.ts`; null falls back to the
+    default), `status`
+    (`"draft" | "published"`), `order`, `categoryId` (FK to *any* `Category`
+    node, not necessarily a depth-3 leaf — some brands have no sub-brand
+    level), `segments` (`Json`, default `[]`), `createdAt`, `updatedAt`.
+    `segments` is an ordered array of typed content blocks (hero, highlight,
+    treatments grid, 360 viewer, tech spec accordion, applicator carousel,
+    before/after, document download) rather than one column/table per
+    section — see `src/interfaces/segments.ts` for the exact per-type shapes
+    and `src/app/(admin)/admin/product-device/segment-types.ts` for the
+    admin form's data-driven field definitions (one generic form-field
+    renderer + repeater, not nine bespoke forms). Most "image"/"file" fields
+    are plain URL text inputs; the ones that are always a real upload in
+    practice (hero background image, hero/document downloadable files,
+    certification logo + certificate) upload immediately on file select via
+    `uploadSegmentAsset` (`segment-upload-actions.ts`, `/uploads/products-content`)
+    and store the resulting URL — see ADR-021.
 - **Auth model**: a single shared login for the whole client team — not multi-user,
   not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
   httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`

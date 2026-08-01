@@ -1,7 +1,16 @@
-import React from 'react'
+import { AdminTitle } from '@/app/(admin)/components/admin-title'
+import { getCategoryTree } from '@/lib/categories'
+import { CategoryTree } from '../category-tree'
 
-export default function DevicesPage() {
+export default async function DevicesPage() {
+  const roots = await getCategoryTree('device')
+
   return (
-    <div>DevicesPage</div>
+    <>
+      <AdminTitle parent={'Product & Device'} title={'Device Management'} />
+      <div className="mt-6">
+        <CategoryTree type="device" title="Device Categories" initialRoots={roots} />
+      </div>
+    </>
   )
 }

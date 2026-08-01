@@ -1,17 +1,18 @@
 import { MenuIcon, Search } from 'lucide-react'
 import { useState } from 'react'
-import { navMenus } from '@/lib/data'
 import Link from 'next/link'
 import { DropdownNavButton } from './SidebarDropdown'
+import type { INavbarMenu } from '@/interfaces/general'
 
 interface ISidebar {
+  menu: INavbarMenu[],
   pathname: string,
   DROPDOWNSIZE: string,
   TOP_HEIGHT: string,
   setDarkenBg: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-export const SidebarMenu = ({ pathname, DROPDOWNSIZE, TOP_HEIGHT, setDarkenBg }: ISidebar) => {
+export const SidebarMenu = ({ menu: navMenus, pathname, DROPDOWNSIZE, TOP_HEIGHT, setDarkenBg }: ISidebar) => {
   const [open, setOpen] = useState(false)
   
   const handleOpen = () => {

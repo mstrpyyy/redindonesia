@@ -1,4 +1,6 @@
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
+import { getSegmentBackgroundColor } from '@/lib/segment-colors'
+import { cn } from '@/lib/utils'
 import Image from 'next/image'
 import React from 'react'
 
@@ -10,12 +12,17 @@ interface ITreatmentList {
 interface IGridListDevice {
   list: ITreatmentList[]
   header: string
+  columns?: '1' | '2'
+  /** One of SEGMENT_BACKGROUND_COLOR_VALUES (src/lib/segment-colors.ts). */
+  backgroundColor?: string
 }
 
-export const GridListDevice = ({ list, header }: IGridListDevice) => {
+export const GridListDevice = ({ list, header, columns = '2', backgroundColor = 'black' }: IGridListDevice) => {
+  const { bgClassName, textClassName } = getSegmentBackgroundColor(backgroundColor)
+
   return (
-    <BodyWrapper className='bg-black py-10 md:py-20' >
-      <section className='text-white' >
+    <BodyWrapper className={cn('py-10 md:py-20', bgClassName)} >
+      <section className={textClassName} >
         <h2
           className='h2-format text-center mb-10'
           data-aos="fade-up"
@@ -23,7 +30,7 @@ export const GridListDevice = ({ list, header }: IGridListDevice) => {
         >
           {header}
         </h2>
-        <TreatmentGrid list={list} />
+        <TreatmentGrid list={list} columns={columns} />
 
       </section>
     </BodyWrapper>
@@ -31,22 +38,28 @@ export const GridListDevice = ({ list, header }: IGridListDevice) => {
 }
 
 
-const TreatmentGrid = ({list}:{list:ITreatmentList[]}) => {
+const TreatmentGrid = ({list, columns}:{list:ITreatmentList[], columns: '1' | '2'}) => {
   return (
-    <div className='flex'>
-      <div className='grid grid-cols-1 md:grid-cols-2 items-center justify-items-start gap-10 w-fit md:w-full mx-auto'>
+    <div className='flex'
+      data-aos="fade-left"
+      data-aos-duration="500"
+      data-aos-anchor-placement="bottom"
+    >
+      <div className={cn('grid grid-cols-1 items-center justify-items-start gap-10 w-fit md:w-full mx-auto', columns === '2' && 'md:grid-cols-2')}>
         {list.map((item, index) => {
           return (
             <div 
               key={index}
               className="flex items-center gap-3 2xl:gap-5"
-              data-aos="fade-left"
-              data-aos-duration="500"
-              data-aos-delay={index*150}
             >
-              {item.svgUrl &&
+              {item.svgUrl ? (
                 <Image src={item.svgUrl} alt={item.name} width={100} height={100} className='w-12 lg:w-14' />
-              }
+              ) : (
+                // No custom icon from the CMS — a plain bullet dot instead of
+                // leaving the row iconless. `bg-current` matches whatever
+                // text color the section's backgroundColor resolves to.
+                <span className='block size-2.5 shrink-0 rounded-full bg-current' aria-hidden="true" />
+              )}
               <p className='p-format text-left!'>{item.name}</p>
             </div>
           )

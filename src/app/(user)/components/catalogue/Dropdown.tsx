@@ -32,7 +32,10 @@ export const DropdownDevice = ({list}:{list:IDropdownDevice[]}) => {
                 <h3 className="h3-sm-format">{item.title}</h3>
               </div>
             </AccordionTrigger>
-            <AccordionContent className="p-sm-format px-8 pb-8 bg-white">{item.body}</AccordionContent>
+            {/* `whitespace-pre-line` keeps the line breaks an admin typed
+                (Enter) in the Description textarea — plain text otherwise
+                collapses them and the paragraph renders as one flat line. */}
+            <AccordionContent className="p-sm-format px-8 pb-8 bg-white whitespace-pre-line">{item.body}</AccordionContent>
           </AccordionItem>
         ))}
       </Accordion>

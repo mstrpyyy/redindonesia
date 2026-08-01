@@ -13,17 +13,21 @@ const UPLOAD_BASE_DIR =
 /**
  * Persists an uploaded file under `<UPLOAD_BASE_DIR>/<feature>/` and returns
  * the public `/uploads/<feature>/<filename>` path to store in the DB.
+ *
+ * `filename`, when given, is used as-is instead of a random one — needed by
+ * callers that must land on a predictable name (the 360 viewer's frames are
+ * addressed by `<prefix><n><extension>` string concatenation at render time,
+ * not by a stored per-frame URL, so the on-disk name has to match that shape).
  */
-export async function saveUpload(file: File, feature: string): Promise<string> {
-  const extension = path.extname(file.name) || `.${file.type.split("/")[1]}`;
-  const filename = `${crypto.randomUUID()}${extension}`;
+export async function saveUpload(file: File, feature: string, filename?: string): Promise<string> {
+  const finalFilename = filename ?? `${crypto.randomUUID()}${path.extname(file.name) || `.${file.type.split("/")[1]}`}`;
 
   const dir = path.join(UPLOAD_BASE_DIR, feature);
   await mkdir(dir, { recursive: true });
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
+  await writeFile(path.join(dir, finalFilename), buffer);
 
-  return `/uploads/${feature}/${filename}`;
+  return `/uploads/${feature}/${finalFilename}`;
 }
 
 /**

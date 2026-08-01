@@ -6,6 +6,7 @@ import { NavbarBg } from '@/app/(user)/components/navbar/NavbarBg'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { getOtherPublishedArticles, getPublishedArticleBySlug, getPublishedArticleSlugs } from '@/lib/articles'
 import { formatArticleDate } from '@/lib/utils'
+import { ShareButton } from './share-button'
 
 interface IPageProps {
   params: Promise<{ slug: string }>
@@ -98,11 +99,14 @@ export default async function ArticleDetailPage({ params }: IPageProps) {
 
               <div className="flex flex-col gap-3">
                 <h1 className="h2-format">{title}</h1>
-                {article.publishedAt && (
-                  <span className="text-muted-foreground text-sm">
-                    {formatArticleDate(article.publishedAt)}
-                  </span>
-                )}
+                <div className="flex items-center justify-between gap-4">
+                  {article.publishedAt && (
+                    <span className="text-muted-foreground text-sm">
+                      {formatArticleDate(article.publishedAt)}
+                    </span>
+                  )}
+                  <ShareButton title={title} />
+                </div>
               </div>
 
               <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-neutral-100">

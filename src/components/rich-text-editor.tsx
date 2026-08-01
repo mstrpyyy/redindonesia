@@ -34,13 +34,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { uploadContentImage } from "./actions";
-import { ColorPickerButton } from "./color-picker-button";
-import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_CONTENT_IMAGE_LABEL,
-  MAX_CONTENT_IMAGE_SIZE,
-} from "./limits";
+import { ColorPickerButton } from "@/components/color-picker-button";
 
 // Common presets, Google Docs/Word style — not an exhaustive palette, just
 // recognizable defaults; anything else is reachable via the custom picker.
@@ -95,12 +89,28 @@ function ToolbarButton({ label, active, disabled, onClick, children }: IToolbarB
   );
 }
 
+type UploadImageResult =
+  | { success: true; data: { url: string } }
+  | { success: false; error: { code: string; message: string } };
+
 interface IRichTextEditorProps {
   value: string;
   onChange: (html: string) => void;
+  // Caller owns where the image is saved (each feature has its own upload
+  // folder/limits — e.g. articles-content vs categories-content) and its
+  // size/type validation; this component just shows whatever error comes
+  // back.
+  onUploadImage: (formData: FormData) => Promise<UploadImageResult>;
+  placeholder?: string;
+  // Extra class(es) on the editable area, appended after the base
+  // `tiptap-content` — lets a caller's editor mirror the exact h2/h3/p
+  // typography and spacing its content renders with on the public site
+  // (e.g. `tiptap-content-category`, globals.css) instead of the more
+  // compact defaults `tiptap-content` alone provides.
+  contentClassName?: string;
 }
 
-export function RichTextEditor({ value, onChange }: IRichTextEditorProps) {
+export function RichTextEditor({ value, onChange, onUploadImage, placeholder, contentClassName }: IRichTextEditorProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isUploadingImage, startImageUpload] = useTransition();
@@ -112,7 +122,7 @@ export function RichTextEditor({ value, onChange }: IRichTextEditorProps) {
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
-      Placeholder.configure({ placeholder: "Write your article..." }),
+      Placeholder.configure({ placeholder: placeholder ?? "Write something..." }),
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ["heading", "paragraph"], defaultAlignment: "justify" }),
       TextStyle,
@@ -124,15 +134,16 @@ export function RichTextEditor({ value, onChange }: IRichTextEditorProps) {
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
-        class: "tiptap-content max-w-none focus:outline-none min-h-64 px-3 py-2",
+        class: cn("tiptap-content max-w-none focus:outline-none min-h-64 px-3 py-2", contentClassName),
       },
     },
   });
 
-  // The DB-provided initial value only ever changes when a different article is
-  // loaded (e.g. navigating from one edit page to another with the same mounted
-  // component) — not on every keystroke, since `onChange` above doesn't feed
-  // back into this prop. Safe to resync content when that happens.
+  // The DB-provided initial value only ever changes when different content is
+  // loaded (e.g. navigating from one edit page to another with the same
+  // mounted component) — not on every keystroke, since `onChange` above
+  // doesn't feed back into this prop. Safe to resync content when that
+  // happens.
   useEffect(() => {
     if (!editor) return;
     if (editor.getHTML() === value) return;
@@ -158,21 +169,12 @@ export function RichTextEditor({ value, onChange }: IRichTextEditorProps) {
     if (!file) return;
     if (imageInputRef.current) imageInputRef.current.value = "";
 
-    if (file.size > MAX_CONTENT_IMAGE_SIZE) {
-      setImageError(`Image must be smaller than ${MAX_CONTENT_IMAGE_LABEL}.`);
-      return;
-    }
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setImageError("Image must be a JPEG, PNG, WEBP, or GIF.");
-      return;
-    }
-
     setImageError(null);
     const formData = new FormData();
     formData.set("image", file);
 
     startImageUpload(async () => {
-      const result = await uploadContentImage(formData);
+      const result = await onUploadImage(formData);
       if (!result.success) {
         setImageError(result.error.message);
         return;

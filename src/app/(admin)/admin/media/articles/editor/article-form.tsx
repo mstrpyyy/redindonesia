@@ -19,8 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { IArticle } from "@/interfaces/general";
-import { createArticle, updateArticle } from "./actions";
-import { RichTextEditor } from "./rich-text-editor";
+import { createArticle, updateArticle, uploadContentImage } from "./actions";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_EXCERPT_LENGTH,
@@ -233,7 +233,12 @@ export function ArticleForm({ article }: IArticleFormProps) {
 
       <div className="flex flex-col gap-2">
         <Label>Content</Label>
-        <RichTextEditor value={content} onChange={setContent} />
+        <RichTextEditor
+          value={content}
+          onChange={setContent}
+          onUploadImage={uploadContentImage}
+          placeholder="Write your article..."
+        />
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}

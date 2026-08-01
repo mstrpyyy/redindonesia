@@ -1,7 +1,7 @@
 import { INavbarMenu } from "@/interfaces/general"
 import { ChevronDown } from "lucide-react"
 import { useState } from "react"
-import Link from "next/link"
+import { NavMenuLink } from "./NavMenuLink"
 
 interface IDropdownNavButton {
   name: string
@@ -82,9 +82,12 @@ export const DropdownNavButton = ({
                     parentPath={fullPath}
                   />
                 ) : (
-                  <Link
+                  <NavMenuLink
                     href={fullPath}
-                    className={`block py-2 hover:underline text-white ${
+                    isPage={item.isPage}
+                    className={`block py-2 text-white ${
+                      item.isPage === false ? "" : "hover:underline"
+                    } ${
                       level <= 2 ? "font-normal" : "font-extralight"
                     }`}
                     style={{
@@ -92,7 +95,7 @@ export const DropdownNavButton = ({
                     }}
                   >
                     {item.name}
-                  </Link>
+                  </NavMenuLink>
                 )}
               </li>
             )

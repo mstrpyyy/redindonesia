@@ -58,7 +58,7 @@ export default async function MediaArticles() {
                     {(() => {
                       const previewText = getArticlePreviewText(article)
                       return previewText ? (
-                        <p className="text-base leading-normal text-muted-foreground line-clamp-2 text-pretty">
+                        <p className="text-base text-justify leading-normal text-muted-foreground line-clamp-2 text-pretty">
                           {previewText}
                         </p>
                       ) : null

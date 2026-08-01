@@ -1,3 +1,5 @@
+import type { INavbarMenu } from "@/interfaces/general";
+
 export const deviceProductMenu = [
   {
     name: "Devices",
@@ -182,7 +184,7 @@ export const mediaMenu = [
   }
 ]
 
-export const navMenus = [
+export const navMenus: INavbarMenu[] = [
   {
     name: 'Home',
     slug: '/',
@@ -217,6 +219,39 @@ export const navMenus = [
     type: 'link'
   },
 ]
+
+// One branch's live nav data, plus whether the DB actually has any category
+// of that type at all — the two are tracked separately (see ADR-044) so
+// `buildNavMenus` can tell "nothing created yet / DB read failed" (fall back
+// to the static placeholder) apart from "categories exist but none of them
+// qualify as a page yet" (`menu` is legitimately `[]` after ADR-043's
+// filtering — show that real, if currently empty, state rather than fake
+// static links).
+export interface ILiveCategoryBranch {
+  hasCategories: boolean
+  menu: INavbarMenu[]
+}
+
+// Splices live (Category-backed) Devices/Products trees into the static
+// `navMenus` structure (see ADR-042 — Products joined Devices here once the
+// `/products/...` catch-all existed to back its links). Each branch falls
+// back to its own static `deviceProductMenu` data independently — only when
+// `hasCategories` is false (see ADR-044) — so one type's outage never blanks
+// the other's nav.
+export function buildNavMenus(devices: ILiveCategoryBranch, products: ILiveCategoryBranch) {
+  return navMenus.map((menu) =>
+    menu.name === 'Devices & Products'
+      ? {
+          ...menu,
+          menu: (menu.menu ?? []).map((root) => {
+            if (root.slug === 'devices') return devices.hasCategories ? { ...root, menu: devices.menu } : root
+            if (root.slug === 'products') return products.hasCategories ? { ...root, menu: products.menu } : root
+            return root
+          }),
+        }
+      : menu
+  )
+}
 
 export const brandList = [
   { src: '/image/brand-logo/alma.webp', name: 'alma', link:'/' },
