@@ -135,8 +135,15 @@ export default function Viewer360({
     const delta = e.clientX - startX.current
     accumulatedDelta.current += delta
 
-    const sensitivity = 8
-    const frameChange = Math.floor(accumulatedDelta.current / sensitivity)
+    // Pixels of drag per frame step — higher is slower/less sensitive.
+    const sensitivity = 16
+    // `Math.trunc`, not `Math.floor` — `floor` rounds toward -Infinity, so a
+    // negative (leftward) delta reaches its next integer step at a smaller
+    // magnitude than the equivalent positive one (e.g. floor(-0.6) = -1, but
+    // floor(0.6) = 0), making left-drags advance a frame after less travel
+    // than right-drags. `trunc` rounds toward zero for both signs, so the
+    // same drag distance in either direction changes the same number of frames.
+    const frameChange = Math.trunc(accumulatedDelta.current / sensitivity)
 
     if (frameChange !== 0) {
       setCurrentFrame((prev) =>

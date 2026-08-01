@@ -210,7 +210,7 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[]) {
       return (
         <BodyWrapper className='my-14'>
           <div
-            className='tiptap-content tiptap-content-category'
+            className='tiptap-content tiptap-content-product'
             dangerouslySetInnerHTML={{ __html: segment.body }}
           />
         </BodyWrapper>

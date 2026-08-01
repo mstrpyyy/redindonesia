@@ -45,7 +45,15 @@ const TreatmentGrid = ({list, columns}:{list:ITreatmentList[], columns: '1' | '2
       data-aos-duration="500"
       data-aos-anchor-placement="bottom"
     >
-      <div className={cn('grid grid-cols-1 items-center justify-items-start gap-10 w-fit md:w-full mx-auto', columns === '2' && 'md:grid-cols-2')}>
+      {/* 1 column: the grid stays `w-fit` (sized to its own content) at every
+          breakpoint so `mx-auto` actually centers the whole block within the
+          section — each item's own text stays `text-left!` below, only the
+          block as a whole is centered. 2 columns still needs the full width
+          at md+ for the 2-up grid to lay out, so it keeps the old behavior. */}
+      <div className={cn(
+        'grid grid-cols-1 items-center justify-items-start gap-10 mx-auto',
+        columns === '2' ? 'w-fit md:w-full md:grid-cols-2' : 'w-fit'
+      )}>
         {list.map((item, index) => {
           return (
             <div 

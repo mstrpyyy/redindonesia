@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { saveUpload } from "@/lib/uploads";
 import { z } from "zod";
 import {
@@ -109,12 +109,14 @@ export async function uploadCategoryContentImage(formData: FormData): Promise<Ac
 
 function revalidateCategoryPages(type: "device" | "product") {
   revalidatePath(`/admin/product-device/${type === "device" ? "devices" : "products"}`);
-  // The public navbar's Devices dropdown reads `getPublicDeviceCategoryTree`
-  // (src/lib/categories.ts), cached on a short time-based window rather than
-  // invalidated from here — see that function's comment for why (this
-  // Next.js version's `revalidateTag` now requires a cache-profile argument
-  // tied to the newer `"use cache"` model, which a plain `unstable_cache`
-  // call like that one doesn't use).
+  // Immediately invalidates the public navbar's cached category tree
+  // (`getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`,
+  // src/lib/categories.ts) instead of waiting out its hour-long fallback
+  // window — see ADR-058. `updateTag` (not `revalidateTag`) because this
+  // runs inside a Server Action, which is exactly what `updateTag` requires
+  // and gets immediate read-your-own-writes semantics with no deprecation
+  // warning and no cache-profile argument.
+  updateTag(type === "device" ? "device-nav-categories" : "product-nav-categories");
 }
 
 const DIACRITIC_MARKS_PATTERN = new RegExp("[\\u0300-\\u036f]", "g");

@@ -362,10 +362,11 @@ function FieldInput({
         onChange={onChange}
         onUploadImage={uploadSegmentContentImage}
         placeholder={field.placeholder}
-        // Mirrors the public product page's own h2/h3/p typography (see
-        // CategoryPageView's body field precedent) so what's typed here
-        // previews close to how it will actually render.
-        contentClassName="tiptap-content-category tiptap-content-category-compact"
+        // Mirrors the public product page's own h2/h3/p typography — the
+        // Text & Image (Highlight) segment's scale, not the page-hero scale
+        // CategoryPageView's body uses — so what's typed here previews
+        // close to how it will actually render.
+        contentClassName="tiptap-content-product tiptap-content-product-compact"
       />
     );
   }

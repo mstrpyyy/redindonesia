@@ -26,7 +26,10 @@ export const HighlightDevice = ({ header, text, image, textSide, imageFit = 'fil
       >
         <div className='flex-1 space-y-2 md:space-y-4'>
           <h2 className='h2-md-format xl:text-3xl!'>{header}</h2>
-          <p className='max-lg:text-sm! max-lg:leading-7! p-format'>{text}</p>
+          {/* `whitespace-pre-line` keeps the line breaks an admin typed
+              (Enter) in the Text field — plain text otherwise collapses
+              them and the paragraph renders as one flat line. */}
+          <p className='max-lg:text-sm! max-lg:leading-7! p-format whitespace-pre-line'>{text}</p>
         </div>
 
         <Image

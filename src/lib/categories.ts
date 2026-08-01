@@ -82,17 +82,16 @@ export async function getCategoryBySlugPath(
 
 // Cached separately from `getCategoryTree` itself — the public navbar renders
 // this on every page, unlike the admin pages' own uncached reads (low-traffic,
-// no benefit to caching those). Time-based rather than this codebase's usual
-// on-demand-only (`revalidatePath`/`revalidateTag` from the mutation itself):
-// this Next.js version made `revalidateTag` require a second "cache profile"
-// argument tied to the newer `"use cache"`/`cacheLife` model, which doesn't
-// apply to a plain `unstable_cache` call like this one — rather than fight
-// that, a short revalidate window is a perfectly reasonable fit for data that
-// only changes via infrequent admin edits anyway.
+// no benefit to caching those). Tagged so a category mutation can invalidate
+// it immediately via `updateTag` (`revalidateCategoryPages`, actions.ts) — see
+// ADR-058, which corrects an earlier (mistaken) assumption that on-demand
+// invalidation wasn't possible here. `revalidate: 3600` is only a fallback
+// net in case some future write path forgets to call `updateTag`; it's not
+// the primary invalidation mechanism.
 export const getPublicDeviceCategoryTree = unstable_cache(
   () => getCategoryTree("device"),
   ["device-nav-categories"],
-  { revalidate: 300 }
+  { revalidate: 3600, tags: ["device-nav-categories"] }
 );
 
 // Same caching rationale as `getPublicDeviceCategoryTree` above — the
@@ -100,7 +99,7 @@ export const getPublicDeviceCategoryTree = unstable_cache(
 export const getPublicProductCategoryTree = unstable_cache(
   () => getCategoryTree("product"),
   ["product-nav-categories"],
-  { revalidate: 300 }
+  { revalidate: 3600, tags: ["product-nav-categories"] }
 );
 
 // `Category` → the navbar's `INavbarMenu` shape (name/slug/menu), for splicing

@@ -54,3 +54,14 @@ export function getYoutubeVideoId(url: string): string | null {
   }
   return parsed.searchParams.get("v")
 }
+
+// A Tiptap editor left untouched still serializes to a non-empty string like
+// `<p></p>` (an empty paragraph), not `""` — a plain truthy check on the
+// stored HTML treats that as "has content" and renders a visibly empty
+// section. This strips tags and checks for real text, or an `<img>` (a body
+// can legitimately be image-only with no text).
+export function hasRichTextContent(html: string | null | undefined): boolean {
+  if (!html) return false
+  if (html.replace(/<[^>]*>/g, "").trim() !== "") return true
+  return /<img\b/i.test(html)
+}

@@ -94,10 +94,15 @@ export const HeroDevice = ({
             : 'my-auto'
         )}
       >
-        <h1 className={cn('h1-format', hasTextShadow && 'text-shadow')}>
+        {/* Product hero only — at xl+ the banner is wide enough that a
+            full-width title/description reads as an uncomfortably long
+            line; capping both to 2/3 of the viewport keeps them readable
+            without affecting the category hero's own (already centered,
+            narrower) layout. */}
+        <h1 className={cn('h1-format', hasTextShadow && 'text-shadow', variant === 'product' && 'xl:max-w-[66.6667vw]')}>
           {title}
         </h1>
-        <p className={cn('p-lg-format text-balance mt-2', hasTextShadow && 'text-shadow', variant === 'category' ? 'text-center!' : 'text-left!')}>
+        <p className={cn('p-lg-format text-balance mt-2', hasTextShadow && 'text-shadow', variant === 'category' ? 'text-center!' : 'text-left!', variant === 'product' && 'xl:max-w-[66.6667vw]')}>
           {description}
         </p>
         {heroDocs && heroDocs.length > 0 &&

@@ -3,7 +3,7 @@ import { VideoTextSection } from '../VideoTextSection'
 import { DeviceFilterList } from './DeviceList'
 import { BodyWrapper } from '../BodyWrapper'
 import { ICategory, IDeviceCardItem } from '@/interfaces/general'
-import { getYoutubeVideoId } from '@/lib/utils'
+import { getYoutubeVideoId, hasRichTextContent } from '@/lib/utils'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
 
 interface ICategoryPageViewProps {
@@ -32,6 +32,10 @@ export const CategoryPageView = ({ category, urlPrefix, productCards }: ICategor
   }))
 
   const videoId = category.youtubeUrl ? getYoutubeVideoId(category.youtubeUrl) : null
+  // A Tiptap editor left untouched still saves as `<p></p>`, not `""` — a
+  // raw truthiness check on `category.body` would count that as "has
+  // content" and render a visibly empty rich text block.
+  const bodyHtml = category.body && hasRichTextContent(category.body) ? category.body : null
 
   // Callers (`[category]/page.tsx`, `[category]/[brand]/page.tsx`) already
   // redirect home for a non-page category (ADR-033) before rendering this —
@@ -52,13 +56,18 @@ export const CategoryPageView = ({ category, urlPrefix, productCards }: ICategor
         } : undefined}
       />
 
-      {category.body && (
+      {/* Gated on body OR video, not just body — a category with only a
+          YouTube video and no rich text still gets this section, and one
+          with neither never renders an empty gradient box. */}
+      {(bodyHtml || videoId) && (
         <BodyWrapper className='radial-gradient2 py-20 shadow-md relative z-10'>
           {/* Admin-authored HTML from the category's rich text editor —
               same trusted-source precedent as the article detail page.
               `tiptap-content-category` overrides h2/p to the site's
               h2-format/p-format type scale (globals.css). */}
-          <div className='tiptap-content tiptap-content-category' dangerouslySetInnerHTML={{ __html: category.body }} />
+          {bodyHtml && (
+            <div className='tiptap-content tiptap-content-category' dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+          )}
           {videoId && (
             <VideoTextSection
               className="min-h-[90vh] portrait:my-0 portrait:mt-14"

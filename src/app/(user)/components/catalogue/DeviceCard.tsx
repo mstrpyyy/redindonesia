@@ -33,20 +33,28 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
         className
       )}
     >
-      {/* `items-end`: the image column stretches to the card's height, so an
-          image shorter than the text sits flush to the bottom edge rather
-          than floating at the top with a gap underneath it. */}
-      <div className="w-2/3 max-sm:max-w-[200px] sm:w-3/7 flex items-end">
+      {/* Fills the card's full height on sm+ (a row layout) via the default
+          `align-items: stretch` on the root flex row below — no explicit
+          height utility needed there; a flex item's stretched cross-size is
+          a real, definite height, unlike `h-full` (height: 100%), which
+          can't resolve against this row's own auto/content-driven height and
+          collapses to 0 (the bug: an uploaded thumbnail rendering as
+          nothing). On mobile (`max-sm:flex-col`) stretch only affects width,
+          not height, so `max-sm:h-48` gives it an explicit height there.
+          `object-contain` never crops; `object-bottom` anchors a
+          smaller-than-the-box image to the bottom edge (every device photo
+          "stands" on the same ground line) instead of floating centered in
+          the leftover space. */}
+      <div className="relative w-2/3 max-sm:max-w-[200px] max-sm:h-48 sm:w-3/7 overflow-hidden">
         {item.imgUrl ? (
           <Image
             src={item.imgUrl}
             alt={item.name}
-            width={600}
-            height={600}
-            className="w-full h-auto object-contain"
+            fill
+            className="object-contain object-bottom"
           />
         ) : (
-          <div className="flex aspect-square w-full items-center justify-center text-neutral-400">
+          <div className="flex h-full w-full items-center justify-center text-neutral-400">
             <ImageOff className="size-8" />
           </div>
         )}
@@ -57,7 +65,7 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
           root `lang="en"`) breaks long words with a hyphen; `wrap-break-word`
           catches the ones no dictionary knows, like model codes. */}
       <div className="flex flex-col flex-1 min-w-0 hyphens-auto wrap-break-word p-5">
-        <h3 className="h3-format font-semibold">{item.name}</h3>
+        <h3 className="h3-format font-semibold text-balance">{item.name}</h3>
         {/* The description is clamped to 4 lines, so a one-line tagline used
             to make its card ~3 lines shorter than a long one and every card
             ended up a different shape. Reserving the full 4 lines whatever

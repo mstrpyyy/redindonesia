@@ -1190,3 +1190,212 @@ implementations that could drift apart.
   shows the badge.
 **Do not:** Duplicate `hasPageInBranch`'s logic by hand — both call sites
 import the same function from `src/lib/category-visibility.ts`.
+
+## [x] Task: Fix stale navbar after category edits (on-demand cache invalidation)
+
+**Context:** Reported bug: category changes didn't reliably show up in the
+public navbar, even after a hard browser refresh. Root cause: the navbar's
+category tree reads (`getPublicDeviceCategoryTree`/
+`getPublicProductCategoryTree`) were cached server-side on a 5-minute
+time-based window only — invisible to a browser refresh, since the
+staleness lives in Next.js's server Data Cache, not the browser. Category
+mutations never invalidated this cache on write. See ADR-058.
+**Approach:** Tagged both cached reads (`tags: ["device-nav-categories"]` /
+`["product-nav-categories"]`); the category mutation actions now call
+`updateTag(...)` for the mutated type immediately after writing, giving
+instant on-demand invalidation. The time-based fallback stays as a safety
+net, raised from 5 minutes to 1 hour since it's no longer the primary
+mechanism.
+**Files to create or modify:**
+- `src/lib/categories.ts` — `tags` option on both `unstable_cache` calls
+- `src/app/(admin)/admin/product-device/actions.ts` — `revalidateCategoryPages`
+  calls `updateTag`
+- `DECISIONS.md` (ADR-058)
+**Acceptance criteria:**
+- [x] Creating, editing, deleting, or reordering a category is reflected in
+  the public navbar on the very next request — no stale window, no browser
+  refresh needed.
+**Do not:** Change `getCategoryTree`/`getCategoryBySlugPath` (uncached,
+used by admin pages and public category/product detail routes) — this fix
+is scoped to the two navbar-specific cached reads.
+
+## [x] Task: Rich Text segment's h2/h3/p match the Text & Image segment's sizes
+
+**Context:** The client asked for the product page's Rich Text segment to
+use the same font sizes as the Text & Image (Highlight) segment's header/
+text, instead of the page-hero scale it inherited from
+`.tiptap-content-category` (shared with the Category page's body field).
+**Approach:** New `.tiptap-content-product` CSS class — h2/h3/p sized to
+match Highlight's own `h2-md-format xl:text-3xl!`/`p-format` classes (h3 has
+no Highlight equivalent, so `h3-sm-format` is reused since `Dropdown.tsx`
+already pairs it with `h2-md-format` elsewhere). A flat `-compact` variant
+was added to match, mirroring the existing category/category-compact
+pattern, and wired into the admin's Rich Text field preview
+(`segments-builder.tsx`) so what's typed there keeps previewing close to
+the real render.
+**Files to create or modify:**
+- `src/app/globals.css` — `.tiptap-content-product`,
+  `.tiptap-content-product-compact`
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — `richText`
+  case uses the new class
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — Rich Text
+  field's `contentClassName`
+**Acceptance criteria:**
+- [x] A Rich Text segment's h2/h3/p render at the same size as the Text &
+  Image segment's header/text on the public product page.
+- [x] The admin's Rich Text field preview reflects the same scale.
+**Do not:** Change `.tiptap-content-category`/`-compact` — the Category
+page's body field is unaffected; this is a separate, product-page-only
+class.
+
+## [x] Task: Thicker bold weight for rich text paragraphs (product + category pages)
+
+**Context:** The client asked for bold text inside rich text paragraphs to
+be visually thicker on both the product page (`.tiptap-content-product`)
+and the category page (`.tiptap-content-category`). Root cause of the
+existing weak look: both paragraph classes are `font-light` (300), and the
+browser's default `<strong>`/`<b>` weight is the relative keyword `bolder`,
+which the CSS spec resolves from an inherited 300 down to 400 (normal) —
+not 700 — so bold text barely stood out from the surrounding light text.
+**Approach:** Explicit `font-weight: 800` on `strong`/`b` inside both
+paragraph classes, overriding the browser's relative `bolder` resolution
+with a fixed heavier weight.
+**Files to create or modify:**
+- `src/app/globals.css`
+**Acceptance criteria:**
+- [x] Bold text inside a Rich Text segment's paragraph (product page) and a
+  Category page body paragraph both render at a clearly heavier weight than
+  the surrounding text.
+**Do not:** Change bold weight inside headings (h2/h3) — those aren't
+`font-light`, so their `<strong>`/`<b>` already resolves to a proper bold
+via the browser default; only paragraph text had the weak-bold bug.
+
+## [x] Task: Catalogue card thumbnail fills the card's full height, no cropping
+
+**Context:** `DeviceCard`'s image slot had no fixed size — it rendered at
+`w-full h-auto`, so its actual height was whatever the source thumbnail's
+own aspect ratio produced. Cards with a wide thumbnail and cards with a
+tall one ended up visibly different shapes in the same grid. A first pass
+fixed this with a hardcoded `aspect-square` box, but the client wants the
+image to fill the card's actual height instead of being boxed into a fixed
+square.
+**Approach:** The image container has no explicit height utility on sm+ —
+it fills the card's height via the root flex row's default
+`align-items: stretch` (a flex item's stretched cross-size is a real,
+definite height the `fill`-positioned `<Image>` can size against). Plain
+`h-full` (height: 100%) was tried first and doesn't work here: the row's own
+height is content-driven (auto), and a percentage height can't resolve
+against an indefinite ancestor height, so the box silently collapsed to
+zero height — the reported bug ("thumbnail doesn't show any image"). On
+mobile (`max-sm:flex-col`), stretch only affects width, not height, so
+`max-sm:h-48` gives the box an explicit height there instead. `<Image>` uses
+`fill` + `object-contain object-bottom` — `object-contain` scales the image
+down to fit without cropping (never `object-cover`), and `object-bottom`
+anchors an image shorter than the box to the bottom edge (every device
+photo "stands" on the same ground line) instead of floating centered with
+empty space above and below.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/DeviceCard.tsx`
+**Acceptance criteria:**
+- [x] A card's thumbnail fills the card's actual height (matching the text
+  column), not a fixed square independent of the card's real size.
+- [x] A thumbnail is never cropped — it scales down to fit, letterboxed if
+  its own proportions don't match the box.
+- [x] A thumbnail shorter than the box sits flush against the bottom edge
+  instead of floating centered with a gap above and below.
+- [x] The no-image (`ImageOff`) fallback fills the same box.
+- [x] The mobile (stacked) layout still shows a visible thumbnail — not
+  zero-height — since flex stretch doesn't apply to height in a column
+  layout.
+**Do not:** Crop thumbnails to fill the box (`object-cover`) — the ask was
+for the whole image visible, scaled to fit, not a cropped fill.
+
+## [x] Task: Category page's body/video section renders independently, never empty
+
+**Context:** `CategoryPageView.tsx`'s rich-text-body-and-video section was
+gated entirely on `category.body` — a category with a YouTube video but no
+rich text body never showed its video at all, and (per the client's own
+framing of the fix) the surrounding gradient container needed to stay tied
+to "is there anything to show," not just to the body field alone.
+**Approach:** The outer gradient container is now gated on `category.body
+|| videoId` instead of `category.body` alone; the rich text `div` render is
+now its own `category.body &&` check nested inside, and the video render is
+no longer nested under the body check at all. Follow-up fix: a Tiptap editor
+left untouched still serializes to `<p></p>`, not `""` — a raw truthiness
+check on `category.body` counted that as "has content" and still rendered a
+visibly empty gradient box. New `hasRichTextContent()` (`src/lib/utils.ts`)
+strips tags and checks for real text or an `<img>` tag; `CategoryPageView`
+computes `bodyHtml` once (`category.body` only if it passes this check, else
+`null`) and uses that everywhere instead of the raw field.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/CategoryPageView.tsx`
+- `src/lib/utils.ts` — new `hasRichTextContent()`
+**Acceptance criteria:**
+- [x] A category with a video but no rich text body still shows the video.
+- [x] A category with neither a body nor a video renders no gradient
+  container at all.
+- [x] A category whose body is only an empty Tiptap paragraph (`<p></p>`,
+  no real text or image) and has no video also renders no gradient
+  container — not treated as "has content" just because the field is a
+  non-empty string.
+- [x] A category with both a real body and a video still renders exactly as
+  before.
+**Do not:** Change the Hero or the sub-category/product grid below this
+section — scoped to the body/video block only.
+
+## [x] Task: Text & Image segment keeps line breaks on the public page
+
+**Context:** The Highlight segment's Text field is already a multi-line
+textarea in the admin, but line breaks typed there collapsed into one flat
+line on the public product page — plain HTML/CSS ignores newlines in text
+content unless told otherwise.
+**Approach:** Added `whitespace-pre-line` to the paragraph, the same fix
+already applied to the Accordion (`Dropdown.tsx`) and List (`GridFeature.tsx`)
+segments for the identical issue.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/Highlight.tsx`
+**Acceptance criteria:**
+- [x] A line break typed in the Highlight segment's Text field renders as a
+  line break on the public product page.
+**Do not:** Change the admin field itself — it was already a textarea; this
+was a public-render-only fix.
+
+## [x] Task: Product hero title/description capped to 2/3 viewport width at xl+
+
+**Context:** The client asked for the product page hero's title and
+description to stop stretching full-width on large screens — at xl+ the
+banner is wide enough that a full-width line reads uncomfortably long.
+**Approach:** Added `xl:max-w-[66.6667vw]` to both the `<h1>` and `<p>`,
+scoped to `variant === 'product'` only (`Hero.tsx` is shared with the
+Category hero, which is already centered/narrower and wasn't part of the
+ask).
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/Hero.tsx`
+**Acceptance criteria:**
+- [x] At xl and above, the product hero's title and description are capped
+  to 2/3 of the viewport width.
+- [x] Below xl, and the Category hero at any size, are unaffected.
+**Do not:** Apply this to the Category hero variant.
+
+## [x] Task: List segment — 1-column layout centers as a block, items stay left-aligned
+
+**Context:** With Columns set to 1, `GridListDevice`'s grid was forced
+`md:w-full` regardless of column count, so it always spanned the full
+section width with items left-justified inside it — the block itself never
+centered, it just filled the row edge-to-edge. The client wants the block
+of items centered within the section when there's only 1 column, without
+center-aligning each item's own text.
+**Approach:** The grid's width is now conditional on `columns` — `2`
+keeps the existing `w-fit md:w-full md:grid-cols-2` (needs the full width
+for the 2-up layout); `1` stays `w-fit` at every breakpoint, so the existing
+`mx-auto` actually centers the (now content-sized) block. Each item's `<p>`
+was already `text-left!` and is untouched.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/GridFeature.tsx`
+**Acceptance criteria:**
+- [x] With Columns = 1, the list block is horizontally centered within the
+  section instead of stretching full-width.
+- [x] Each item's text stays left-aligned, not centered.
+- [x] Columns = 2 is unaffected.
+**Do not:** Change item text alignment to `text-center` — only the block as
+a whole centers.

@@ -2657,3 +2657,48 @@ Subheader-above-Header arrangement.
   weight (a large photo-sized card) as one with a thumbnail — it renders as
   a compact button instead, so a page mixing both looks intentionally
   different per entry rather than uniformly sized.
+
+## ADR-058: Category edits now invalidate the public navbar cache on-demand via `updateTag`
+
+**Date:** 2026-08-01
+**Status:** Accepted (corrects an assumption behind ADR-042/ADR-050's caching notes)
+
+**Context:** Reported bug: category edits didn't reliably show up in the
+public navbar, and a hard refresh (Ctrl+Shift+R) never fixed it. Root cause:
+`getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`
+(`src/lib/categories.ts`) are wrapped in `unstable_cache` with only a
+time-based `revalidate: 300` (5 minutes) — a **server-side** Data Cache
+entry, invisible to and unaffected by a browser hard refresh. The category
+mutation actions (`createCategory`/`updateCategory`/`deleteCategory`/
+`reorderCategories`, `actions.ts`) never invalidated it on write, based on a
+code comment asserting this Next.js version's `revalidateTag` "requires a
+second cache-profile argument" incompatible with a plain `unstable_cache`
+call. Checking the installed Next.js 16.1.6 source
+(`node_modules/next/dist/server/web/spec-extension/revalidate.js`) showed
+this was a mistaken assumption: `revalidateTag(tag)` without a profile still
+works (just emits a deprecation warning), and — more relevantly — Next 16
+ships `updateTag(tag)`, a profile-free on-demand invalidation function
+purpose-built for exactly this "invalidate from the Server Action that just
+wrote the data" case, with no deprecation warning.
+
+**Decision:** Both `unstable_cache` calls gained a matching `tags` option
+(`["device-nav-categories"]`/`["product-nav-categories"]`, same strings as
+their existing key parts). `revalidateCategoryPages` (`actions.ts`, called
+by all four category mutations already) now also calls
+`updateTag("device-nav-categories" | "product-nav-categories")` for the
+mutated type. The time-based `revalidate` is kept, but raised from 300 to
+3600 seconds and demoted to a fallback safety net — the primary invalidation
+path is now on-demand, immediate, and tied to the actual write.
+
+**Consequences:**
+- A category create/edit/delete/reorder now reflects in the public navbar
+  on the very next request, with no stale window — no browser action (hard
+  refresh or otherwise) was ever going to fix this, since the staleness was
+  server-side.
+- `updateTag` only works when called from within a Server Action (it throws
+  otherwise) — safe here since every call site is one, but a future
+  route-handler-based category mutation would need `revalidateTag(tag,
+  profile)` instead and would need its own profile decision.
+- No change to `getCategoryTree`/`getCategoryBySlugPath` (uncached, used by
+  the admin pages and the public category/product detail routes) — this
+  fix is scoped to the two navbar-specific cached reads.
