@@ -25,19 +25,18 @@ export default async function userLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // A transient DB hiccup here must not break every page's navbar (it renders
-  // on all of them) — fall back to an empty tree per branch, which reads as
-  // `hasCategories: false` below and makes `buildNavMenus` use that branch's
-  // static data instead. A non-empty but not-yet-a-page tree (ADR-044) is a
-  // different case — `hasCategories: true` with a `menu` that may still be
-  // `[]` after ADR-043's filtering — and correctly does NOT fall back.
+  // `null` (the read itself threw) is tracked separately from `[]` (the read
+  // succeeded, there's just nothing there yet) — only the former falls back
+  // to the static placeholder (ADR-050). A transient DB hiccup here must not
+  // break every page's navbar (it renders on all of them), but an empty CMS
+  // now shows an empty branch instead of fake static content.
   const [deviceCategories, productCategories] = await Promise.all([
-    getPublicDeviceCategoryTree().catch(() => []),
-    getPublicProductCategoryTree().catch(() => []),
+    getPublicDeviceCategoryTree().catch(() => null),
+    getPublicProductCategoryTree().catch(() => null),
   ]);
   const menus = buildNavMenus(
-    { hasCategories: deviceCategories.length > 0, menu: mapCategoriesToNavMenu(deviceCategories) },
-    { hasCategories: productCategories.length > 0, menu: mapCategoriesToNavMenu(productCategories) }
+    { fetchSucceeded: deviceCategories !== null, menu: mapCategoriesToNavMenu(deviceCategories ?? []) },
+    { fetchSucceeded: productCategories !== null, menu: mapCategoriesToNavMenu(productCategories ?? []) }
   );
 
   return (

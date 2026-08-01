@@ -220,15 +220,16 @@ export const navMenus: INavbarMenu[] = [
   },
 ]
 
-// One branch's live nav data, plus whether the DB actually has any category
-// of that type at all — the two are tracked separately (see ADR-044) so
-// `buildNavMenus` can tell "nothing created yet / DB read failed" (fall back
-// to the static placeholder) apart from "categories exist but none of them
-// qualify as a page yet" (`menu` is legitimately `[]` after ADR-043's
-// filtering — show that real, if currently empty, state rather than fake
-// static links).
+// One branch's live nav data, plus whether the DB read for it actually
+// succeeded — the two are tracked separately (see ADR-050, refining
+// ADR-044) so `buildNavMenus` can tell "the read itself failed" (fall back
+// to the static placeholder — the one case that's still allowed to show
+// fake data) apart from "the read succeeded and there's genuinely nothing
+// there yet" (no categories created, or none qualify as a page after
+// ADR-043's filtering — `menu` is legitimately `[]`, and that's shown as an
+// empty branch rather than papered over with static content).
 export interface ILiveCategoryBranch {
-  hasCategories: boolean
+  fetchSucceeded: boolean
   menu: INavbarMenu[]
 }
 
@@ -236,16 +237,16 @@ export interface ILiveCategoryBranch {
 // `navMenus` structure (see ADR-042 — Products joined Devices here once the
 // `/products/...` catch-all existed to back its links). Each branch falls
 // back to its own static `deviceProductMenu` data independently — only when
-// `hasCategories` is false (see ADR-044) — so one type's outage never blanks
-// the other's nav.
+// `fetchSucceeded` is false, i.e. the DB read itself errored (see ADR-050)
+// — so one type's outage never blanks the other's nav.
 export function buildNavMenus(devices: ILiveCategoryBranch, products: ILiveCategoryBranch) {
   return navMenus.map((menu) =>
     menu.name === 'Devices & Products'
       ? {
           ...menu,
           menu: (menu.menu ?? []).map((root) => {
-            if (root.slug === 'devices') return devices.hasCategories ? { ...root, menu: devices.menu } : root
-            if (root.slug === 'products') return products.hasCategories ? { ...root, menu: products.menu } : root
+            if (root.slug === 'devices') return devices.fetchSucceeded ? { ...root, menu: devices.menu } : root
+            if (root.slug === 'products') return products.fetchSucceeded ? { ...root, menu: products.menu } : root
             return root
           }),
         }

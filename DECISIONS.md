@@ -2347,3 +2347,38 @@ variant, so the two places a certification's logo is chosen stay in sync.
   seed/fallback value, not the actual source the public page renders from —
   the public render always recomputes the logo from `certType` + the
   current hero color, ignoring what's stored.
+
+## ADR-050: Static nav fallback narrowed to an actual DB read failure only
+
+**Date:** 2026-07-31
+**Status:** Accepted (further narrows ADR-044)
+
+**Context:** ADR-044 stopped the static placeholder from firing when
+categories exist but none are pages yet, but still fell back to it whenever
+a type had zero categories at all — indistinguishable, at the time, from an
+actual DB read failure, since both cases collapsed to the same empty array.
+In production, a genuinely empty CMS (no Devices/Products categories
+created yet) rendered the static `deviceProductMenu` placeholder names,
+which read as "the real data never got wired up" rather than "nothing's
+been entered yet." Confirmed with the admin: an empty CMS should show an
+empty nav branch, full stop — the static fallback should only exist for the
+one case it was originally meant for: an actual DB error.
+
+**Decision:** `(user)/layout.tsx` now catches each category-tree fetch to
+`null` (the read threw) instead of `[]` (collapsing both failure and
+genuine emptiness into the same value, as before) — `[]` now only ever means
+"the read succeeded and returned nothing." `ILiveCategoryBranch.hasCategories`
+(`src/lib/data.ts`) was renamed `fetchSucceeded` to match: `buildNavMenus`
+now falls back to the static branch only when the read itself failed, not
+whenever the resulting list happens to be empty.
+
+**Consequences:**
+- A production CMS with zero categories of a type now shows an empty (but
+  still present, still clickable) branch in the nav for that type, same as
+  the "categories exist but none are pages" case ADR-044 already covered —
+  the two are now handled by the exact same code path instead of two
+  separate ones.
+- The static `deviceProductMenu` data is now reachable only by an actual
+  thrown error from `getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`
+  — if that data is ever deleted entirely, nothing currently depends on it
+  for a normal empty-CMS state, only for masking a real outage.
