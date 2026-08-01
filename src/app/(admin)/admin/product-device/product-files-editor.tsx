@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Plus, Trash2 } from "lucide-react";
+import { Eye, ImageIcon, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -35,6 +35,7 @@ const CERTIFICATION_TYPES: { value: ICertification["certType"]; label: string }[
   { value: "kemenkes", label: "Kemenkes" },
   { value: "bpom", label: "BPOM" },
   { value: "other", label: "Other" },
+  { value: "lkpp", label: "LKPP" },
 ];
 
 function getCertificationTypeLabel(certType: ICertification["certType"]): string {
@@ -61,6 +62,9 @@ function createCertification(certType: ICertification["certType"]): ICertificati
   if (certType === "bpom") {
     return { certType: "bpom", label: "BPOM", imageUrl: CERTIFICATION_BPOM_LOGO, registrationNumber: "", fileUrl: "" };
   }
+  if (certType === "lkpp") {
+    return { certType: "lkpp", label: "LKPP", linkUrl: "" };
+  }
   return { certType: "other", label: "", fileUrl: "" };
 }
 
@@ -69,6 +73,8 @@ export function isHeroDocComplete(doc: IHeroDoc): boolean {
 }
 
 export function isCertificationComplete(certification: ICertification): boolean {
+  // LKPP has no file upload at all — a link stands in for it (ADR-053).
+  if (certification.certType === "lkpp") return certification.linkUrl.trim() !== "";
   if (certification.fileUrl === "") return false;
   if (certification.certType === "other") return certification.label.trim() !== "";
   if (certification.certType === "kemenkes") return certification.aklNumber.trim() !== "";
@@ -111,19 +117,31 @@ export function ProductFilesEditor({
         {documents.length > 0 && (
           <div className="flex flex-col gap-2">
             {documents.map((doc, index) => (
-              <div key={index} className="flex items-center gap-4">
+              <div key={doc.id ?? index} className="flex items-center gap-4">
                 <Input
                   value={doc.title}
                   onChange={(event) => updateDocument(index, { ...doc, title: event.target.value })}
                   maxLength={MAX_HERO_DOC_TITLE_LENGTH}
                   placeholder="Document name"
-                  className="flex-1"
+                  className="min-w-32 flex-1"
                 />
-                <div className="flex-1">
+                <div className="flex-1 max-w-48">
                   <UploadField
                     kind="file"
                     value={doc.href}
                     onChange={(value) => updateDocument(index, { ...doc, href: (value as string) ?? "" })}
+                  />
+                </div>
+                <div className="flex-1 max-w-48">
+                  {/* No preview box — just a compact "choose file"-style
+                      button (same as the file field above); viewing what's
+                      currently uploaded is the Eye button below, not an
+                      inline image. */}
+                  <UploadField
+                    kind="image"
+                    preview={false}
+                    value={doc.thumbnailUrl}
+                    onChange={(value) => updateDocument(index, { ...doc, thumbnailUrl: (value as string) ?? "" })}
                   />
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
@@ -136,6 +154,16 @@ export function ProductFilesEditor({
                     onClick={() => window.open(doc.href, "_blank", "noopener,noreferrer")}
                   >
                     <Eye className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`View thumbnail ${index + 1}`}
+                    disabled={!doc.thumbnailUrl}
+                    onClick={() => window.open(doc.thumbnailUrl, "_blank", "noopener,noreferrer")}
+                  >
+                    <ImageIcon className="size-4" />
                   </Button>
                   <Button
                     type="button"
@@ -158,7 +186,7 @@ export function ProductFilesEditor({
           variant="outline"
           size="sm"
           className="w-fit"
-          onClick={() => onDocumentsChange([...documents, { title: "", href: "" }])}
+          onClick={() => onDocumentsChange([...documents, { id: crypto.randomUUID(), title: "", href: "" }])}
         >
           Add document <Plus className="size-4" />
         </Button>
@@ -189,7 +217,7 @@ export function ProductFilesEditor({
                     value={certification.label}
                     onChange={(event) => updateCertification(index, { ...certification, label: event.target.value })}
                     placeholder="Certification name"
-                    className="flex-1"
+                    className="min-w-32 flex-1"
                   />
                 )}
 
@@ -198,7 +226,7 @@ export function ProductFilesEditor({
                     value={certification.aklNumber}
                     onChange={(event) => updateCertification(index, { ...certification, aklNumber: event.target.value })}
                     placeholder="AKL number"
-                    className="flex-1"
+                    className="min-w-32 flex-1"
                   />
                 )}
 
@@ -209,7 +237,7 @@ export function ProductFilesEditor({
                       updateCertification(index, { ...certification, registrationNumber: event.target.value })
                     }
                     placeholder="Registration number"
-                    className="flex-1"
+                    className="min-w-32 flex-1"
                   />
                 )}
 
@@ -222,25 +250,46 @@ export function ProductFilesEditor({
                       updateCertification(index, { ...certification, certificateNumber: event.target.value })
                     }
                     placeholder="Certificate number"
-                    className="flex-1"
+                    className="min-w-32 flex-1"
                   />
                 )}
 
-                <div className="flex-1">
-                  <UploadField
-                    kind="file"
-                    value={certification.fileUrl}
-                    onChange={(value) => updateCertification(index, { ...certification, fileUrl: (value as string) ?? "" })}
+                {certification.certType === "lkpp" && (
+                  <Input
+                    type="url"
+                    value={certification.linkUrl}
+                    onChange={(event) => updateCertification(index, { ...certification, linkUrl: event.target.value })}
+                    placeholder="https://..."
+                    className="min-w-32 flex-1"
                   />
-                </div>
+                )}
+
+                {/* LKPP has no certificate upload at all — a link stands in
+                    for it (ADR-053), so this column only renders for every
+                    other style. */}
+                {certification.certType !== "lkpp" && (
+                  <div className="flex-1 max-w-48">
+                    <UploadField
+                      kind="file"
+                      value={certification.fileUrl}
+                      onChange={(value) => updateCertification(index, { ...certification, fileUrl: (value as string) ?? "" })}
+                    />
+                  </div>
+                )}
                 <div className="flex shrink-0 items-center gap-0.5">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`View certificate ${index + 1}`}
-                    disabled={!certification.fileUrl}
-                    onClick={() => window.open(certification.fileUrl, "_blank", "noopener,noreferrer")}
+                    disabled={certification.certType === "lkpp" ? !certification.linkUrl : !certification.fileUrl}
+                    onClick={() =>
+                      window.open(
+                        certification.certType === "lkpp" ? certification.linkUrl : certification.fileUrl,
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
                   >
                     <Eye className="size-4" />
                   </Button>

@@ -8,11 +8,12 @@ import { DocumentDevice } from './Document'
 import { DropdownDevice } from './Dropdown'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { BasicCarousel } from '@/app/(user)/components/Carousels'
+import { VideoTextSection } from '@/app/(user)/components/VideoTextSection'
 import Viewer360 from '@/app/(user)/components/Viewer360'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, getYoutubeVideoId } from '@/lib/utils'
 import { IProduct } from '@/interfaces/general'
-import { ICertification, IHeroSegment, IProductSegment } from '@/interfaces/segments'
+import { ICertification, IHeroDoc, IHeroSegment, IProductSegment } from '@/interfaces/segments'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
 import { CERTIFICATION_LOGOS } from '@/lib/certification-logos'
 
@@ -33,7 +34,9 @@ function CertificationBadge({
 }) {
   const isBlack = contrastClassName === 'text-black'
   const logo =
-    certification.certType !== 'other' ? CERTIFICATION_LOGOS[certification.certType][isBlack ? 'black' : 'white'] : undefined
+    certification.certType !== 'other' && certification.certType !== 'lkpp'
+      ? CERTIFICATION_LOGOS[certification.certType][isBlack ? 'black' : 'white']
+      : undefined
   const subLabel =
     certification.certType === 'halal'
       ? certification.certificateNumber
@@ -42,6 +45,8 @@ function CertificationBadge({
         : certification.certType === 'bpom'
           ? certification.registrationNumber
           : undefined
+  // LKPP has no uploaded certificate — a link stands in for it (ADR-053).
+  const href = certification.certType === 'lkpp' ? certification.linkUrl : certification.fileUrl
 
   const content = (
     <>
@@ -55,7 +60,7 @@ function CertificationBadge({
     </>
   )
 
-  if (!certification.fileUrl) {
+  if (!href) {
     return (
       <div className={cn('h-11 gap-2 rounded-full px-4 flex items-center bg-transparent backdrop-blur-sm', contrastClassName)}>
         {content}
@@ -70,7 +75,7 @@ function CertificationBadge({
           same-element tie as the document button (Hero.tsx). Wrapping the
           content one level deeper overrides through normal
           nearest-ancestor inheritance instead. */}
-      <a href={certification.fileUrl} target='_blank' rel='noopener noreferrer'>
+      <a href={href} target='_blank' rel='noopener noreferrer'>
         <span className={cn('inline-flex items-center gap-2', contrastClassName)}>{content}</span>
       </a>
     </Button>
@@ -79,15 +84,12 @@ function CertificationBadge({
 
 // Every non-hero segment type mapped onto the real public catalogue
 // component that renders it — mirrors the exact prop shapes documented in
-// segment-types.ts (ADR-020). `techSpecs`/`document` intentionally render
-// through `DropdownDevice`/`DocumentDevice` exactly as they exist today
-// (hardcoded "Technology" header, fully hardcoded document content) — both
-// components' data-driven retrofit is deferred to a follow-up pass, so a
-// `document` segment currently shows the same placeholder content for every
-// product. `viewer360` and `techSpecs` are independent segments (no longer
-// paired side-by-side the way the old hardcoded page did it), each getting
-// its own full-width section.
-function renderSegment(segment: IProductSegment) {
+// segment-types.ts (ADR-020). `viewer360` and `techSpecs` are independent
+// segments (no longer paired side-by-side the way the old hardcoded page did
+// it), each getting its own full-width section. `document` resolves its
+// referenced entry out of `heroDocs` (ADR-051) — the only case that needs
+// more than its own segment data.
+function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[]) {
   switch (segment.type) {
     case 'highlight':
       return (
@@ -96,6 +98,7 @@ function renderSegment(segment: IProductSegment) {
           text={segment.text}
           image={segment.image}
           textSide={segment.imagePlacement === 'left' ? 'right' : 'left'}
+          imageFit={segment.imageFit}
         />
       )
 
@@ -133,6 +136,8 @@ function renderSegment(segment: IProductSegment) {
       return (
         <BodyWrapper className='my-14'>
           <DropdownDevice
+            header={segment.header}
+            backgroundColor={segment.backgroundColor}
             list={segment.items.map((item) => ({
               title: item.title,
               body: item.body,
@@ -179,12 +184,25 @@ function renderSegment(segment: IProductSegment) {
         />
       )
 
-    case 'document':
+    case 'document': {
+      // Renders nothing until re-picked if the referenced document was
+      // since removed from Product Files, or has no thumbnail set — same
+      // "drop rather than render broken" precedent as `applicators` above.
+      const doc = heroDocs.find((item) => item.id === segment.documentId)
+      if (!doc || !doc.thumbnailUrl) return null
+
       return (
         <BodyWrapper className='my-14'>
-          <DocumentDevice />
+          <DocumentDevice
+            header={segment.header}
+            subheader={segment.subheader}
+            fileUrl={doc.href}
+            thumbnailUrl={doc.thumbnailUrl}
+            alt={segment.alt}
+          />
         </BodyWrapper>
       )
+    }
 
     case 'richText':
       return (
@@ -195,6 +213,23 @@ function renderSegment(segment: IProductSegment) {
           />
         </BodyWrapper>
       )
+
+    case 'video': {
+      const videoId = getYoutubeVideoId(segment.url)
+      if (!videoId) return null
+
+      return (
+        <BodyWrapper className='my-14'>
+          <VideoTextSection
+            videoId={videoId}
+            videoTitle={segment.caption || 'YouTube video'}
+            thumbnailUrl={segment.thumbnailUrl || undefined}
+            heading={segment.caption || undefined}
+            description={segment.description || undefined}
+          />
+        </BodyWrapper>
+      )
+    }
 
     default:
       return null
@@ -252,7 +287,7 @@ export const ProductPageView = ({ product }: IProductPageViewProps) => {
 
       {contentSegments.map((segment) => (
         <div key={segment.id} id={`segment-${segment.id}`}>
-          {renderSegment(segment)}
+          {renderSegment(segment, hero?.heroDocs ?? [])}
         </div>
       ))}
     </main>

@@ -315,6 +315,46 @@ html {
   margin-top: 0.5rem;
   margin-bottom: 0.75rem;
 }
+/* Left/center/right image alignment — `data-align` is a plain
+   attribute on the <img> itself (AlignableImage, tiptap-image-align.ts), not
+   a Tailwind utility class, since this same HTML renders on the public site
+   via `dangerouslySetInnerHTML` and Tailwind only compiles classes it can
+   see literally in source. Floats let paragraph text wrap around the image
+   for left/right; center drops the float entirely. */
+.tiptap-content img[data-align="left"] {
+  float: left;
+  margin: 0.25rem 1.25rem 0.75rem 0;
+  max-width: 50%;
+}
+.tiptap-content img[data-align="right"] {
+  float: right;
+  margin: 0.25rem 0 0.75rem 1.25rem;
+  max-width: 50%;
+}
+.tiptap-content img[data-align="center"] {
+  display: block;
+  float: none;
+  margin: 0.5rem auto 0.75rem;
+}
+/* A heading/list/blockquote right after a left/right-floated image would
+   otherwise render squeezed into the remaining inline space instead of
+   starting a fresh full-width line. Paragraphs are deliberately not
+   cleared — wrapping paragraph text around the floated image is the point. */
+.tiptap-content h2,
+.tiptap-content h3,
+.tiptap-content ul,
+.tiptap-content ol,
+.tiptap-content blockquote {
+  clear: both;
+}
+/* Without this, a floated image as the very last node doesn't contribute to
+   .tiptap-content's height, so the container collapses and the image
+   visually bleeds into whatever section follows. */
+.tiptap-content::after {
+  content: "";
+  display: table;
+  clear: both;
+}
 .tiptap-content mark {
   border-radius: 0.15rem;
   padding: 0 0.1rem;

@@ -2382,3 +2382,235 @@ whenever the resulting list happens to be empty.
   thrown error from `getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`
   — if that data is ever deleted entirely, nothing currently depends on it
   for a normal empty-CMS state, only for masking a real outage.
+
+## ADR-051: Document Highlight segment picks a file from Product Files by id, not its own upload
+
+**Date:** 2026-08-01
+**Status:** Accepted (supersedes ADR-031, ADR-032)
+
+**Context:** The client asked for two changes together: (1) add a thumbnail
+upload to the Product Files tab's Downloadable Documents rows, and (2) remove
+the thumbnail from the Document Highlight segment. Removing the segment's own
+thumbnail raised the question of where its public-facing image comes from —
+resolved with the client as: the segment should reference one of the
+product's own uploaded documents instead of carrying its own file. Separately,
+the segment's public renderer (`DocumentDevice`) was found to take zero props
+and always render hardcoded Alma Harmony placeholder content regardless of
+what any product's `document` segment actually stored — a pre-existing bug,
+fixed in the same pass since it directly affects the same segment.
+
+**Decision:**
+- `IHeroDoc` (`src/interfaces/segments.ts`) gains `id: string` and an
+  optional `thumbnailUrl?: string`. `product-files-editor.tsx`'s Downloadable
+  Documents rows gained a second `UploadField kind="image"` per row, still
+  one line — `UploadField` gained a `preview` prop (default `true`) so this
+  one can opt out of the drag-and-drop box and render the same compact
+  "choose file"-style button the file column already uses; a separate Eye
+  button next to it opens the current thumbnail in a new tab, mirroring how
+  the file column's own Eye button already works for `href`. New documents
+  get `id: crypto.randomUUID()` on add.
+- `IDocumentSegment` drops `fileUrl`/`thumbnailUrl` entirely and gains
+  `documentId: string` — it keeps only its own `heading`/`subheading` text.
+  `segments-builder.tsx`'s existing `document`/`fileUrl` special case (ADR-031,
+  an href-matching `<Select>`) is replaced with a `document`/`documentId` case
+  that matches by `id` instead, showing a visible warning if the stored id no
+  longer resolves against `heroDocs` (e.g. the source document was since
+  removed from Product Files) rather than silently pointing at nothing.
+- `heroDocs` entries saved before this field existed have no `id` — backfilled
+  once at form-open time (`ensureHeroDocIds`, `product-form.tsx`), the same
+  "computed once and reused" precedent `withHeroSegment` already uses for the
+  auto-injected hero, so a stable id exists before the picker ever renders.
+- `DocumentDevice` (`src/app/(user)/components/catalogue/Document.tsx`) gains
+  real props (`heading`, `subheading?`, `fileUrl`, `thumbnailUrl`, `alt`)
+  instead of zero props and hardcoded content. `ProductPageView.tsx`'s
+  `renderSegment` gains a `heroDocs: IHeroDoc[]` parameter (the only segment
+  case that needs data beyond its own segment record) and resolves the
+  referenced document by id; a missing reference or a resolved document with
+  no thumbnail renders nothing, the same "drop rather than render broken"
+  precedent already used for the `applicators` case.
+
+**Consequences:**
+- This lifts the "do not change `document` segment's field shape" constraint
+  from the still-open `TASKS.md` task ("DropdownDevice`/`DocumentDevice`
+  data-driven retrofits") — that constraint is now stale.
+- A document referenced by a Document Highlight segment can no longer be
+  safely deleted from Product Files without the admin noticing — the warning
+  in the picker is the only signal; nothing blocks the deletion itself.
+- Every existing `document` segment's stored `fileUrl`/`thumbnailUrl` is
+  orphaned data going forward (the shape no longer has those keys) — no
+  migration was run since segments live in a `Json` column; an existing
+  Document Highlight segment simply shows an empty `documentId` until an
+  admin picks a real document.
+
+## ADR-052: New "Video" segment for Products (reuses VideoTextSection)
+
+**Date:** 2026-08-01
+**Status:** Accepted
+
+**Context:** The client asked for a YouTube video segment on device/product
+pages, using the same admin layout/inputs as the Category page's existing
+YouTube video section (URL, optional custom thumbnail, optional caption,
+optional description — `ICategory.youtube*`, ADR-037).
+
+**Decision:** New `type: "video"` entry in `SEGMENT_TYPES`
+(`segment-types.ts`) — `url` (required), `thumbnailUrl` (image, optional),
+`caption` (text), `description` (textarea). Fully data-driven: every field
+uses a type the generic `FieldInput`/`SegmentCard` engine already handles
+(including the image upload, via the existing `uploadSegmentAsset` action),
+so no special-case render code was needed in `segments-builder.tsx`, unlike
+`viewer360`/`document`/`highlight`. `IVideoSegment` added to the
+`IProductSegment` union with terse keys (`url`/`thumbnailUrl`/`caption`/
+`description`) rather than mirroring `Category`'s `youtube*`-prefixed names —
+no naming collision risk since it's an independent JSON blob, and the prefix
+on `Category` only exists because those fields sit flat alongside other
+prefixed groups on that model.
+`ProductPageView.tsx`'s new `case 'video'` reuses `VideoTextSection`
+(`src/app/(user)/components/VideoTextSection.tsx`) and `getYoutubeVideoId()`
+(`src/lib/utils.ts`) directly — the same component the Category page's own
+video section already renders through — rather than duplicating its
+click-to-play/poster logic. A URL that doesn't parse to a valid video id
+drops the segment (renders nothing).
+
+**Consequences:**
+- Any future change to `VideoTextSection`'s look/behavior affects both
+  Category pages and this new Product segment identically, which is the
+  intent — a divergence would need a deliberate prop or a new component, not
+  an accidental one from copy-pasted markup.
+- `video` was added to `ADDABLE_SEGMENT_TYPES` automatically (it excludes
+  only `hero`), so it appears in the "Add a segment" menu with no extra
+  wiring.
+
+## ADR-053: LKPP added as a fifth, link-only certification style
+
+**Date:** 2026-08-01
+**Status:** Accepted
+
+**Context:** The client asked for "LKPP" added to the certification options,
+specifying its input is a link — unlike Halal/Kemenkes/BPOM/Other (ADR-022,
+ADR-046), which all require an uploaded certificate file alongside their
+other fields. This is the first certification style with no file upload at
+all.
+
+**Decision:** `ILkppCertification { certType: 'lkpp'; label: string; linkUrl:
+string }` added to the `ICertification` union — no `imageUrl` (no fixed
+logo, same as "Other") and no `fileUrl`. `product-files-editor.tsx`'s
+`CERTIFICATION_TYPES`/`createCertification`/`isCertificationComplete` gained
+matching `lkpp` branches, and the row rendering makes the file/`UploadField`
+column conditional (`certification.certType !== "lkpp"`) — the first time
+that column isn't rendered unconditionally for every row. `ProductPageView.tsx`'s
+`CertificationBadge` computes a single `href` (`linkUrl` for LKPP, `fileUrl`
+for every other style) instead of checking `fileUrl` directly, and skips the
+logo lookup for `lkpp` the same way it already does for `other`.
+
+**Consequences:**
+- Every other certification style's "required file" assumption
+  (`isCertificationComplete`'s shared `if (certification.fileUrl === "")
+  return false` opening check) had to become conditional on `certType` for
+  the first time — future certification styles need to consider whether they
+  follow the file-required majority or the link-only LKPP precedent.
+- LKPP has no logo badge at all (same as "Other") — if the client wants a
+  fixed LKPP mark later, that's an additive change to
+  `certification-logos.ts` plus a new `imageUrl`/`CERTIFICATION_LKPP_LOGO`
+  constant, not a breaking one.
+
+## ADR-054: Accordion (Tech Specs) background color picker; peach added to the shared palette
+
+**Date:** 2026-08-01
+**Status:** Accepted
+
+**Context:** The client asked for a background color option on the Accordion
+segment, which has always rendered a hardcoded `bg-brand-peach/30` — the
+same closed-swatch-picker pattern already exists for the List segment
+(`treatments`, `src/lib/segment-colors.ts`), but that palette has no peach
+entry; its 7 colors are a black-to-white gradation plus the two brand reds.
+Confirmed with the client: existing Accordions should keep their current
+peach look by default rather than switching to the palette's own default
+(black).
+
+**Decision:** Added a `peach` entry (`bg-brand-peach/30`, `text-black`) to
+`SEGMENT_BACKGROUND_COLORS`/`SEGMENT_BACKGROUND_COLOR_VALUES`. `techSpecs`
+gained a `backgroundColor` field (`type: "colorSwatch"`, same as `treatments`)
+but with `defaultValue: "peach"` set explicitly on the field — deliberately
+not reusing `DEFAULT_SEGMENT_BACKGROUND_COLOR` (black, `treatments`' own
+default), since the two segments' "no value stored yet" fallback needs to
+differ. `Dropdown.tsx` (`DropdownDevice`) resolves its background via
+`getSegmentBackgroundColor(backgroundColor ?? "peach")` rather than the
+generic function's own default, for the same reason. The admin editor's
+`ColorSwatchInput`/`FieldInput` also needed a matching fallback
+(`value ?? field.defaultValue`) so a `techSpecs` segment saved before this
+field existed shows "Peach" selected in the editor, not "Black" — without
+this, the editor and the public page would have disagreed about what an old
+Accordion's background actually renders as.
+
+**Consequences:**
+- `peach` is now available to any segment using the shared
+  `SEGMENT_BACKGROUND_COLOR_VALUES` enum, not just Accordion — e.g. the List
+  segment could offer it too with no further code change, just admin choice.
+- The Accordion's individual `AccordionTrigger`/`AccordionContent` rows stay
+  hardcoded `bg-white` regardless of the section's own background — only the
+  outer wrapping section and its header text color respond to the picker,
+  matching what was visually true before (the peach tint only ever showed
+  around/behind the white cards, never on them).
+
+## ADR-055: Product status button wording reverts to Save as Draft / Publish
+
+**Date:** 2026-08-01
+**Status:** Accepted (supersedes ADR-040's UI wording; `Product.status`
+values unchanged)
+
+**Context:** ADR-040 deliberately renamed the Devices/Products status
+wording from Draft/Publish to Hidden/Public (both the stored `status` values
+and the editor's button labels) at the client's request. The client has now
+asked for the opposite wording back — "save as draft" / "publish" — for the
+editor's two save buttons and the status displayed elsewhere in the admin
+(the Identity tab's Status dropdown, and the list table's status badge).
+
+**Decision:** Labels only, no data change. `product-form.tsx`'s save buttons
+now read "Save as Draft" (was "Save as hidden") and "Publish" (was "Make
+public"); its Identity tab Status `<Select>` now shows "Draft"/"Publish"
+(was "Hidden"/"Public") — "Publish" rather than "Published" so the status
+value reads as the same word as the action button, not a different tense;
+`item-table.tsx`'s status badge and quick-change `<Select>` follow the same
+wording. `Product.status`'s actual stored values stay `"hidden" | "public"`
+(ADR-040's schema decision is unaffected) — only the text an admin reads
+changed.
+
+**Consequences:**
+- The database column, every server action, and every internal comment
+  keep saying `hidden`/`public` — only these four UI surfaces changed. A
+  future reader grepping the codebase for "Draft"/"Publish" will only find
+  display strings, not the actual enum.
+- If the client reverses this wording again, it's the same kind of
+  label-only change — no migration either way, since ADR-040 already decided
+  the stored values aren't tied to the display language.
+
+## ADR-056: Document Highlight — document picker comes first; Header replaced by it; heading/subheading renamed
+
+**Date:** 2026-08-01
+**Status:** Accepted (refines ADR-051 — same feature, no reversal)
+
+**Context:** Follow-up feedback on ADR-051's Document Highlight redesign:
+the client wants the document picker to be the first field (picking the
+file is the natural starting point, not an afterthought below two text
+fields), the picked document's own name to auto-fill the segment's heading
+field as a convenience, and the field names changed from heading/subheading
+to header/subheader.
+
+**Decision:** `IDocumentSegment.heading`/`subheading` renamed to `header`/
+`subheader`. `segment-types.ts`'s `document` entry reorders its fields so
+`documentId` comes first, then `header`, then `subheader`. The `documentId`
+picker's `onValueChange` (`segments-builder.tsx`) always replaces `header`
+with the newly picked document's own `title` — picking a document is what
+names the segment, so every pick (not just the first, blank-field one)
+replaces whatever was there. `DocumentDevice`'s own props and
+`normalizeSegments`'s `alt`-derivation (`product-actions.ts`) were renamed to
+match, keeping the naming consistent end to end rather than just at the
+admin-facing label.
+
+**Consequences:**
+- Unlike the hero's "Same as name" checkbox, there's no toggle to opt out —
+  picking a different document always overwrites `header`, even if the
+  admin had customized it for the previously-picked document. Retyping
+  after picking is the only way to diverge from the document's own name.
+- No data migration: this is a same-day refinement of ADR-051, which had not
+  yet been exercised against any real saved product data.

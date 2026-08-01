@@ -12,6 +12,7 @@ export const SEGMENT_BACKGROUND_COLOR_VALUES = [
   "gray",
   "light-gray",
   "white",
+  "peach",
   "red",
   "dark-red",
 ] as const;
@@ -38,6 +39,10 @@ export const SEGMENT_BACKGROUND_COLORS: ISegmentBackgroundColorOption[] = [
   { value: "gray", label: "Gray", bgClassName: "bg-neutral-500", textClassName: "text-white" },
   { value: "light-gray", label: "Light Gray", bgClassName: "bg-neutral-300", textClassName: "text-black" },
   { value: "white", label: "White", bgClassName: "bg-white", textClassName: "text-black" },
+  // The brand peach at 30% opacity — the Accordion segment's own hardcoded
+  // look before this picker existed (ADR-054), kept as its default so
+  // existing Accordions render unchanged.
+  { value: "peach", label: "Peach", bgClassName: "bg-brand-peach/30", textClassName: "text-black" },
   // "Red" is the brand's own red (globals.css --color-brand-red, #E72129);
   // "Dark Red" is a genuinely darker shade, not a brand token — Tailwind's
   // built-in red-900 rather than a one-off hex value.

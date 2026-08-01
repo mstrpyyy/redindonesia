@@ -10,9 +10,11 @@ import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import Image from "@tiptap/extension-image";
 import {
   AlignCenter,
+  AlignHorizontalJustifyCenter,
+  AlignHorizontalJustifyEnd,
+  AlignHorizontalJustifyStart,
   AlignJustify,
   AlignLeft,
   AlignRight,
@@ -35,6 +37,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ColorPickerButton } from "@/components/color-picker-button";
+import { AlignableImage } from "@/components/tiptap-image-align";
 
 // Common presets, Google Docs/Word style — not an exhaustive palette, just
 // recognizable defaults; anything else is reachable via the custom picker.
@@ -127,7 +130,7 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
       TextAlign.configure({ types: ["heading", "paragraph"], defaultAlignment: "justify" }),
       TextStyle,
       Color,
-      Image,
+      AlignableImage,
     ],
     content: value,
     immediatelyRender: false,
@@ -316,6 +319,37 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
           onClick={() => imageInputRef.current?.click()}
         >
           <ImagePlus className="size-4" />
+        </ToolbarButton>
+
+        <span className="bg-border mx-1 h-5 w-px" />
+
+        {/* Deliberately a different icon shape from the text-align group
+            above (block-justify glyphs, not line-based) — same left/center/
+            right meaning, but for the image as a block rather than text,
+            so the two groups aren't visually mistaken for one another. */}
+        <ToolbarButton
+          label="Align image left"
+          active={editor.isActive("image", { align: "left" })}
+          disabled={!editor.isActive("image")}
+          onClick={() => editor.chain().focus().updateAttributes("image", { align: "left" }).run()}
+        >
+          <AlignHorizontalJustifyStart className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Align image center"
+          active={editor.isActive("image", { align: "center" })}
+          disabled={!editor.isActive("image")}
+          onClick={() => editor.chain().focus().updateAttributes("image", { align: "center" }).run()}
+        >
+          <AlignHorizontalJustifyCenter className="size-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Align image right"
+          active={editor.isActive("image", { align: "right" })}
+          disabled={!editor.isActive("image")}
+          onClick={() => editor.chain().focus().updateAttributes("image", { align: "right" }).run()}
+        >
+          <AlignHorizontalJustifyEnd className="size-4" />
         </ToolbarButton>
 
         <span className="bg-border mx-1 h-5 w-px" />

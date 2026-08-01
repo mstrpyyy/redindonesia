@@ -95,14 +95,14 @@ function SortableRow({ item, editorBasePath, disabled, onStatusChange, onDelete 
           >
             <SelectValue>
               <Badge variant={item.status === "public" ? "default" : "secondary"} className="h-7 w-28 justify-between gap-1 whitespace-nowrap">
-                {item.status === "public" ? "Public" : "Hidden"}
+                {item.status === "public" ? "Publish" : "Draft"}
                 <ChevronDown className="size-3" />
               </Badge>
             </SelectValue>
           </SelectTrigger>
           <SelectContent position="popper" side="bottom" align="start">
-            <SelectItem className="text-xs font-medium" value="hidden">Hidden</SelectItem>
-            <SelectItem className="text-xs font-medium" value="public">Public</SelectItem>
+            <SelectItem className="text-xs font-medium" value="hidden">Draft</SelectItem>
+            <SelectItem className="text-xs font-medium" value="public">Publish</SelectItem>
           </SelectContent>
         </Select>
       </TableCell>

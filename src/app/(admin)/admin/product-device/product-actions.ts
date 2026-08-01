@@ -137,7 +137,8 @@ function validateSegments(
 // created (before the "no dedicated field" rule existed, or via a future
 // non-UI edit path). Before & After items follow the same rule for
 // `beforeAlt`/`afterAlt`, mirroring each item's own caption (see ADR-030), and
-// the "document" segment's `alt` mirrors its own `heading` (see ADR-032).
+// the "document" segment's `alt` mirrors its own `header` (see ADR-032,
+// ADR-056).
 function normalizeSegments(segments: unknown[]): unknown[] {
   return segments.map((segment) => {
     if (typeof segment !== "object" || segment === null) return segment;
@@ -163,7 +164,7 @@ function normalizeSegments(segments: unknown[]): unknown[] {
       };
     }
     if (record.type === "document") {
-      return { ...record, alt: typeof record.heading === "string" ? record.heading : "" };
+      return { ...record, alt: typeof record.header === "string" ? record.header : "" };
     }
     return record;
   });

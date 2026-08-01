@@ -817,20 +817,288 @@ shape without checking whether `Product`-type categories have the same
 variable-depth situation Device-type ones do. (They do — same `Category`
 model, same `MAX_CATEGORY_DEPTH`.)
 
-## [ ] Task: `DropdownDevice`/`DocumentDevice` data-driven retrofits
+## [x] Task: `DropdownDevice`/`DocumentDevice` data-driven retrofits
 
 **Context:** Split off from the Products navbar task above — unrelated to
 routing/navigation, deferred because it needs its own pass.
-**Approach:** Not yet designed. At minimum: give `DropdownDevice` a `header`
-prop (`techSpecs` segments already carry their own `header` field, currently
-ignored) and make `DocumentDevice` accept real props (`heading`/`subheading`/
-`fileUrl`/`thumbnailUrl`/`alt`) instead of its fully hardcoded Alma Harmony
-content.
-**Files to create or modify:** TBD.
+**Approach:** Picked back up as part of a larger client batch (see the tasks
+below). `DropdownDevice` gained a `header` prop, wired from `techSpecs`'s own
+`header` field. `DocumentDevice` gained real props, but not the
+`fileUrl`/`thumbnailUrl` shape originally envisioned here — the client's ask
+changed the `document` segment's own shape in the same pass (see "Document
+Highlight becomes a Product Files picker" below, ADR-051), so this task's
+original "do not change segment shape" constraint is superseded.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/Dropdown.tsx` — `header` prop
+- `src/app/(user)/components/catalogue/Document.tsx` — real props
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — wires both
 **Acceptance criteria:**
-- [ ] TBD once approach is decided.
-**Do not:** Change `techSpecs`/`document` segments' own field shapes —
-this is a rendering-side retrofit only.
+- [x] `techSpecs`'s admin-entered header renders instead of a hardcoded
+  "Technology".
+- [x] `document` segments render their own heading/subheading/file/thumbnail
+  instead of identical hardcoded placeholder content.
+**Do not:** ~~Change `techSpecs`/`document` segments' own field shapes~~ —
+superseded; see ADR-051.
+
+## [x] Task: Product status button wording reverts to Save as Draft / Publish
+
+**Context:** ADR-040 had deliberately renamed the editor's status wording
+from Draft/Publish to Hidden/Public. The client has now asked for the
+original wording back for the two save buttons, the Identity tab's status
+dropdown, and the list table's status badge. See ADR-055.
+**Approach:** Label-only change — `Product.status`'s stored values
+(`"hidden" | "public"`) are unchanged; only the displayed text moved back to
+Draft/Publish language across all four surfaces.
+**Files to create or modify:**
+- `src/app/(admin)/admin/product-device/product-form.tsx` — save buttons,
+  Identity tab Status `<Select>`
+- `src/app/(admin)/admin/product-device/item-table.tsx` — status badge and
+  quick-change `<Select>`
+- `DECISIONS.md` (ADR-055, supersedes ADR-040's wording)
+**Acceptance criteria:**
+- [x] The editor's two save buttons read "Save as Draft" and "Publish".
+- [x] The Identity tab's Status dropdown and the list table's status badge
+  both read "Draft"/"Publish" instead of "Hidden"/"Public".
+- [x] `Product.status` values and every server action are unchanged.
+**Do not:** Rename the stored `status` column values — this is UI text only.
+
+## [x] Task: Document Highlight becomes a Product Files picker; thumbnail moves there; public rendering fixed
+
+**Context:** The client asked to add a thumbnail upload to Product Files'
+Downloadable Documents rows, and remove the thumbnail from the Document
+Highlight segment. Confirmed with the client: the segment should instead
+reference one of the product's own uploaded documents by picker, keeping
+only its own heading/subheading text. Rendering was also broken — the public
+`DocumentDevice` took zero props and always showed hardcoded Alma Harmony
+content regardless of any product's actual `document` segment data. See
+ADR-051 (supersedes ADR-031, ADR-032).
+**Approach:** `IHeroDoc` gains `id`/optional `thumbnailUrl`; existing rows
+without an id are backfilled once at form-open (`ensureHeroDocIds`).
+`IDocumentSegment` drops `fileUrl`/`thumbnailUrl`, gains `documentId`. The
+admin picker (`segments-builder.tsx`) matches by id instead of href, warning
+if the reference no longer resolves. `DocumentDevice` takes real props;
+`ProductPageView.tsx` resolves the referenced document from `heroDocs` and
+renders nothing if it's missing or thumbnail-less.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `IHeroDoc`, `IDocumentSegment`
+- `src/app/(admin)/admin/product-device/product-files-editor.tsx` — document
+  row thumbnail upload, id generation
+- `src/app/(admin)/admin/product-device/segment-types.ts` — `document`
+  fields (`documentId` replaces `fileUrl`/`thumbnailUrl`)
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — id-based
+  picker special case, dead grid-split removal
+- `src/app/(admin)/admin/product-device/product-form.tsx` — `ensureHeroDocIds`
+- `src/app/(user)/components/catalogue/Document.tsx` — real props
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — `documentId`
+  resolution
+- `DECISIONS.md` (ADR-051, refined by ADR-056)
+**Acceptance criteria:**
+- [x] Downloadable Documents rows have a thumbnail upload alongside the
+  existing title/file.
+- [x] Document Highlight has no file/thumbnail fields of its own — it picks
+  one existing document by name, plus its own Header/Subheader.
+- [x] The document picker is the first field; picking a document always
+  replaces Header with that document's own name (ADR-056).
+- [x] Picking a since-removed document shows a visible warning in the admin,
+  not a silent broken reference.
+- [x] The public page renders that document's real heading/subheading/file/
+  thumbnail, not hardcoded placeholder content.
+- [x] `tsc --noEmit` passes.
+**Do not:** Move `heroDocs`/`certifications` off the hero segment's record —
+unchanged from ADR-026.
+
+## [x] Task: List segment's item text field becomes a textarea
+
+**Context:** The client asked for the List segment's per-item text input to
+support multiple lines.
+**Approach:** `treatments`' item field `name` changed from `type: "text"` to
+`type: "textarea"` — `ListField`'s existing table-layout logic already moves
+any textarea-typed item field to its own full-width line automatically, no
+`segments-builder.tsx` change needed. Added `whitespace-pre-line` to the
+public render so typed line breaks actually show.
+**Files to create or modify:**
+- `src/app/(admin)/admin/product-device/segment-types.ts`
+- `src/app/(user)/components/catalogue/GridFeature.tsx`
+**Acceptance criteria:**
+- [x] The List segment's item name field is a multi-line textarea in the
+  admin editor.
+- [x] Line breaks typed there render as separate lines on the public page.
+**Do not:** Change any other segment's item fields — scoped to `treatments`
+only.
+
+## [x] Task: Rich text editor — left/center/right image alignment
+
+**Context:** The client asked for inserted images in the rich text editor to
+be positionable left/center/right. The existing `TextAlign` extension is
+scoped to `heading`/`paragraph` and sets `text-align`, which has no effect on
+a block-level `<img>`'s own position.
+**Approach:** New `AlignableImage` (extends Tiptap's base `Image`, adds an
+`align` attribute rendered as `data-align` on the `<img>`) swapped in for the
+plain `Image` extension. Three new toolbar buttons, enabled only when an
+image node is selected, call `updateAttributes("image", { align })`. CSS
+rules key off `[data-align=...]` (a plain HTML attribute, not a Tailwind
+class) since this same HTML renders on the public site via
+`dangerouslySetInnerHTML` — float-based for left/right (so paragraph text
+wraps around the image), `margin: auto` for center, plus `clear: both` on
+headings/lists/blockquotes and a container clearfix so a floated image
+doesn't visually bleed into following content.
+**Files to create or modify:**
+- `src/components/tiptap-image-align.ts` — new
+- `src/components/rich-text-editor.tsx` — swaps extension, adds toolbar
+  buttons
+- `src/app/globals.css` — `.tiptap-content img[data-align=...]` rules
+**Acceptance criteria:**
+- [x] Selecting an inserted image and clicking align left/center/right
+  moves it accordingly, both in the editor and on the public render of the
+  same HTML.
+- [x] Paragraph text wraps around a left/right-aligned image; headings/
+  lists/blockquotes after it start a fresh full-width line instead of being
+  squeezed into the remaining space.
+- [x] `tsc --noEmit` passes.
+**Do not:** Use a Tailwind utility class for alignment — this HTML is stored
+and rendered outside the admin bundle, where Tailwind can't see the class to
+compile it.
+
+## [x] Task: New "Video" segment for Products (YouTube)
+
+**Context:** The client asked for a YouTube video segment on device/product
+pages, using the same admin layout/inputs as the Category page's existing
+YouTube video section. See ADR-052.
+**Approach:** New `type: "video"` `SEGMENT_TYPES` entry (url, optional
+thumbnail, caption, description) — fully data-driven, no special-case render
+needed. Public render reuses `VideoTextSection`/`getYoutubeVideoId()`
+directly, the same components the Category page's own video section
+already renders through, rather than duplicating that logic.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `IVideoSegment`
+- `src/app/(admin)/admin/product-device/segment-types.ts` — new entry
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — `case 'video'`
+- `DECISIONS.md` (ADR-052)
+**Acceptance criteria:**
+- [x] "Video" appears in the "Add a segment" menu and can be added/edited/
+  reordered/removed like any other segment.
+- [x] A valid YouTube URL renders the same click-to-play embed the Category
+  page's video section uses; an unparseable URL renders nothing rather than
+  a broken embed.
+- [x] `tsc --noEmit` passes.
+**Do not:** Duplicate `VideoTextSection`'s click-to-play/poster logic in a
+new component — reuse it directly.
+
+## [x] Task: LKPP added as a fifth, link-only certification style
+
+**Context:** The client asked for "LKPP" added to the certification options,
+specifying its input is a link — unlike every existing style (Halal,
+Kemenkes, BPOM, Other), which all require an uploaded certificate file. See
+ADR-053.
+**Approach:** `ILkppCertification` (no `imageUrl`, no `fileUrl` — just
+`linkUrl`) added to the `ICertification` union. The admin row rendering and
+`CertificationBadge` on the public page both branch on `certType === "lkpp"`
+to use a link input/href instead of a file upload/`fileUrl`.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `ILkppCertification`
+- `src/app/(admin)/admin/product-device/product-files-editor.tsx`
+- `src/app/(user)/components/catalogue/ProductPageView.tsx`
+- `DECISIONS.md` (ADR-053)
+**Acceptance criteria:**
+- [x] "LKPP" appears in the "Add certification" menu.
+- [x] An LKPP row has a link input and no file upload; other styles are
+  unchanged.
+- [x] The public certification badge links to the LKPP entry's URL, with no
+  logo (same as "Other").
+- [x] `tsc --noEmit` passes.
+**Do not:** Add a file upload to LKPP — the client specified a link only.
+
+## [x] Task: Accordion header bug — stuck on "Technology"
+
+**Context:** The Accordion (`techSpecs`) segment has always carried its own
+required `header` field, but the public `DropdownDevice` component hardcoded
+the literal text "Technology" and had no prop to receive it.
+**Approach:** `DropdownDevice` gained an optional `header` prop (falls back
+to "Technology" if omitted); `ProductPageView.tsx` passes the segment's own
+`header` through.
+**Files to create or modify:**
+- `src/app/(user)/components/catalogue/Dropdown.tsx`
+- `src/app/(user)/components/catalogue/ProductPageView.tsx`
+**Acceptance criteria:**
+- [x] An Accordion segment's admin-entered header renders on the public
+  page instead of the literal text "Technology".
+**Do not:** Change `techSpecs`'s own field shape — this was a rendering-side
+fix only.
+
+## [x] Task: Highlight ("Text & Image") segment — image fit vs. fill
+
+**Context:** The client asked for an option to have the Highlight segment's
+image either fit (show the whole image, letterboxed) or fill (crop to fill,
+the original behavior) its box, with rounded corners removed when "fit" is
+chosen.
+**Approach:** New `imageFit: 'fill' | 'fit'` select field, defaulting to
+`'fill'` so existing products render unchanged, rendered inline next to the
+existing `imagePlacement` control. Public `HighlightDevice` switches
+`object-cover`/rounded-corner classes to `object-contain` with no rounding
+at all when `'fit'` is chosen. The fixed `aspect-*` box itself is unchanged
+in both modes — only `object-fit` and rounding change.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `IHighlightSegment.imageFit`
+- `src/app/(admin)/admin/product-device/segment-types.ts` — new field
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — inline
+  render next to placement
+- `src/app/(user)/components/catalogue/Highlight.tsx`,
+  `src/app/(user)/components/catalogue/ProductPageView.tsx`
+**Acceptance criteria:**
+- [x] A Highlight segment can be set to "Fill" (crop, original look) or
+  "Fit" (whole image, no cropping).
+- [x] Choosing "Fit" removes the image's rounded corners entirely.
+- [x] Existing Highlight segments (predating this field) render exactly as
+  before.
+**Assumption:** "Fit" keeps the existing fixed aspect-ratio box and only
+changes `object-fit`/rounding, rather than relaxing the box to the image's
+own natural aspect ratio — flag if the client meant the latter.
+
+## [x] Task: 360° viewer image size limit raised to 500KB
+
+**Context:** The client asked for the 360° viewer's per-frame upload limit
+to change from 100KB to 500KB.
+**Approach:** Two-constant change — both the upload validation and the
+admin's own helper text already read from the same two constants, no other
+call sites existed.
+**Files to create or modify:**
+- `src/app/(admin)/admin/product-device/limits.ts`
+**Acceptance criteria:**
+- [x] A 360° frame between 100KB and 500KB, previously rejected, now
+  uploads successfully.
+- [x] The admin's own "up to Xkb each" helper text reflects the new limit.
+**Do not:** Change `MAX_VIEWER360_FRAMES` (the frame-count limit) — only the
+per-frame size limit was in scope.
+
+## [x] Task: Accordion (Tech Specs) background color picker; peach added to the shared palette
+
+**Context:** The client asked for a background color option on the
+Accordion segment, which has always rendered a hardcoded
+`bg-brand-peach/30`. See ADR-054.
+**Approach:** Added a `peach` entry to the existing `SEGMENT_BACKGROUND_COLORS`
+palette (previously used only by the List segment) and gave `techSpecs` a
+`backgroundColor` field defaulting to `"peach"` specifically (not the
+palette's own black default) so existing Accordions render unchanged. The
+admin's `ColorSwatchInput` also falls back to the field's own default rather
+than the palette's generic one, so an Accordion predating this field shows
+"Peach" selected, matching what actually renders publicly.
+**Files to create or modify:**
+- `src/lib/segment-colors.ts` — `peach` entry
+- `src/interfaces/segments.ts` — `ITechSpecsSegment.backgroundColor`
+- `src/app/(admin)/admin/product-device/segment-types.ts` — new field
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` — colorSwatch
+  fallback fix
+- `src/app/(user)/components/catalogue/Dropdown.tsx`,
+  `src/app/(user)/components/catalogue/ProductPageView.tsx`
+- `DECISIONS.md` (ADR-054)
+**Acceptance criteria:**
+- [x] The Accordion segment has a background color picker, including a
+  Peach swatch matching its original look.
+- [x] An Accordion segment predating this field renders, and shows as
+  selected in the editor, as Peach — not the palette's black default.
+- [x] `tsc --noEmit` passes.
+**Do not:** Change the individual accordion rows' `bg-white` — only the
+outer section background and its header text color are affected.
 
 ## [x] Task: Reusable, type-scoped tags on Device/Product Identity
 

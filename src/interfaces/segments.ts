@@ -12,8 +12,10 @@ export interface ISegmentBase {
 }
 
 export interface IHeroDoc {
+  id: string
   title: string
   href: string
+  thumbnailUrl?: string
 }
 
 // Certifications are a fixed set of "styles" rather than free-form entries —
@@ -21,7 +23,9 @@ export interface IHeroDoc {
 // own required fields (Halal carries its certificate number, Kemenkes its
 // AKL registration number, BPOM its own registration number; all three use a
 // fixed shared logo; a custom "Other" certification has no logo, just a
-// title). See ADR-022, and ADR-046 for BPOM specifically.
+// title). See ADR-022, and ADR-046 for BPOM specifically. LKPP (ADR-053) is
+// the first style that's a link rather than an uploaded certificate — no
+// logo, no file, just a URL.
 export interface IHalalCertification {
   certType: 'halal'
   label: string
@@ -52,11 +56,18 @@ export interface IOtherCertification {
   fileUrl: string
 }
 
+export interface ILkppCertification {
+  certType: 'lkpp'
+  label: string
+  linkUrl: string
+}
+
 export type ICertification =
   | IHalalCertification
   | IKemenkesCertification
   | IBpomCertification
   | IOtherCertification
+  | ILkppCertification
 
 export interface IHeroSegment extends ISegmentBase {
   type: 'hero'
@@ -81,6 +92,10 @@ export interface IHighlightSegment extends ISegmentBase {
   // component's `textSide` prop, which still describes where the text goes.
   // Whoever wires this segment to that component needs to flip the value.
   imagePlacement: 'left' | 'right'
+  // "fill" (default) crops the image to fill its box, same look as before
+  // this field existed; "fit" letterboxes the whole image instead and drops
+  // the box's rounded corners.
+  imageFit: 'fill' | 'fit'
 }
 
 export interface ITreatmentItem {
@@ -119,6 +134,10 @@ export interface ITechSpecItem {
 export interface ITechSpecsSegment extends ISegmentBase {
   type: 'techSpecs'
   header: string
+  // One of SEGMENT_BACKGROUND_COLOR_VALUES (src/lib/segment-colors.ts).
+  // Defaults to "peach", the color this segment always rendered with before
+  // this field existed — see ADR-054.
+  backgroundColor: string
   items: ITechSpecItem[]
 }
 
@@ -149,18 +168,36 @@ export interface IBeforeAfterSegment extends ISegmentBase {
   items: IBeforeAfterItem[]
 }
 
+// References one entry from the product's own Downloadable Documents list
+// (IHeroDoc[], stored on the hero segment — ADR-026) by id, rather than
+// carrying its own file/thumbnail — see ADR-051. `documentId` may point to a
+// document that's since been removed from that list; renders nothing until
+// re-picked (ProductPageView.tsx). `header` is replaced with the picked
+// document's own title every time `documentId` changes (segments-builder.tsx)
+// — freely editable afterward, until the next pick replaces it again. See
+// ADR-056.
 export interface IDocumentSegment extends ISegmentBase {
   type: 'document'
-  heading: string
-  subheading?: string
-  fileUrl: string
-  thumbnailUrl: string
+  header: string
+  subheader?: string
+  documentId: string
   alt: string
 }
 
 export interface IRichTextSegment extends ISegmentBase {
   type: 'richText'
   body: string
+}
+
+// See ADR-052. Mirrors the Category page's own YouTube video fields
+// (ICategory.youtube*), just as its own segment type rather than fields on
+// the product record directly.
+export interface IVideoSegment extends ISegmentBase {
+  type: 'video'
+  url: string
+  thumbnailUrl?: string
+  caption?: string
+  description?: string
 }
 
 export type IProductSegment =
@@ -173,3 +210,4 @@ export type IProductSegment =
   | IBeforeAfterSegment
   | IDocumentSegment
   | IRichTextSegment
+  | IVideoSegment

@@ -60,7 +60,7 @@ const TreatmentGrid = ({list, columns}:{list:ITreatmentList[], columns: '1' | '2
                 // text color the section's backgroundColor resolves to.
                 <span className='block size-2.5 shrink-0 rounded-full bg-current' aria-hidden="true" />
               )}
-              <p className='p-format text-left!'>{item.name}</p>
+              <p className='p-format text-left! whitespace-pre-line'>{item.name}</p>
             </div>
           )
         })}

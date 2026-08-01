@@ -4,18 +4,31 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { getSegmentBackgroundColor } from "@/lib/segment-colors"
+import { cn } from "@/lib/utils"
 
-interface IDropdownDevice {
+interface IDropdownDeviceItem {
   imageUrl?: string
   icon?: React.ReactNode
   title: string
   body: string
 }
 
-export const DropdownDevice = ({list}:{list:IDropdownDevice[]}) => {
+interface IDropdownDevice {
+  list: IDropdownDeviceItem[]
+  header?: string
+  /** One of SEGMENT_BACKGROUND_COLOR_VALUES (src/lib/segment-colors.ts). */
+  backgroundColor?: string
+}
+
+export const DropdownDevice = ({ list, header, backgroundColor }: IDropdownDevice) => {
+  // Defaults to peach, not DEFAULT_SEGMENT_BACKGROUND_COLOR (black) — this
+  // section always rendered peach before the picker existed, see ADR-054.
+  const { bgClassName, textClassName } = getSegmentBackgroundColor(backgroundColor ?? "peach")
+
   return (
-    <section className="w-full bg-brand-peach/30 rounded-2xl overflow-hidden border border-neutral-200">
-      <h2 className="h2-md-format px-8 py-6">Technology</h2>
+    <section className={cn("w-full rounded-2xl overflow-hidden border border-neutral-200", bgClassName)}>
+      <h2 className={cn("h2-md-format px-8 py-6", textClassName)}>{header ?? "Technology"}</h2>
       <Accordion
         type="single"
         collapsible={false}

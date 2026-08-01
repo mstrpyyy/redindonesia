@@ -1,4 +1,5 @@
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
+import { cn } from '@/lib/utils'
 import Image from 'next/image'
 
 interface IHighlightDevice {
@@ -6,16 +7,20 @@ interface IHighlightDevice {
   text: string
   image: string
   textSide: 'left' | 'right'
+  // "fill" (default) crops the image to fill its box, rounded far corners —
+  // the original look. "fit" letterboxes the whole image instead and drops
+  // the rounding entirely.
+  imageFit?: 'fill' | 'fit'
 }
 
-export const HighlightDevice = ({ header, text, image, textSide }: IHighlightDevice) => {
+export const HighlightDevice = ({ header, text, image, textSide, imageFit = 'fill' }: IHighlightDevice) => {
   return (
     <BodyWrapper className='my-10 md:my-14'>
-      <section 
+      <section
         data-aos={textSide === 'left' ? 'fade-up-left' : 'fade-up-right'}
         data-aos-duration="1000"
         className={`
-          flex gap-6 md:gap-10 2xl:gap-20 items-center 
+          flex gap-6 md:gap-10 2xl:gap-20 items-center
           ${textSide === 'left' ? 'flex-col md:flex-row' : 'flex-col md:flex-row-reverse'}
         `}
       >
@@ -24,16 +29,20 @@ export const HighlightDevice = ({ header, text, image, textSide }: IHighlightDev
           <p className='max-lg:text-sm! max-lg:leading-7! p-format'>{text}</p>
         </div>
 
-        <Image 
+        <Image
           alt='alma-harmony-2'
           src={image}
           width={640}
           height={540}
-          className={`
-            w-full md:w-60 lg:w-90 2xl:w-95 aspect-2/1 md:aspect-3/4 lg:aspect-square object-cover object-center max-md:rounded-2xl
-            ${textSide === 'left' ? 'md:rounded-tl-[50px] md:rounded-br-[50px]' : 'md:rounded-tr-[50px] md:rounded-bl-[50px]'}
-            
-          `}
+          className={cn(
+            'w-full md:w-60 lg:w-90 2xl:w-95 aspect-2/1 md:aspect-3/4 lg:aspect-square',
+            imageFit === 'fit'
+              ? 'object-contain'
+              : cn(
+                  'object-cover object-center max-md:rounded-2xl',
+                  textSide === 'left' ? 'md:rounded-tl-[50px] md:rounded-br-[50px]' : 'md:rounded-tr-[50px] md:rounded-bl-[50px]'
+                )
+          )}
         />
       </section>
     </BodyWrapper>

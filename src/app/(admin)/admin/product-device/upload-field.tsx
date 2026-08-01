@@ -22,6 +22,7 @@ export function UploadField({
   aspect = "video",
   fit = "contain",
   uploadAction = uploadSegmentAsset,
+  preview = true,
   value,
   onChange,
   disabled,
@@ -50,6 +51,13 @@ export function UploadField({
   // field that isn't part of a product's segments (e.g. a category banner —
   // see ADR-033) so it lands in that feature's own upload folder instead.
   uploadAction?: (formData: FormData) => Promise<UploadActionResult>;
+  // Only meaningful for kind "image"/"carouselImage". Default `true` shows
+  // the drag-and-drop box with a live preview. `false` falls through to the
+  // same compact "Choose file"-style button kind "file" uses instead — for a
+  // spot where a full preview box is more chrome than the field needs (e.g.
+  // a document row's thumbnail, where the caller renders its own "view"
+  // action alongside).
+  preview?: boolean;
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
@@ -112,7 +120,7 @@ export function UploadField({
     );
   }
 
-  if (kind === "image" || kind === "carouselImage") {
+  if ((kind === "image" || kind === "carouselImage") && preview) {
     const boxClassName = cn(
       "bg-muted hover:border-foreground/50 group relative flex w-full items-center justify-center overflow-hidden rounded-md border-2 border-dashed transition-colors",
       disabled && "opacity-50",

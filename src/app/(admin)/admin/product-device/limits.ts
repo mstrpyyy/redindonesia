@@ -52,5 +52,5 @@ export const ACCEPTED_CAROUSEL_IMAGE_TYPES = ["image/jpeg", "image/png", "image/
 // 360 viewer frame sequence — uploaded together in one batch (see
 // viewer360-upload-actions.ts).
 export const MAX_VIEWER360_FRAMES = 100;
-export const MAX_VIEWER360_FRAME_SIZE = 100 * 1024;
-export const MAX_VIEWER360_FRAME_LABEL = "100KB";
+export const MAX_VIEWER360_FRAME_SIZE = 500 * 1024;
+export const MAX_VIEWER360_FRAME_LABEL = "500KB";

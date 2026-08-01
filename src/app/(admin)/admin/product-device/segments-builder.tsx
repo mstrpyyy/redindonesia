@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import NextImage from "next/image";
 import { ChevronDown, ChevronRight, ChevronUp, CircleCheck, Plus, Trash2, Upload } from "lucide-react";
 import {
   AlertDialog,
@@ -322,8 +323,12 @@ function FieldInput({
   }
 
   if (field.type === "select") {
+    // Falls back to the field's own default (e.g. Highlight's `imageFit`
+    // defaults to "fill") for a segment saved before this field existed —
+    // otherwise the editor would show a blank "Select..." while the public
+    // page (which defaults the same way) already renders a specific value.
     return (
-      <Select value={(value as string) ?? ""} onValueChange={onChange} disabled={disabled}>
+      <Select value={(value as string) ?? field.defaultValue ?? ""} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select..." />
         </SelectTrigger>
@@ -339,7 +344,11 @@ function FieldInput({
   }
 
   if (field.type === "colorSwatch") {
-    return <ColorSwatchInput value={value} onChange={onChange} disabled={disabled} />;
+    // Falls back to the field's own default (e.g. techSpecs' "peach", not
+    // ColorSwatchInput's generic black) for a segment saved before this
+    // field existed — otherwise the editor would show Black while the
+    // public page (which defaults the same way) actually renders Peach.
+    return <ColorSwatchInput value={value ?? field.defaultValue} onChange={onChange} disabled={disabled} />;
   }
 
   if (field.type === "heroTextColor") {
@@ -423,14 +432,21 @@ function ListField({
   // One row per item, no card border — each itemField
   // renders inline instead of stacked with its own label, and an "icon"
   // field renders as the square UploadField variant so the icon slot sits at
-  // the same height as the row's text input. A "textarea" field (e.g.
-  // Accordion's description) doesn't fit that inline row, so it drops to its
-  // own full-width line underneath instead of being squeezed next to
-  // icon/title.
+  // the same height as the row's text input. A "textarea" field only drops
+  // to its own full-width line underneath when there's a shorter field (e.g.
+  // Accordion's title) it would otherwise have to squeeze next to on the
+  // same row. When a textarea is the row's only non-icon field (e.g. the
+  // List segment's item name), there's nothing to protect from being
+  // squeezed, so it stays inline at the same level as the icon/buttons
+  // instead of dropping to an indented line below.
   if (field.itemsLayout === "table") {
     const iconField = itemFields.find((itemField) => itemField.type === "icon");
-    const contentFields = itemFields.filter((itemField) => itemField.type !== "icon" && itemField.type !== "textarea");
-    const blockFields = itemFields.filter((itemField) => itemField.type === "textarea");
+    const nonIconFields = itemFields.filter((itemField) => itemField.type !== "icon");
+    const hasShorterInlineField = nonIconFields.some((itemField) => itemField.type !== "textarea");
+    const contentFields = hasShorterInlineField
+      ? nonIconFields.filter((itemField) => itemField.type !== "textarea")
+      : nonIconFields;
+    const blockFields = hasShorterInlineField ? nonIconFields.filter((itemField) => itemField.type === "textarea") : [];
 
     return (
       <div className="flex flex-col gap-3">
@@ -636,9 +652,9 @@ interface ISegmentCardProps {
   // those mirror the product's own Name/Tagline instead of being retyped.
   productName?: string;
   productTagline?: string;
-  // Only meaningful for the "document" segment's `fileUrl` field — lets it
-  // pick from files already uploaded in the Product Files tab instead of
-  // uploading a duplicate copy of the same PDF.
+  // Only meaningful for the "document" segment's `documentId` field — lets
+  // it pick from documents already uploaded in the Product Files tab
+  // instead of uploading a duplicate copy of the same PDF.
   heroDocs?: IHeroDoc[];
 }
 
@@ -672,12 +688,13 @@ function SegmentCard({
     const sameAsSource = sameAsKey === "titleSameAsName" ? productName : productTagline;
     const sameAsChecked = sameAsKey ? Boolean(segment[sameAsKey]) : false;
 
-    // Placement renders inline next to the image field below, not as its
-    // own row.
-    if (segment.type === "highlight" && field.key === "imagePlacement") return null;
+    // Placement/fit render inline next to the image field below, not as
+    // their own row.
+    if (segment.type === "highlight" && (field.key === "imagePlacement" || field.key === "imageFit")) return null;
 
     if (segment.type === "highlight" && field.key === "image") {
       const placementField = def.fields.find((candidate) => candidate.key === "imagePlacement");
+      const fitField = def.fields.find((candidate) => candidate.key === "imageFit");
       return (
         <div key={field.key} className="flex flex-col gap-1.5">
           <Label>
@@ -687,18 +704,32 @@ function SegmentCard({
             <div className="max-w-xs flex-1">
               <FieldInput field={field} value={segment[field.key]} onChange={(value) => onChange({ ...segment, [field.key]: value })} />
             </div>
-            {placementField && (
-              <div className="flex w-32 flex-col gap-1.5">
-                <Label className="text-muted-foreground text-xs">
-                  <FieldLabelText field={placementField} />
-                </Label>
-                <FieldInput
-                  field={placementField}
-                  value={segment.imagePlacement}
-                  onChange={(value) => onChange({ ...segment, imagePlacement: value })}
-                />
-              </div>
-            )}
+            <div className="flex flex-col gap-3">
+              {placementField && (
+                <div className="flex w-32 flex-col gap-1.5">
+                  <Label className="text-muted-foreground text-xs">
+                    <FieldLabelText field={placementField} />
+                  </Label>
+                  <FieldInput
+                    field={placementField}
+                    value={segment.imagePlacement}
+                    onChange={(value) => onChange({ ...segment, imagePlacement: value })}
+                  />
+                </div>
+              )}
+              {fitField && (
+                <div className="flex w-44 flex-col gap-1.5">
+                  <Label className="text-muted-foreground text-xs">
+                    <FieldLabelText field={fitField} />
+                  </Label>
+                  <FieldInput
+                    field={fitField}
+                    value={segment.imageFit}
+                    onChange={(value) => onChange({ ...segment, imageFit: value })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       );
@@ -728,39 +759,61 @@ function SegmentCard({
       );
     }
 
-    // The file is one of the documents already uploaded in the Product
-    // Files tab (Downloadable Documents), not a fresh upload — picking by
-    // URL rather than re-uploading avoids duplicate copies of the same
-    // PDF on disk. If the current value isn't (or is no longer) one of
-    // those documents — e.g. saved before this field was a picker, or the
-    // source document was since removed from Product Files — it's kept
-    // as an extra option instead of being silently dropped.
-    if (segment.type === "document" && field.key === "fileUrl") {
-      const currentValue = typeof segment.fileUrl === "string" ? segment.fileUrl : "";
+    // The referenced document is one of the entries already uploaded in the
+    // Product Files tab (Downloadable Documents), picked by id rather than
+    // re-uploaded — see ADR-051 (supersedes ADR-031's href-matching
+    // version). If the stored id no longer resolves — the source document
+    // was since removed from Product Files — the admin gets a visible
+    // warning instead of the segment silently pointing at nothing.
+    if (segment.type === "document" && field.key === "documentId") {
+      const currentId = typeof segment.documentId === "string" ? segment.documentId : "";
       const options = heroDocs ?? [];
-      const hasCurrentValue = options.some((doc) => doc.href === currentValue);
+      const selected = options.find((doc) => doc.id === currentId);
+      const isMissing = currentId !== "" && !selected;
 
       return (
         <div key={field.key} className="flex flex-col gap-1.5">
           <Label>
             <FieldLabelText field={field} />
           </Label>
-          <Select value={currentValue || undefined} onValueChange={(value) => onChange({ ...segment, fileUrl: value })}>
+          <Select
+            value={currentId || undefined}
+            onValueChange={(value) => {
+              const picked = options.find((doc) => doc.id === value);
+              onChange({
+                ...segment,
+                documentId: value,
+                // Header always replaces with the newly picked document's
+                // own name — picking a document is what names the segment,
+                // not a one-time suggestion. See ADR-056.
+                header: picked ? picked.title : segment.header,
+              });
+            }}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder={options.length > 0 ? "Select a document" : "No documents uploaded yet"} />
             </SelectTrigger>
             <SelectContent>
               {options.map((doc) => (
-                <SelectItem key={doc.href} value={doc.href}>
+                <SelectItem key={doc.id} value={doc.id}>
                   {doc.title || doc.href}
                 </SelectItem>
               ))}
-              {currentValue && !hasCurrentValue && <SelectItem value={currentValue}>{currentValue}</SelectItem>}
             </SelectContent>
           </Select>
+          {isMissing && (
+            <p className="text-destructive text-xxs">
+              The document this segment referenced was removed from Product Files. Choose another.
+            </p>
+          )}
           <p className="text-muted-foreground text-xxs">
             Uploaded in the Product Files tab, under Downloadable Documents.
           </p>
+          {selected?.thumbnailUrl && (
+            <div className="relative mt-1 aspect-3/4 w-20 overflow-hidden rounded-md border">
+              <NextImage src={selected.thumbnailUrl} alt="" fill className="object-cover" />
+            </div>
+          )}
         </div>
       );
     }
@@ -901,21 +954,7 @@ function SegmentCard({
         </>
       )}
 
-      {segment.type === "document" ? (
-        // Text-ish fields (heading, subheading, the file picker) stacked on
-        // the left, the actual image on the right — same split as a
-        // Carousel item's fields.
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_200px] lg:grid-cols-[1fr_300px] sm:gap-x-6">
-          <div className="flex flex-col gap-4">
-            {def.fields.filter((field) => field.key !== "thumbnailUrl").map(renderField)}
-          </div>
-          <div className="flex flex-col gap-3">
-            {def.fields.filter((field) => field.key === "thumbnailUrl").map(renderField)}
-          </div>
-        </div>
-      ) : (
-        def.fields.map(renderField)
-      )}
+      {def.fields.map(renderField)}
         </>
       )}
 

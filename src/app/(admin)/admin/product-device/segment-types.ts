@@ -140,6 +140,18 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
           { value: "right", label: "Right" },
         ],
       },
+      // Also rendered next to the image field, not on its own row.
+      {
+        key: "imageFit",
+        label: "Image Fit",
+        type: "select",
+        required: true,
+        defaultValue: "fill",
+        options: [
+          { value: "fill", label: "Fill (crop to fit)" },
+          { value: "fit", label: "Fit (show full image)" },
+        ],
+      },
     ],
   },
   {
@@ -174,7 +186,7 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
         minItems: 1,
         itemFields: [
           { key: "svgUrl", label: "Icon", type: "icon" },
-          { key: "name", label: "Name", type: "text", required: true, placeholder: "e.g. Feature name" },
+          { key: "name", label: "Name", type: "textarea", required: true, placeholder: "e.g. Feature name" },
         ],
       },
     ],
@@ -215,6 +227,17 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
         required: true,
         maxLength: 50,
         placeholder: "e.g. Technical Specifications",
+      },
+      {
+        key: "backgroundColor",
+        label: "Background Color",
+        type: "colorSwatch",
+        required: true,
+        // Distinct from DEFAULT_SEGMENT_BACKGROUND_COLOR (black, used by the
+        // List segment) — Accordion always rendered peach before this field
+        // existed, so it defaults to peach instead to keep existing/new
+        // Accordions unchanged. See ADR-054.
+        defaultValue: "peach",
       },
       {
         key: "items",
@@ -352,16 +375,16 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
     type: "document",
     label: "Document Highlight",
     fields: [
-      { key: "fileUrl", label: "File", type: "file", required: true },
-      { key: "heading", label: "Heading", type: "text", required: true, placeholder: "e.g. Product Brochure" },
-      { key: "subheading", label: "Subheading", type: "text", placeholder: "Optional subheading" },
-      {
-        key: "thumbnailUrl",
-        label: "Thumbnail image",
-        type: "image",
-        required: true,
-        helpText: `Up to ${MAX_SEGMENT_IMAGE_LABEL}. JPEG, PNG, WEBP, or GIF.`,
-      },
+      // Picks one entry from the product's own Downloadable Documents list
+      // (Product Files tab) instead of its own file+thumbnail — see the
+      // document/documentId special case in segments-builder.tsx and
+      // ADR-051. Comes first: picking a document auto-fills Header below
+      // (ADR-056), so choosing it first is the natural order. The declared
+      // type has no bearing on rendering (fully intercepted there); it only
+      // feeds the generic required-field check.
+      { key: "documentId", label: "Document", type: "select", required: true },
+      { key: "header", label: "Header", type: "text", required: true, placeholder: "e.g. Product Brochure" },
+      { key: "subheader", label: "Subheader", type: "text", placeholder: "Optional subheader" },
       // No dedicated alt-text field — `alt` is derived server-side from
       // `heading`, same precedent as the hero's `imgAlt` (ADR-021) and
       // Before & After's `beforeAlt`/`afterAlt` (ADR-030). See ADR-032.
@@ -377,6 +400,36 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
         type: "richText",
         required: true,
         placeholder: "Write the section content...",
+      },
+    ],
+  },
+  {
+    // Mirrors the Category page's own YouTube video fields/upload — see
+    // ADR-052. Fully data-driven, no special-case render needed: the
+    // generic field engine already handles every field type used here.
+    type: "video",
+    label: "Video",
+    fields: [
+      {
+        key: "url",
+        label: "YouTube URL",
+        type: "url",
+        required: true,
+        placeholder: "https://www.youtube.com/watch?v=...",
+      },
+      {
+        key: "thumbnailUrl",
+        label: "Custom thumbnail",
+        type: "image",
+        helpText: `Poster with a play button; defaults to YouTube's own thumbnail if empty. Up to ${MAX_SEGMENT_IMAGE_LABEL}. JPEG, PNG, WEBP, or GIF.`,
+      },
+      { key: "caption", label: "Caption", type: "text", maxLength: 50, placeholder: "e.g. See It In Action" },
+      {
+        key: "description",
+        label: "Description",
+        type: "textarea",
+        maxLength: 250,
+        placeholder: "Optional description.",
       },
     ],
   },

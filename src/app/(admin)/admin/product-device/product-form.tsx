@@ -69,6 +69,18 @@ function withHeroSegment(segments: ISegmentRecord[], name: string, tagline: stri
   ];
 }
 
+// Existing `heroDocs` entries can predate `IHeroDoc.id` (added in ADR-051 so
+// the Document Highlight segment can reference one by id) — backfilled once
+// here, alongside `withHeroSegment`, rather than on every render.
+function ensureHeroDocIds(segments: ISegmentRecord[]): ISegmentRecord[] {
+  return segments.map((segment) => {
+    if (segment.type !== "hero") return segment;
+    const docs = (segment.heroDocs as IHeroDoc[] | undefined) ?? [];
+    if (docs.every((doc) => typeof doc.id === "string" && doc.id !== "")) return segment;
+    return { ...segment, heroDocs: docs.map((doc) => ({ ...doc, id: doc.id || crypto.randomUUID() })) };
+  });
+}
+
 // Order-independent — the picker's selection order isn't meaningful, only
 // which tags ended up chosen.
 function sameTagIds(a: ITag[], b: ITag[]): boolean {
@@ -122,7 +134,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   // baseline — calling withHeroSegment twice would inject two different
   // random ids for the auto-created hero, falsely marking the form dirty.
   const [initialSegments] = useState<ISegmentRecord[]>(() =>
-    withHeroSegment((product?.segments as unknown as ISegmentRecord[]) ?? [], name, tagline)
+    ensureHeroDocIds(withHeroSegment((product?.segments as unknown as ISegmentRecord[]) ?? [], name, tagline))
   );
   const [segments, setSegments] = useState<ISegmentRecord[]>(initialSegments);
   const [cardBackground, setCardBackground] = useState<ICardBackgroundValue>(
@@ -317,8 +329,8 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="hidden">Hidden</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="hidden">Draft</SelectItem>
+                  <SelectItem value="public">Publish</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -506,20 +518,23 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
           Cancel
         </Button>
         <div className="flex gap-2">
+          {/* Labels only — the underlying "hidden"/"public" status values are
+              unchanged. Reverts ADR-040's Public/Hidden wording back to
+              Draft/Publish language; see ADR-055. */}
           <Button type="button" variant="outline" disabled={isPending} onClick={() => handleSubmit("hidden")} className="w-36">
-            {isPending ? "Saving..." : "Save as hidden"}
+            {isPending ? "Saving..." : "Save as Draft"}
           </Button>
-          {/* Making it public is only offered from the last tab — everywhere
+          {/* Publishing is only offered from the last tab — everywhere
               else this button walks the admin to the next one, so the editor
-              reads as three steps rather than three places you could go
-              public from. */}
+              reads as three steps rather than three places you could publish
+              from. */}
           {nextTab ? (
             <Button type="button" disabled={isPending} onClick={() => setTab(nextTab)} className="w-36">
               Next
             </Button>
           ) : (
             <Button type="button" disabled={isPending} onClick={() => handleSubmit("public")} className="w-36">
-              {isPending ? "Publishing..." : "Make public"}
+              {isPending ? "Publishing..." : "Publish"}
             </Button>
           )}
         </div>
