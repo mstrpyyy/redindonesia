@@ -2614,3 +2614,46 @@ admin-facing label.
   after picking is the only way to diverge from the document's own name.
 - No data migration: this is a same-day refinement of ADR-051, which had not
   yet been exercised against any real saved product data.
+
+## ADR-057: Document Highlight — thumbnail-less fallback is an outline button; fixed "Download Document" label + layout order
+
+**Date:** 2026-08-01
+**Status:** Accepted (refines ADR-051/ADR-056 — same feature, no reversal)
+
+**Context:** Follow-up feedback: a Downloadable Document's thumbnail
+(`IHeroDoc.thumbnailUrl`) is optional (ADR-051), but `ProductPageView.tsx`'s
+`document` case still dropped the whole segment whenever the referenced
+document had no thumbnail — treating "no thumbnail" the same as "the
+reference is broken," which isn't the intent. Separately, the client wants a
+fixed three-line layout: a static "Download Document" label, then the
+segment's own Header, then its Subheader — rather than the previous
+Subheader-above-Header arrangement.
+
+**Decision:**
+- `DocumentDevice`'s `thumbnailUrl` prop becomes optional. When absent, the
+  whole large image card (the `aspect-3/4` red box with hover-revealed
+  "Click to Download" overlay) is replaced entirely by a small standalone
+  pill button — `rounded-full`, bordered (`border-brand-red`, not filled),
+  text + `ArrowDownToLine` icon, filling solid on hover — rather than
+  keeping the big box with a placeholder graphic inside it. The overlay
+  button's text/icon only needed to be revealed on hover because it sat on
+  top of a photo; with no photo, there's nothing to reveal it from, so it's
+  simply always visible as its own element instead of an overlay.
+- `ProductPageView.tsx`'s `document` case only drops the segment when the
+  referenced document itself can't be found (removed from Product Files) —
+  a resolved document with no thumbnail now renders through the fallback
+  above instead of being treated as broken.
+- `DocumentDevice`'s heading block is now a fixed three-line order: a
+  hardcoded "Download Document" label, then `header`, then `subheader` (if
+  set) — previously `subheader` rendered above `header`, and there was no
+  "Download Document" label at all.
+
+**Consequences:**
+- "Download Document" is a hardcoded string, not a field — every Document
+  Highlight segment shows the same label; if the client wants this
+  customizable later, it becomes a new (likely optional, defaulting to this
+  same text) segment field.
+- A thumbnail-less document highlight no longer reserves the same visual
+  weight (a large photo-sized card) as one with a thumbnail — it renders as
+  a compact button instead, so a page mixing both looks intentionally
+  different per entry rather than uniformly sized.

@@ -186,10 +186,12 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[]) {
 
     case 'document': {
       // Renders nothing until re-picked if the referenced document was
-      // since removed from Product Files, or has no thumbnail set — same
-      // "drop rather than render broken" precedent as `applicators` above.
+      // since removed from Product Files — same "drop rather than render
+      // broken" precedent as `applicators` above. A missing thumbnail is
+      // NOT treated as broken (see ADR-057) — DocumentDevice falls back to
+      // a plain gray/icon placeholder instead.
       const doc = heroDocs.find((item) => item.id === segment.documentId)
-      if (!doc || !doc.thumbnailUrl) return null
+      if (!doc) return null
 
       return (
         <BodyWrapper className='my-14'>

@@ -891,7 +891,7 @@ renders nothing if it's missing or thumbnail-less.
 - `src/app/(user)/components/catalogue/Document.tsx` — real props
 - `src/app/(user)/components/catalogue/ProductPageView.tsx` — `documentId`
   resolution
-- `DECISIONS.md` (ADR-051, refined by ADR-056)
+- `DECISIONS.md` (ADR-051, refined by ADR-056, ADR-057)
 **Acceptance criteria:**
 - [x] Downloadable Documents rows have a thumbnail upload alongside the
   existing title/file.
@@ -901,8 +901,12 @@ renders nothing if it's missing or thumbnail-less.
   replaces Header with that document's own name (ADR-056).
 - [x] Picking a since-removed document shows a visible warning in the admin,
   not a silent broken reference.
-- [x] The public page renders that document's real heading/subheading/file/
-  thumbnail, not hardcoded placeholder content.
+- [x] The public page renders that document's real header/subheader/file,
+  not hardcoded placeholder content. A thumbnail-less document still
+  renders — a small outline "Click to Download" pill button in place of
+  the large image card — rather than the segment being dropped (ADR-057).
+- [x] The public layout is a fixed three lines: "Download Document", then
+  Header, then Subheader (ADR-057).
 - [x] `tsc --noEmit` passes.
 **Do not:** Move `heroDocs`/`certifications` off the hero segment's record —
 unchanged from ADR-026.
