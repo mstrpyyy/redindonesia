@@ -88,7 +88,7 @@ export const HeroDevice = ({
           variant === 'category'
             ? `absolute 
             inset-x-5 sm:inset-x-20 
-            max-md:bottom-[5%] md:top-[20%] lg:top-[35%] xl:top-[30%] 
+            max-md:bottom-[5%] md:top-56 
             -translate-y-1/2 
             text-center`
             : 'my-auto'

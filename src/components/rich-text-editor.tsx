@@ -10,6 +10,9 @@ import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import {
   AlignCenter,
   AlignHorizontalJustifyCenter,
@@ -19,6 +22,7 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  Check,
   Heading2,
   Heading3,
   Highlighter,
@@ -31,6 +35,8 @@ import {
   Quote,
   Redo2,
   Strikethrough,
+  Table as TableIcon,
+  Trash2,
   Underline as UnderlineIcon,
   Undo2,
 } from "lucide-react";
@@ -38,6 +44,15 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ColorPickerButton } from "@/components/color-picker-button";
 import { AlignableImage } from "@/components/tiptap-image-align";
+import { AlignableTable } from "@/components/tiptap-table-align";
+import { TrailingNode } from "@/components/tiptap-trailing-node";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Common presets, Google Docs/Word style — not an exhaustive palette, just
 // recognizable defaults; anything else is reachable via the custom picker.
@@ -131,6 +146,16 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
       TextStyle,
       Color,
       AlignableImage,
+      // `resizable: true` gives every column an explicit pixel width (drag
+      // handles on the column borders) instead of the table stretching to
+      // fill the editor's full width — `cellMinWidth` is the floor while
+      // dragging; the actual default per-column width comes from the
+      // `.tiptap-content table td/th` CSS in globals.css.
+      AlignableTable.configure({ resizable: true, cellMinWidth: 160 }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TrailingNode,
     ],
     content: value,
     immediatelyRender: false,
@@ -351,6 +376,88 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
         >
           <AlignHorizontalJustifyEnd className="size-4" />
         </ToolbarButton>
+
+        <span className="bg-border mx-1 h-5 w-px" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Table"
+              aria-pressed={editor.isActive("table")}
+              className={cn(editor.isActive("table") && "bg-accent text-accent-foreground")}
+            >
+              <TableIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {!editor.isActive("table") ? (
+              <DropdownMenuItem
+                onClick={() =>
+                  editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+                }
+              >
+                Insert table
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem
+                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "left" }).run()}
+                >
+                  <AlignHorizontalJustifyStart />
+                  Align left
+                  {(editor.getAttributes("table").align ?? "left") === "left" && (
+                    <Check className="ml-auto" />
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "center" }).run()}
+                >
+                  <AlignHorizontalJustifyCenter />
+                  Align center
+                  {editor.getAttributes("table").align === "center" && <Check className="ml-auto" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "right" }).run()}
+                >
+                  <AlignHorizontalJustifyEnd />
+                  Align right
+                  {editor.getAttributes("table").align === "right" && <Check className="ml-auto" />}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => editor.chain().focus().addColumnBefore().run()}>
+                  Add column before
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().addColumnAfter().run()}>
+                  Add column after
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().deleteColumn().run()}>
+                  Delete column
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => editor.chain().focus().addRowBefore().run()}>
+                  Add row before
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().addRowAfter().run()}>
+                  Add row after
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => editor.chain().focus().deleteRow().run()}>
+                  Delete row
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => editor.chain().focus().deleteTable().run()}
+                >
+                  <Trash2 />
+                  Delete table
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <span className="bg-border mx-1 h-5 w-px" />
 

@@ -359,6 +359,66 @@ html {
   border-radius: 0.15rem;
   padding: 0 0.1rem;
 }
+/* `.tableWrapper` (added by the Table extension around every <table>) is
+   what scrolls on narrow screens — the table itself keeps `table-layout:
+   fixed` with a per-column default width below so it sizes to its columns
+   instead of stretching edge to edge; dragging a column's resize handle
+   (`resizable: true`, rich-text-editor.tsx) sets an inline width that
+   overrides the default. */
+.tiptap-content .tableWrapper {
+  margin: 0.5rem 0 0.75rem;
+  overflow-x: auto;
+}
+.tiptap-content table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: auto;
+  margin-left: 0;
+  margin-right: auto;
+}
+/* Positions the fixed-width table within the full-width `.tableWrapper` —
+   mirrors `.tiptap-content img[data-align=...]`, but via margin instead of
+   float since a table isn't meant to have text wrapping around it. */
+.tiptap-content table[data-align="center"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+.tiptap-content table[data-align="right"] {
+  margin-left: auto;
+  margin-right: 0;
+}
+.tiptap-content table td,
+.tiptap-content table th {
+  border: 1px solid var(--color-border, #e5e5e5);
+  padding: 0.5rem 0.75rem;
+  width: 20rem;
+  min-width: 10rem;
+  vertical-align: top;
+}
+.tiptap-content table td > *:last-child,
+.tiptap-content table th > *:last-child {
+  margin-bottom: 0;
+}
+.tiptap-content table th {
+  background-color: var(--color-muted-bg, #fafafa);
+  font-weight: 600;
+  text-align: left;
+}
+.tiptap-content table .selectedCell {
+  background-color: color-mix(in oklch, var(--color-brand-red) 12%, transparent);
+}
+.tiptap-content table .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--color-brand-red);
+  pointer-events: none;
+}
+.tiptap-content.resize-cursor {
+  cursor: col-resize;
+}
 
 /* Category page body (`CategoryPageView`) — paired with `.tiptap-content` on
    the same element for its list/link/image styling, but h2/p match the rest
