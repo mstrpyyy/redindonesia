@@ -193,7 +193,7 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
               fileUrl={getCertificationHref(certification)}
               alt={certification.label}
               certification={{
-                logo: getCertificationLogo(certification, 'black'),
+                logo: getCertificationLogo(certification, 'original'),
                 name: certification.label,
                 number: getCertificationSubLabel(certification),
               }}

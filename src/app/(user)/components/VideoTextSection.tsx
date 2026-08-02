@@ -36,7 +36,7 @@ export const VideoTextSection = ({
       </div>
       {hasText && (
         <div className="w-full lg:w-96">
-          {heading && <h3 className='h3-format lg:whitespace-nowrap max-lg:text-center'>{heading}</h3>}
+          {heading && <h3 className='h3-format max-lg:text-center'>{heading}</h3>}
           {description && (
             <p className='p-sm-format lg:w-0 lg:min-w-full max-lg:text-center!'>
               {description}

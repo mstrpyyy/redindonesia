@@ -2929,3 +2929,47 @@ use.
   Subheader become editable again immediately (the `isDisabledCertField`
   check is live, not a one-time lock) — whatever value was auto-filled
   stays until edited or the next certification pick overwrites it again.
+
+## ADR-065: Tag deletion happens inline in the tag picker, not a Tags page
+
+**Date:** 2026-08-02
+**Status:** Accepted
+
+**Context:** ADR-041 gave tags inline create-on-the-fly from the Identity
+tab's picker and explicitly ruled out a standalone Tags management page.
+There was no way to remove a tag from the reusable pool at all — a
+mistyped or now-unwanted tag stuck around forever. The client asked for a
+delete feature, and the existing "no separate page" precedent (create
+lives in the picker, not elsewhere) applies the same way to delete.
+
+**Options considered:**
+1. A standalone `/admin/.../tags` page listing every tag with a delete
+   button — consistent with typical CMS patterns, but reopens the exact
+   thing ADR-041 rejected (a whole page for something small enough to
+   manage inline), and would be the only entry point to something the
+   admin otherwise never navigates to directly.
+2. Delete inline from the tag picker's dropdown list — a small trash icon
+   per row, revealed on hover, next to the existing checkmark toggle.
+   Consistent with how the same picker already handles create. Chosen.
+
+**Decision:** `deleteTag(id)` (`tag-actions.ts`) does a plain
+`prisma.tag.delete`. Since `Tag`/`Product` is an implicit many-to-many,
+this only drops the join rows — no cascade to the products that had it
+applied, they just lose the tag. `TagPicker` gained a per-row delete
+button (hover-revealed, stops propagation so it doesn't also toggle
+selection) that opens the same `AlertDialog` confirm pattern
+`category-tree.tsx` already uses for deleting a category, since a tag
+delete is just as irreversible and just as likely to be in use elsewhere.
+On confirm, the picker calls a new `onTagDeleted(id)` prop rather than
+mutating its own `options`/`value` — `product-form.tsx` owns both
+`availableTags` (the pool) and `selectedTags` (this item's picks) as
+separate state, and a deleted tag needs to disappear from both at once if
+it happened to be applied to the item currently being edited.
+
+**Consequences:**
+- No confirmation of how many other products currently carry the tag
+  before deleting — the dialog warns it's removed from "every
+  {device|product} using it" but doesn't count them. Acceptable for now;
+  revisit if admins ask for a usage count before confirming.
+- No audit trail — a deleted tag's name is gone once confirmed, same as
+  category deletion today.

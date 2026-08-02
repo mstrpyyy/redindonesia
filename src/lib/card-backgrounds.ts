@@ -12,6 +12,8 @@
 // default, so add rather than rename.
 
 export const CARD_BACKGROUND_VALUES = [
+  "white",
+  "black",
   "peach",
   "red",
   "orange",
@@ -43,11 +45,15 @@ export interface ICardBackgroundOption {
   label: string;
   /** Applied to the card, and to the picker's swatch so it shows the real gradient. */
   className: string;
+  /** True when the background is dark enough that the card needs light text instead of the default dark text. */
+  dark?: boolean;
 }
 
 export const DEFAULT_CARD_BACKGROUND: ICardBackgroundValue = "peach";
 
 export const CARD_BACKGROUNDS: ICardBackgroundOption[] = [
+  { value: "white", label: "White", className: "bg-white" },
+  { value: "black", label: "Black", className: "bg-black", dark: true },
   { value: "peach", label: "Peach", className: "bg-linear-to-br from-brand-peach/20 to-white" },
   { value: "red", label: "Red", className: "bg-linear-to-br from-red-500/20 to-white" },
   { value: "orange", label: "Orange", className: "bg-linear-to-br from-orange-500/20 to-white" },

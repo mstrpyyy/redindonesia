@@ -155,6 +155,14 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   // though Identity's own content unmounts while another tab is active.
   const [availableTags, setAvailableTags] = useState<ITag[]>(tags);
   const [selectedTags, setSelectedTags] = useState<ITag[]>(product?.tags ?? []);
+
+  // Deleting a tag removes it from the reusable pool and, if this item had it
+  // applied, from its current selection too — both live in separate state
+  // here, so a delete needs to update each.
+  const handleTagDeleted = (id: string) => {
+    setAvailableTags((current) => current.filter((tag) => tag.id !== id));
+    setSelectedTags((current) => current.filter((tag) => tag.id !== id));
+  };
   const [thumbnail, setThumbnail] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(product?.thumbnail ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -351,6 +359,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
                 type={type}
                 options={availableTags}
                 onTagCreated={(tag) => setAvailableTags((current) => [...current, tag])}
+                onTagDeleted={handleTagDeleted}
                 value={selectedTags}
                 onChange={setSelectedTags}
               />

@@ -29,9 +29,11 @@ export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt, 
   return (
     <section className='flex max-sm:flex-col items-center justify-evenly gap-10'>
       <h2 className='max-sm:text-center'>
-        <span className='p-format leading-2! sm:block'>
-          {certification ? 'View Certification' : 'Download Document'}
-        </span>
+        {!certification && (
+          <span className='p-format leading-2! sm:block'>
+            Download Document
+          </span>
+        )}
 
         {certification ? (
           <span className='my-4 flex items-center justify-center gap-5 sm:justify-start'>

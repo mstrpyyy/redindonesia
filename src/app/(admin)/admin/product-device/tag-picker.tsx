@@ -1,13 +1,23 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Check, ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Trash2, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { ITag } from "@/interfaces/general";
-import { createTag } from "./tag-actions";
+import { createTag, deleteTag } from "./tag-actions";
 import { MAX_TAG_NAME_LENGTH } from "./limits";
 
 interface ITagPickerProps {
@@ -18,16 +28,23 @@ interface ITagPickerProps {
   // active tab (see product-form.tsx).
   options: ITag[];
   onTagCreated: (tag: ITag) => void;
+  // Permanently removes the tag from the reusable pool (not just this item's
+  // selection) — the parent is responsible for dropping it from both
+  // `options` and any current selection, since a tag can be deleted while
+  // it's still applied to the item being edited.
+  onTagDeleted: (id: string) => void;
   value: ITag[];
   onChange: (tags: ITag[]) => void;
   disabled?: boolean;
 }
 
-export function TagPicker({ type, options, onTagCreated, value, onChange, disabled }: ITagPickerProps) {
+export function TagPicker({ type, options, onTagCreated, onTagDeleted, value, onChange, disabled }: ITagPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, startCreateTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<ITag | null>(null);
+  const [isDeleting, startDeleteTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selectedIds = new Set(value.map((tag) => tag.id));
@@ -61,6 +78,22 @@ export function TagPicker({ type, options, onTagCreated, value, onChange, disabl
       if (!selectedIds.has(result.data.id)) onChange([...value, result.data]);
       setSearch("");
       inputRef.current?.focus();
+    });
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setError(null);
+
+    startDeleteTransition(async () => {
+      const result = await deleteTag(target.id);
+      if (!result.success) {
+        setError(result.error.message);
+      } else {
+        onTagDeleted(target.id);
+      }
+      setDeleteTarget(null);
     });
   };
 
@@ -128,15 +161,27 @@ export function TagPicker({ type, options, onTagCreated, value, onChange, disabl
               {filtered.map((tag) => {
                 const checked = selectedIds.has(tag.id);
                 return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
-                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
-                  >
-                    <Check className={cn("size-4 shrink-0", checked ? "opacity-100" : "opacity-0")} />
-                    {tag.name}
-                  </button>
+                  <div key={tag.id} className="hover:bg-accent group flex items-center rounded-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className="flex flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
+                    >
+                      <Check className={cn("size-4 shrink-0", checked ? "opacity-100" : "opacity-0")} />
+                      {tag.name}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete tag "${tag.name}"`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(tag);
+                      }}
+                      className="text-muted-foreground hover:text-destructive shrink-0 px-2 py-1.5 opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 );
               })}
               {search.trim() && !hasExactMatch && (
@@ -155,6 +200,24 @@ export function TagPicker({ type, options, onTagCreated, value, onChange, disabl
         </PopoverContent>
       </Popover>
       {error && <p className="text-destructive text-xs">{error}</p>}
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this tag?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-semibold">{deleteTarget?.name}</span> will be deleted and removed from every{" "}
+              {type} using it. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -18,6 +18,7 @@ interface IDeviceCardProps extends React.ComponentProps<'div'> {
 // this component knowing about them.
 export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
   const hasTags = Boolean(item.tags && item.tags.length > 0)
+  const background = getCardBackground(item.background)
 
   return (
     <div
@@ -29,7 +30,11 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
           shadow-[0_2px_4px_rgba(0,0,0,0.25)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.25)]
           transition-all duration-200
         `,
-        getCardBackground(item.background).className,
+        background.className,
+        // Tags and the button below read `currentColor`/hardcoded light-bg
+        // shades, so a dark card needs its text flipped here rather than in
+        // each descendant.
+        background.dark && "text-white",
         className
       )}
     >
@@ -101,11 +106,12 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
         <Button
           asChild
           variant={'outlineSecondary'}
-          className={`
-            sm:border-neutral-500 sm:text-neutral-500 group-hover:border-black group-hover:text-black
-            bg-transparent hover:bg-black hover:text-white
-            text-base!
-          `}
+          className={cn(
+            'bg-transparent text-base!',
+            background.dark
+              ? 'sm:border-neutral-300 sm:text-neutral-300 group-hover:border-white group-hover:text-white hover:bg-white hover:text-black'
+              : 'sm:border-neutral-500 sm:text-neutral-500 group-hover:border-black group-hover:text-black hover:bg-black hover:text-white'
+          )}
         >
           <Link href={item.url} className="mt-auto w-fit ml-auto">
             View Product

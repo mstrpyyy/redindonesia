@@ -8,6 +8,9 @@
 export interface ICertificationLogoPair {
   white: string;
   black: string;
+  // Full-color logo, used by the Document Highlight segment instead of the
+  // hero's contrast-matched white/black pair. LKPP/"other" have none.
+  original?: string;
 }
 
 // All three now have a genuine white/black monochrome pair (ADR-049). LKPP's
@@ -15,9 +18,9 @@ export interface ICertificationLogoPair {
 // — note the filenames are `lkkp*`, a pre-existing typo already relied on
 // by that section (`Credibility.tsx`), not a mistake introduced here.
 export const CERTIFICATION_LOGOS: Record<"halal" | "kemenkes" | "bpom" | "lkpp", ICertificationLogoPair> = {
-  halal: { white: "/image/logo-halal-notext-white.png", black: "/image/logo-halal-notext-black.png" },
-  kemenkes: { white: "/image/kemenkes-white.png", black: "/image/kemenkes-black.png" },
-  bpom: { white: "/image/bpom-white.png", black: "/image/bpom-black.png" },
+  halal: { white: "/image/logo-halal-notext-white.png", black: "/image/logo-halal-notext-black.png", original: "/image/halal-original.png" },
+  kemenkes: { white: "/image/kemenkes-white.png", black: "/image/kemenkes-black.png", original: "/image/kemenkes-original.png" },
+  bpom: { white: "/image/bpom-white.png", black: "/image/bpom-black.png", original: "/image/bpom-original.png" },
   lkpp: { white: "/image/home/certificate/lkkp.png", black: "/image/home/certificate/lkkp-black.png" },
 };
 
@@ -32,10 +35,12 @@ import type { ICertification } from "@/interfaces/segments";
 
 export function getCertificationLogo(
   certification: ICertification,
-  variant: "white" | "black"
+  variant: "white" | "black" | "original"
 ): string | undefined {
   if (certification.certType === "other") return undefined;
-  return CERTIFICATION_LOGOS[certification.certType][variant];
+  const pair = CERTIFICATION_LOGOS[certification.certType];
+  if (variant === "original") return pair.original ?? pair.black;
+  return pair[variant];
 }
 
 export function getCertificationSubLabel(certification: ICertification): string | undefined {

@@ -44,3 +44,19 @@ export async function createTag(type: "device" | "product", name: string): Promi
     return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to create the tag." } };
   }
 }
+
+// Called from the tag picker's per-row delete action — the Tag <-> Product
+// relation is an implicit many-to-many, so this only drops the join rows;
+// products that had it applied are untouched aside from losing the tag.
+export async function deleteTag(id: string): Promise<ActionResult<null>> {
+  if (!id) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Missing tag id." } };
+  }
+
+  try {
+    await prisma.tag.delete({ where: { id } });
+    return { success: true, data: null };
+  } catch {
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to delete the tag." } };
+  }
+}
