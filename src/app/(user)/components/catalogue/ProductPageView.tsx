@@ -15,7 +15,7 @@ import { cn, getYoutubeVideoId } from '@/lib/utils'
 import { IProduct } from '@/interfaces/general'
 import { ICertification, IHeroDoc, IHeroSegment, IProductSegment } from '@/interfaces/segments'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
-import { CERTIFICATION_LOGOS } from '@/lib/certification-logos'
+import { getCertificationHref, getCertificationLogo, getCertificationSubLabel } from '@/lib/certification-logos'
 
 interface IProductPageViewProps {
   product: IProduct
@@ -33,20 +33,10 @@ function CertificationBadge({
   contrastClassName: string
 }) {
   const isBlack = contrastClassName === 'text-black'
-  const logo =
-    certification.certType !== 'other' && certification.certType !== 'lkpp'
-      ? CERTIFICATION_LOGOS[certification.certType][isBlack ? 'black' : 'white']
-      : undefined
-  const subLabel =
-    certification.certType === 'halal'
-      ? certification.certificateNumber
-      : certification.certType === 'kemenkes'
-        ? certification.aklNumber
-        : certification.certType === 'bpom'
-          ? certification.registrationNumber
-          : undefined
+  const logo = getCertificationLogo(certification, isBlack ? 'black' : 'white')
+  const subLabel = getCertificationSubLabel(certification)
   // LKPP has no uploaded certificate — a link stands in for it (ADR-053).
-  const href = certification.certType === 'lkpp' ? certification.linkUrl : certification.fileUrl
+  const href = getCertificationHref(certification)
 
   const content = (
     <>
@@ -87,9 +77,9 @@ function CertificationBadge({
 // segment-types.ts (ADR-020). `viewer360` and `techSpecs` are independent
 // segments (no longer paired side-by-side the way the old hardcoded page did
 // it), each getting its own full-width section. `document` resolves its
-// referenced entry out of `heroDocs` (ADR-051) — the only case that needs
-// more than its own segment data.
-function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[]) {
+// referenced entry out of `heroDocs`/`heroCertifications` (ADR-051, ADR-059)
+// — the only case that needs more than its own segment data.
+function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCertifications: ICertification[]) {
   switch (segment.type) {
     case 'highlight':
       return (
@@ -185,12 +175,34 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[]) {
       )
 
     case 'document': {
-      // Renders nothing until re-picked if the referenced document was
-      // since removed from Product Files — same "drop rather than render
-      // broken" precedent as `applicators` above. A missing thumbnail is
-      // NOT treated as broken (see ADR-057) — DocumentDevice falls back to
-      // a plain gray/icon placeholder instead.
-      const doc = heroDocs.find((item) => item.id === segment.documentId)
+      // Can highlight either a Downloadable Document or a Certification
+      // (ADR-059, layout unified by ADR-061) — same "drop rather than
+      // render broken" precedent as `applicators` above when the
+      // referenced entry can't be resolved. A document with no thumbnail
+      // is NOT treated as broken (see ADR-057) — `DocumentDevice` falls
+      // back to a plain outline button instead.
+      if (segment.referenceKind === 'certification') {
+        const certification = heroCertifications.find((item) => item.id === segment.referenceId)
+        if (!certification) return null
+
+        return (
+          <BodyWrapper className='my-14'>
+            <DocumentDevice
+              header={segment.header}
+              subheader={segment.subheader}
+              fileUrl={getCertificationHref(certification)}
+              alt={certification.label}
+              certification={{
+                logo: getCertificationLogo(certification, 'black'),
+                name: certification.label,
+                number: getCertificationSubLabel(certification),
+              }}
+            />
+          </BodyWrapper>
+        )
+      }
+
+      const doc = heroDocs.find((item) => item.id === segment.referenceId)
       if (!doc) return null
 
       return (
@@ -269,7 +281,7 @@ export const ProductPageView = ({ product }: IProductPageViewProps) => {
             <div className='z-30 flex max-sm:flex-col items-start sm:items-center gap-2'>
               <div>
                 <h3 className={cn(heroColor.contrastClassName, 'text-xs')}>Device Certifications:</h3>
-                <p className={cn(heroColor.contrastClassName, 'text-xxs')}>Click to download file</p>
+                <p className={cn(heroColor.contrastClassName, 'text-xxs')}>Click to view</p>
               </div>
               <div className='flex flex-wrap gap-2 items-center'>
                 {hero.certifications.map((certification, index) => (
@@ -289,7 +301,7 @@ export const ProductPageView = ({ product }: IProductPageViewProps) => {
 
       {contentSegments.map((segment) => (
         <div key={segment.id} id={`segment-${segment.id}`}>
-          {renderSegment(segment, hero?.heroDocs ?? [])}
+          {renderSegment(segment, hero?.heroDocs ?? [], hero?.certifications ?? [])}
         </div>
       ))}
     </main>

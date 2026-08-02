@@ -10,9 +10,41 @@ export interface ICertificationLogoPair {
   black: string;
 }
 
-// All three now have a genuine white/black monochrome pair (ADR-049).
-export const CERTIFICATION_LOGOS: Record<"halal" | "kemenkes" | "bpom", ICertificationLogoPair> = {
+// All three now have a genuine white/black monochrome pair (ADR-049). LKPP's
+// pair (ADR-060) reuses the homepage Credibility section's existing assets
+// — note the filenames are `lkkp*`, a pre-existing typo already relied on
+// by that section (`Credibility.tsx`), not a mistake introduced here.
+export const CERTIFICATION_LOGOS: Record<"halal" | "kemenkes" | "bpom" | "lkpp", ICertificationLogoPair> = {
   halal: { white: "/image/logo-halal-notext-white.png", black: "/image/logo-halal-notext-black.png" },
   kemenkes: { white: "/image/kemenkes-white.png", black: "/image/kemenkes-black.png" },
   bpom: { white: "/image/bpom-white.png", black: "/image/bpom-black.png" },
+  lkpp: { white: "/image/home/certificate/lkkp.png", black: "/image/home/certificate/lkkp-black.png" },
 };
+
+// Shared certType-branching helpers (ADR-059) — pulled out so the hero's
+// `CertificationBadge` and the Document Highlight segment's certification
+// layout (`ProductPageView.tsx`) don't each carry their own copy of the same
+// switch. Only "other" has no fixed logo (a free-text style with no
+// consistent mark); LKPP now has one too (ADR-060, supersedes ADR-053's "no
+// logo" note) — it still links out via `linkUrl` instead of an uploaded
+// `fileUrl`, which `getCertificationHref` below is unaffected by.
+import type { ICertification } from "@/interfaces/segments";
+
+export function getCertificationLogo(
+  certification: ICertification,
+  variant: "white" | "black"
+): string | undefined {
+  if (certification.certType === "other") return undefined;
+  return CERTIFICATION_LOGOS[certification.certType][variant];
+}
+
+export function getCertificationSubLabel(certification: ICertification): string | undefined {
+  if (certification.certType === "halal") return certification.certificateNumber;
+  if (certification.certType === "kemenkes") return certification.aklNumber;
+  if (certification.certType === "bpom") return certification.registrationNumber;
+  return undefined;
+}
+
+export function getCertificationHref(certification: ICertification): string {
+  return certification.certType === "lkpp" ? certification.linkUrl : certification.fileUrl;
+}

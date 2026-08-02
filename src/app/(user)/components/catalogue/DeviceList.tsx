@@ -2,6 +2,7 @@ import React from 'react'
 import { BodyWrapper } from '../BodyWrapper'
 import { CatalogueFilter, IFilterList } from './Filter'
 import { DeviceCard } from './DeviceCard'
+import { CategoryCard } from './CategoryCard'
 import { IDeviceCardItem } from '@/interfaces/general'
 
 interface IDeviceFilterList {
@@ -11,9 +12,13 @@ interface IDeviceFilterList {
   filterList?: IFilterList[]
   heading?: React.ReactNode
   emptyMessage?: string
+  // "category" renders `CategoryCard` (full-bleed banner, centered title/
+  // description/CTA) instead of the default product `DeviceCard` — used for
+  // the "Browse Categories" sub-category grid (CategoryPageView.tsx).
+  cardVariant?: 'product' | 'category'
 }
 
-export const DeviceFilterList = ({deviceList, filterList, heading, emptyMessage}:IDeviceFilterList) => {
+export const DeviceFilterList = ({deviceList, filterList, heading, emptyMessage, cardVariant = 'product'}:IDeviceFilterList) => {
   return (
     <section>
       <h2 className='h2-format my-14'>
@@ -32,14 +37,23 @@ export const DeviceFilterList = ({deviceList, filterList, heading, emptyMessage}
         </p>
       ) : (
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-10 my-14'>
-          {deviceList.map((item, index) => (
-            <DeviceCard
-              key={index}
-              item={item}
-              data-aos="fade-up"
-              data-aos-duration="1000"
-            />
-          ))}
+          {deviceList.map((item, index) =>
+            cardVariant === 'category' ? (
+              <CategoryCard
+                key={index}
+                item={item}
+                data-aos="fade-up"
+                data-aos-duration="1000"
+              />
+            ) : (
+              <DeviceCard
+                key={index}
+                item={item}
+                data-aos="fade-up"
+                data-aos-duration="1000"
+              />
+            )
+          )}
 
         </div>
       )}

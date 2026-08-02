@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -43,7 +43,8 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { HeroTextColorPicker } from "./hero-text-color-picker";
 import Viewer360 from "@/app/(user)/components/Viewer360";
 import { MAX_VIEWER360_FRAMES, MAX_VIEWER360_FRAME_LABEL } from "./limits";
-import type { IHeroDoc } from "@/interfaces/segments";
+import type { ICertification, IHeroDoc } from "@/interfaces/segments";
+import { getCertificationLogo, getCertificationSubLabel } from "@/lib/certification-logos";
 
 export type ISegmentRecord = Record<string, unknown> & {
   id: string;
@@ -653,10 +654,11 @@ interface ISegmentCardProps {
   // those mirror the product's own Name/Tagline instead of being retyped.
   productName?: string;
   productTagline?: string;
-  // Only meaningful for the "document" segment's `documentId` field — lets
-  // it pick from documents already uploaded in the Product Files tab
-  // instead of uploading a duplicate copy of the same PDF.
+  // Only meaningful for the "document" segment's `referenceId` field — lets
+  // it pick from documents/certifications already uploaded in the Product
+  // Files tab instead of uploading a duplicate copy of the same file.
   heroDocs?: IHeroDoc[];
+  heroCertifications?: ICertification[];
 }
 
 function SegmentCard({
@@ -672,6 +674,7 @@ function SegmentCard({
   productName,
   productTagline,
   heroDocs,
+  heroCertifications,
 }: ISegmentCardProps) {
   const def = getSegmentTypeDef(segment.type);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -688,6 +691,15 @@ function SegmentCard({
           : null;
     const sameAsSource = sameAsKey === "titleSameAsName" ? productName : productTagline;
     const sameAsChecked = sameAsKey ? Boolean(segment[sameAsKey]) : false;
+
+    // Header/Subheader are auto-filled from the picked certification (name/
+    // number) and aren't shown on the public page in certification mode
+    // (ADR-063) — disabled here so the admin isn't misled into thinking
+    // they're editable content.
+    const isDisabledCertField =
+      segment.type === "document" &&
+      (field.key === "header" || field.key === "subheader") &&
+      segment.referenceKind === "certification";
 
     // Placement/fit render inline next to the image field below, not as
     // their own row.
@@ -760,17 +772,24 @@ function SegmentCard({
       );
     }
 
-    // The referenced document is one of the entries already uploaded in the
-    // Product Files tab (Downloadable Documents), picked by id rather than
+    // The referenced entry is one of the documents or certifications
+    // already uploaded in the Product Files tab, picked by id rather than
     // re-uploaded — see ADR-051 (supersedes ADR-031's href-matching
-    // version). If the stored id no longer resolves — the source document
-    // was since removed from Product Files — the admin gets a visible
-    // warning instead of the segment silently pointing at nothing.
-    if (segment.type === "document" && field.key === "documentId") {
-      const currentId = typeof segment.documentId === "string" ? segment.documentId : "";
-      const options = heroDocs ?? [];
-      const selected = options.find((doc) => doc.id === currentId);
-      const isMissing = currentId !== "" && !selected;
+    // version), extended to certifications by ADR-059. If the stored id no
+    // longer resolves in either list — the source entry was since removed
+    // from Product Files — the admin gets a visible warning instead of the
+    // segment silently pointing at nothing.
+    if (segment.type === "document" && field.key === "referenceId") {
+      const currentKind = segment.referenceKind === "certification" ? "certification" : "document";
+      const currentId = typeof segment.referenceId === "string" ? segment.referenceId : "";
+      const documents = heroDocs ?? [];
+      const certifications = heroCertifications ?? [];
+      const selectedDoc = currentKind === "document" ? documents.find((doc) => doc.id === currentId) : undefined;
+      const selectedCert = currentKind === "certification" ? certifications.find((cert) => cert.id === currentId) : undefined;
+      const isMissing = currentId !== "" && !selectedDoc && !selectedCert;
+      const compositeValue = currentId ? `${currentKind}:${currentId}` : undefined;
+      const hasOptions = documents.length > 0 || certifications.length > 0;
+      const selectedCertLogo = selectedCert ? getCertificationLogo(selectedCert, "black") : undefined;
 
       return (
         <div key={field.key} className="flex flex-col gap-1.5">
@@ -778,41 +797,73 @@ function SegmentCard({
             <FieldLabelText field={field} />
           </Label>
           <Select
-            value={currentId || undefined}
+            value={compositeValue}
             onValueChange={(value) => {
-              const picked = options.find((doc) => doc.id === value);
+              const separatorIndex = value.indexOf(":");
+              const kind = value.slice(0, separatorIndex) as "document" | "certification";
+              const id = value.slice(separatorIndex + 1);
+              const pickedDoc = kind === "document" ? documents.find((doc) => doc.id === id) : undefined;
+              const pickedCert = kind === "certification" ? certifications.find((cert) => cert.id === id) : undefined;
+
               onChange({
                 ...segment,
-                documentId: value,
-                // Header always replaces with the newly picked document's
-                // own name — picking a document is what names the segment,
-                // not a one-time suggestion. See ADR-056.
-                header: picked ? picked.title : segment.header,
+                referenceKind: kind,
+                referenceId: id,
+                // Header always replaces with the newly picked entry's own
+                // name — picking one is what names the segment, not a
+                // one-time suggestion. See ADR-056, extended by ADR-059.
+                header: pickedDoc?.title || pickedCert?.label || segment.header,
+                // Subheader mirrors the certification's own number (when it
+                // has one) — disabled/hidden the same way Header is for
+                // certification mode, see ADR-063/ADR-064. Picking a
+                // document leaves Subheader as whatever the admin already
+                // typed, same as before this field existed.
+                subheader: pickedCert ? (getCertificationSubLabel(pickedCert) ?? "") : segment.subheader,
               });
             }}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder={options.length > 0 ? "Select a document" : "No documents uploaded yet"} />
+              <SelectValue placeholder={hasOptions ? "Select a document or certification" : "Nothing uploaded in Product Files yet"} />
             </SelectTrigger>
             <SelectContent>
-              {options.map((doc) => (
-                <SelectItem key={doc.id} value={doc.id}>
-                  {doc.title || doc.href}
-                </SelectItem>
-              ))}
+              {documents.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Documents</SelectLabel>
+                  {documents.map((doc) => (
+                    <SelectItem key={doc.id} value={`document:${doc.id}`}>
+                      {doc.title || doc.href}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {certifications.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Certifications</SelectLabel>
+                  {certifications.map((cert) => (
+                    <SelectItem key={cert.id} value={`certification:${cert.id}`}>
+                      {cert.label || cert.certType}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
           {isMissing && (
             <p className="text-destructive text-xxs">
-              The document this segment referenced was removed from Product Files. Choose another.
+              The document or certification this segment referenced was removed from Product Files. Choose another.
             </p>
           )}
           <p className="text-muted-foreground text-xxs">
-            Uploaded in the Product Files tab, under Downloadable Documents.
+            Uploaded in the Product Files tab, under Downloadable Documents or Certifications.
           </p>
-          {selected?.thumbnailUrl && (
+          {selectedDoc?.thumbnailUrl && (
             <div className="relative mt-1 aspect-3/4 w-20 overflow-hidden rounded-md border">
-              <NextImage src={selected.thumbnailUrl} alt="" fill className="object-cover" />
+              <NextImage src={selectedDoc.thumbnailUrl} alt="" fill className="object-cover" />
+            </div>
+          )}
+          {selectedCertLogo && (
+            <div className="relative mt-1 h-14 w-24 overflow-hidden rounded-md border bg-white p-1">
+              <NextImage src={selectedCertLogo} alt="" fill className="object-contain" />
             </div>
           )}
         </div>
@@ -835,11 +886,16 @@ function SegmentCard({
           <FieldInput
             field={field}
             value={segment[field.key]}
-            disabled={sameAsChecked}
+            disabled={sameAsChecked || isDisabledCertField}
             onChange={(value) => onChange({ ...segment, [field.key]: value })}
           />
         )}
         {field.helpText && <p className="text-muted-foreground text-xxs">{field.helpText}</p>}
+        {isDisabledCertField && (
+          <p className="text-muted-foreground text-xxs">
+            Filled in automatically from the picked certification — not shown for certification highlights.
+          </p>
+        )}
         {(sameAsKey || field.maxLength) && (
           <div className="flex items-center justify-between gap-2">
             {sameAsKey ? (
@@ -998,6 +1054,7 @@ export function SegmentsBuilder({
   const heroSegment = segments.find((segment) => segment.type === "hero");
   const otherSegments = segments.filter((segment) => segment.type !== "hero");
   const heroDocs = (heroSegment?.heroDocs as IHeroDoc[] | undefined) ?? [];
+  const heroCertifications = (heroSegment?.certifications as ICertification[] | undefined) ?? [];
 
   // Only the segments present at mount (i.e. the ones loaded with the item
   // being edited) are seeded here — a segment added afterward via "Add a
@@ -1086,6 +1143,7 @@ export function SegmentsBuilder({
           collapsed={collapsedIds.has(segment.id)}
           onToggleCollapse={() => toggleCollapsed(segment.id)}
           heroDocs={heroDocs}
+          heroCertifications={heroCertifications}
         />
       ))}
 

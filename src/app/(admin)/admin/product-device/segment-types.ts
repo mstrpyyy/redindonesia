@@ -376,13 +376,17 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
     label: "Document Highlight",
     fields: [
       // Picks one entry from the product's own Downloadable Documents list
-      // (Product Files tab) instead of its own file+thumbnail — see the
-      // document/documentId special case in segments-builder.tsx and
-      // ADR-051. Comes first: picking a document auto-fills Header below
-      // (ADR-056), so choosing it first is the natural order. The declared
-      // type has no bearing on rendering (fully intercepted there); it only
-      // feeds the generic required-field check.
-      { key: "documentId", label: "Document", type: "select", required: true },
+      // OR its Certifications list (both Product Files tab) instead of its
+      // own file+thumbnail — see the document/referenceId special case in
+      // segments-builder.tsx and ADR-051, extended to certifications by
+      // ADR-059. `referenceKind` (which list `referenceId` belongs to) is
+      // set alongside it by that same special case — not its own field def,
+      // same precedent as the hero's `imgAlt` (never in `fields[]`, always
+      // derived/paired elsewhere). Comes first: picking an entry auto-fills
+      // Header below (ADR-056), so choosing it first is the natural order.
+      // The declared type has no bearing on rendering (fully intercepted
+      // there); it only feeds the generic required-field check.
+      { key: "referenceId", label: "Document or Certification", type: "select", required: true },
       { key: "header", label: "Header", type: "text", required: true, placeholder: "e.g. Product Brochure" },
       { key: "subheader", label: "Subheader", type: "text", placeholder: "Optional subheader" },
       // No dedicated alt-text field — `alt` is derived server-side from

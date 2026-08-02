@@ -25,8 +25,11 @@ export interface IHeroDoc {
 // fixed shared logo; a custom "Other" certification has no logo, just a
 // title). See ADR-022, and ADR-046 for BPOM specifically. LKPP (ADR-053) is
 // the first style that's a link rather than an uploaded certificate — no
-// logo, no file, just a URL.
+// logo, no file, just a URL. `id` (ADR-059) lets a Document Highlight
+// segment reference a specific certification, the same way `IHeroDoc.id`
+// lets it reference a document (ADR-051).
 export interface IHalalCertification {
+  id: string
   certType: 'halal'
   label: string
   imageUrl: string
@@ -35,6 +38,7 @@ export interface IHalalCertification {
 }
 
 export interface IKemenkesCertification {
+  id: string
   certType: 'kemenkes'
   label: string
   imageUrl: string
@@ -43,6 +47,7 @@ export interface IKemenkesCertification {
 }
 
 export interface IBpomCertification {
+  id: string
   certType: 'bpom'
   label: string
   imageUrl: string
@@ -51,12 +56,14 @@ export interface IBpomCertification {
 }
 
 export interface IOtherCertification {
+  id: string
   certType: 'other'
   label: string
   fileUrl: string
 }
 
 export interface ILkppCertification {
+  id: string
   certType: 'lkpp'
   label: string
   linkUrl: string
@@ -168,19 +175,21 @@ export interface IBeforeAfterSegment extends ISegmentBase {
   items: IBeforeAfterItem[]
 }
 
-// References one entry from the product's own Downloadable Documents list
-// (IHeroDoc[], stored on the hero segment — ADR-026) by id, rather than
-// carrying its own file/thumbnail — see ADR-051. `documentId` may point to a
-// document that's since been removed from that list; renders nothing until
-// re-picked (ProductPageView.tsx). `header` is replaced with the picked
-// document's own title every time `documentId` changes (segments-builder.tsx)
-// — freely editable afterward, until the next pick replaces it again. See
-// ADR-056.
+// References one entry from either the product's Downloadable Documents
+// list or its Certifications list (both IHeroDoc[]/ICertification[], stored
+// on the hero segment — ADR-026) by id, rather than carrying its own
+// file/thumbnail — see ADR-051, extended to certifications by ADR-059.
+// `referenceId` may point to an entry that's since been removed from its
+// list; renders nothing until re-picked (ProductPageView.tsx). `header` is
+// replaced with the picked entry's own name every time the reference
+// changes (segments-builder.tsx) — freely editable afterward, until the
+// next pick replaces it again. See ADR-056.
 export interface IDocumentSegment extends ISegmentBase {
   type: 'document'
   header: string
   subheader?: string
-  documentId: string
+  referenceKind: 'document' | 'certification'
+  referenceId: string
   alt: string
 }
 

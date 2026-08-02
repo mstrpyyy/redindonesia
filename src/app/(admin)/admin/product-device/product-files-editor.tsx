@@ -47,8 +47,10 @@ function getCertificationTypeLabel(certType: ICertification["certType"]): string
 // own registration/certificate number, and "Other" is the only one with a
 // free-text name. See ADR-022, ADR-046.
 function createCertification(certType: ICertification["certType"]): ICertification {
+  const id = crypto.randomUUID();
   if (certType === "halal") {
     return {
+      id,
       certType: "halal",
       label: "Halal Indonesia",
       imageUrl: CERTIFICATION_HALAL_LOGO,
@@ -57,15 +59,15 @@ function createCertification(certType: ICertification["certType"]): ICertificati
     };
   }
   if (certType === "kemenkes") {
-    return { certType: "kemenkes", label: "Kemenkes", imageUrl: CERTIFICATION_KEMENKES_LOGO, aklNumber: "", fileUrl: "" };
+    return { id, certType: "kemenkes", label: "Kemenkes", imageUrl: CERTIFICATION_KEMENKES_LOGO, aklNumber: "", fileUrl: "" };
   }
   if (certType === "bpom") {
-    return { certType: "bpom", label: "BPOM", imageUrl: CERTIFICATION_BPOM_LOGO, registrationNumber: "", fileUrl: "" };
+    return { id, certType: "bpom", label: "BPOM", imageUrl: CERTIFICATION_BPOM_LOGO, registrationNumber: "", fileUrl: "" };
   }
   if (certType === "lkpp") {
-    return { certType: "lkpp", label: "LKPP", linkUrl: "" };
+    return { id, certType: "lkpp", label: "LKPP", linkUrl: "" };
   }
-  return { certType: "other", label: "", fileUrl: "" };
+  return { id, certType: "other", label: "", fileUrl: "" };
 }
 
 export function isHeroDocComplete(doc: IHeroDoc): boolean {
@@ -116,6 +118,16 @@ export function ProductFilesEditor({
 
         {documents.length > 0 && (
           <div className="flex flex-col gap-2">
+            {/* Column headings once, above the list, rather than a Label per
+                row — a Label on every row pushes that row's upload buttons
+                down while the title input and action buttons beside them
+                stay put, breaking the row's alignment. */}
+            <div className="flex items-center gap-4 px-1">
+              <span className="text-muted-foreground min-w-32 flex-1 text-xs font-medium">Name</span>
+              <span className="text-muted-foreground max-w-48 flex-1 text-xs font-medium">File</span>
+              <span className="text-muted-foreground max-w-48 flex-1 text-xs font-medium">Thumbnail</span>
+              <span className="w-[84px] shrink-0" aria-hidden="true" />
+            </div>
             {documents.map((doc, index) => (
               <div key={doc.id ?? index} className="flex items-center gap-4">
                 <Input
@@ -203,7 +215,7 @@ export function ProductFilesEditor({
         {certifications.length > 0 && (
           <div className="flex flex-col gap-2">
             {certifications.map((certification, index) => (
-              <div key={index} className="flex items-center gap-4">
+              <div key={certification.id ?? index} className="flex items-center gap-4">
                 {/* Fixed once chosen at add-time. The three styles are a
                     discriminated union with different keys, so switching in
                     place would mean discarding the row's contents anyway —

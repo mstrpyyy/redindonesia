@@ -1,6 +1,13 @@
 import { ArrowDownToLine } from 'lucide-react'
 import Image from 'next/image'
 
+interface IDocumentCertificationInfo {
+  // No logo for the "Other" certification style — see ADR-053/ADR-059.
+  logo?: string
+  name: string
+  number?: string
+}
+
 interface IDocumentDevice {
   header: string
   subheader?: string
@@ -10,15 +17,44 @@ interface IDocumentDevice {
   // segment being dropped entirely (see ADR-057).
   thumbnailUrl?: string
   alt: string
+  // Set only in the Document Highlight segment's certification mode
+  // (ADR-059/ADR-063) — "View Certification" instead of "Download
+  // Document", with the logo/name/number rendered under that label. Header/
+  // Subheader are not applicable in this mode and are not rendered at all
+  // — only plain document mode uses them.
+  certification?: IDocumentCertificationInfo
 }
 
-export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt }: IDocumentDevice) => {
+export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt, certification }: IDocumentDevice) => {
   return (
     <section className='flex max-sm:flex-col items-center justify-evenly gap-10'>
       <h2 className='max-sm:text-center'>
-        <span className='p-format leading-2! sm:block'>Download Document</span>
-        <span className='h2-format block'>{header}</span>
-        {subheader && <span className='p-format block'>{subheader}</span>}
+        <span className='p-format leading-2! sm:block'>
+          {certification ? 'View Certification' : 'Download Document'}
+        </span>
+
+        {certification ? (
+          <span className='my-4 flex items-center justify-center gap-5 sm:justify-start'>
+            {certification.logo && (
+              <Image
+                src={certification.logo}
+                alt={certification.name}
+                width={300}
+                height={300}
+                className='h-24 w-auto shrink-0 object-contain'
+              />
+            )}
+            <span className='block text-left'>
+              <span className='h3-format block font-semibold'>{certification.name}</span>
+              {certification.number && <span className='p-format block text-neutral-500'>{certification.number}</span>}
+            </span>
+          </span>
+        ) : (
+          <>
+            <span className='h2-format block'>{header}</span>
+            {subheader && <span className='p-format block'>{subheader}</span>}
+          </>
+        )}
       </h2>
 
       {thumbnailUrl ? (

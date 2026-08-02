@@ -2268,7 +2268,7 @@ migration needed since segments are JSON. `ProductPageView.tsx` resolves
 
 **Context:** ADR-047 made the product/device hero's title/description color
 admin-editable, but "Download Documents" (`Hero.tsx`), "Device
-Certifications:", and "Click to download file" (both `ProductPageView.tsx`)
+Certifications:", and "Click to view" (both `ProductPageView.tsx`)
 stayed hardcoded (`text-neutral-300`, `text-brand-peach`, `text-neutral-400`
 respectively) — colors picked back when the title was always peach on an
 assumed-dark photo. Once the title can be any of 12 colors, those fixed
@@ -2312,7 +2312,7 @@ lower-emphasis look (`ProductPageView.tsx`).
 **Date:** 2026-07-31
 **Status:** Accepted (extends ADR-048 to `CertificationBadge`)
 
-**Context:** ADR-048 made "Device Certifications:"/"Click to download file"
+**Context:** ADR-048 made "Device Certifications:"/"Click to view"
 follow the hero's black/white contrast, but the certification badges
 themselves (`CertificationBadge`, `ProductPageView.tsx`) still hardcoded
 `text-white` (via the plain-div path and the `transparent` Button variant),
@@ -2702,3 +2702,230 @@ path is now on-demand, immediate, and tied to the actual write.
 - No change to `getCategoryTree`/`getCategoryBySlugPath` (uncached, used by
   the admin pages and the public category/product detail routes) — this
   fix is scoped to the two navbar-specific cached reads.
+
+## ADR-059: Document Highlight can reference a Certification, not just a Document
+
+**Date:** 2026-08-02
+**Status:** Accepted (extends ADR-051/ADR-056 — same feature, no reversal).
+The data model and admin picker described below are unchanged; the
+certification-mode **layout** described here (a separate single-column
+`CertificationHighlightDevice` component) was corrected same-day by
+ADR-061 — see that ADR for the actual shipped layout.
+
+**Context:** The client asked for the Document Highlight segment to be able
+to feature a certification (from Product Files' Certifications list) as an
+alternative to a downloadable document, with its own layout: "View
+Certification" instead of "Download Document", the certification's logo/
+name/number, then the segment's own Header/Subheader.
+
+**Decision:**
+- `ICertification`'s five variants each gain an `id: string` (backfilled for
+  existing rows the same way `IHeroDoc.id` was, ADR-051 — new
+  `ensureHeroFileIds`, renamed from `ensureHeroDocIds`, now backfills both
+  lists in `product-form.tsx`). `createCertification` (`product-files-editor.tsx`)
+  generates one on create.
+- `IDocumentSegment` drops `documentId` for `referenceKind: 'document' |
+  'certification'` + `referenceId: string` — one composite reference instead
+  of two mutually-exclusive fields, so the existing generic required-field
+  check (`referenceId` non-empty) stays correct with no per-type
+  special-casing needed in `isSegmentComplete`/`validateSegments`.
+- The admin picker (`segments-builder.tsx`) is now one grouped `<Select>` —
+  a "Documents" group and a "Certifications" group — writing a composite
+  `"document:<id>"`/`"certification:<id>"` value that's split back into
+  `referenceKind`/`referenceId` on change. Header still always replaces with
+  the picked entry's own name (document title or certification label),
+  matching ADR-056.
+- Three certType-branching helpers (`getCertificationLogo`,
+  `getCertificationSubLabel`, `getCertificationHref`) extracted to
+  `src/lib/certification-logos.ts`, shared by the hero's `CertificationBadge`
+  (`ProductPageView.tsx`, refactored to use them instead of its own inline
+  switch) and the new certification-mode renderer — avoids a third copy of
+  the same five-way certType branch.
+- New `CertificationHighlightDevice` (`Document.tsx`) — a single stacked
+  column (label, logo, name, number, then header/subheader), a different
+  layout from `DocumentDevice`'s side-by-side text/visual split.
+  `ProductPageView.tsx`'s `document` case branches on `segment.referenceKind`
+  to resolve against `heroDocs` or `heroCertifications` and render the
+  matching component; an unresolved reference (removed from Product Files)
+  drops the segment, same "drop rather than render broken" precedent as
+  `applicators`.
+
+**Consequences:**
+- `alt` (still derived server-side from `header`) is unused in
+  certification mode — `CertificationHighlightDevice` uses the
+  certification's own `name` as its logo's alt text instead. Left in the
+  segment shape rather than made conditional, since removing it for one mode
+  only would complicate the generic shape for no real benefit.
+- **Assumption, flagged for follow-up:** the certification layout's stacking
+  order (label → logo → name → number → header → subheader, all one column)
+  is a literal reading of the request's itemized order, not a side-by-side
+  split mirroring `DocumentDevice`. Revisit if a side-by-side layout was
+  actually intended.
+
+## ADR-060: LKPP gets a real logo, sourced from the homepage's existing assets
+
+**Date:** 2026-08-02
+**Status:** Accepted (supersedes ADR-053's "no logo" note for LKPP)
+
+**Context:** ADR-053 gave LKPP no logo, since none was available at the
+time. The client has since pointed to existing assets:
+`public/image/home/certificate/lkkp.png` and `lkkp-black.png` — already
+used by the homepage's Credibility section (`Credibility.tsx`), which also
+already relies on this exact `lkkp` (not `lkpp`) spelling. That's a
+pre-existing typo in the asset filenames, not something introduced here;
+renaming the files would also require updating `Credibility.tsx`, an
+unrelated section, so the existing filenames are reused as-is rather than
+"fixed" as a side effect of this change.
+
+**Decision:** `CERTIFICATION_LOGOS` (`certification-logos.ts`) gains an
+`lkpp` entry (`white: lkkp.png`, `black: lkkp-black.png`, following the same
+unsuffixed-is-white/`-black`-suffixed-is-black convention every other style
+already uses). `getCertificationLogo`'s exclusion list drops `lkpp`, leaving
+only `other` (a free-text style with no consistent mark) without a logo.
+No change to `ILkppCertification`'s shape — the logo resolves by `certType`
+through this helper at render time, same as every other style; the field
+itself has been a display-only fallback since ADR-049, not something worth
+adding for a value nothing reads.
+
+**Consequences:**
+- LKPP's logo now shows everywhere `getCertificationLogo` is called — the
+  hero's `CertificationBadge` pill and the Document Highlight segment's
+  certification layout (ADR-059) both pick it up automatically, no
+  per-call-site change needed.
+- If the filename typo (`lkkp` → `lkpp`) is ever fixed, both this entry and
+  `Credibility.tsx`'s reference need updating together.
+
+## ADR-061: Document Highlight's certification mode reuses DocumentDevice's own layout
+
+**Date:** 2026-08-02
+**Status:** Accepted (corrects ADR-059's layout; the data model/picker parts
+of ADR-059 are unaffected)
+
+**Context:** ADR-059 shipped certification mode as a separate, single-column
+component (`CertificationHighlightDevice`) — an assumption flagged in that
+same ADR as needing confirmation. The client corrected it same-day: the
+certification layout should be the *same* side-by-side layout
+`DocumentDevice` already uses for plain documents (text block including the
+label/header/subheader on one side, a thumbnail-or-button visual on the
+other) — not a new, differently-structured component. The only actual
+addition is a larger version of the hero's logo+name+number certification
+badge, inserted into the text block immediately before the header.
+
+**Decision:** `CertificationHighlightDevice` is deleted. `DocumentDevice`
+(`Document.tsx`) gains one new optional prop, `certification?: { logo?:
+string; name: string; number?: string }`:
+- When set, the small top label reads "View Certification" instead of
+  "Download Document", and a new block (logo image + name + number, sized
+  up from the hero's `CertificationBadge` pill) renders inside the same
+  `<h2>`, between that label and the header.
+- The visual/CTA side (thumbnail image, or the outline button when there's
+  no thumbnail) is completely unchanged — certifications have no thumbnail
+  of their own (their logo now lives in the text block instead), so this
+  side always falls through to the existing outline "Click to Download"
+  button, pointed at the certification's own href
+  (`getCertificationHref` — `fileUrl` for every style except LKPP's
+  `linkUrl`).
+- `ProductPageView.tsx`'s `document` case now calls `DocumentDevice` for
+  both `referenceKind` values — the certification branch passes
+  `fileUrl={getCertificationHref(certification)}`,
+  `alt={certification.label}`, and the new `certification` prop; the
+  document branch is untouched.
+
+**Consequences:**
+- One component (`DocumentDevice`) now serves both modes instead of two —
+  matches the client's explicit ask that certification mode "is the same
+  layout" as document mode, differing only by the added info block and
+  label text.
+- The certification's own file/link is only reachable through the visual
+  side's button, same click target as a document's file — there's no
+  separate click-through on the logo/name/number block itself.
+
+## ADR-062: Certification logo/name/number moved inside the button, replacing "Click to Download"
+
+**Date:** 2026-08-02
+**Status:** Accepted (refines ADR-061 — same feature, no reversal)
+
+**Context:** Follow-up correction to ADR-061: the client wants the
+logo/name/number block moved out of the `<h2>` text block and into the
+button itself, in place of the "Click to Download" text — keeping the
+download icon. Since certifications never have a thumbnail, this always
+targets the no-thumbnail outline-button branch, not the thumbnail-image
+branch.
+
+**Decision:** `DocumentDevice`'s `<h2>` is back to just label + header +
+subheader (no certification info block). The no-thumbnail button branch
+now renders `certification ? (logo + name/number stack) : 'Click to
+Download'`, with the `ArrowDownToLine` icon unconditionally following
+either — so a plain document with no thumbnail still reads "Click to
+Download" + icon, exactly as before, and a certification instead shows its
+logo + name + number + icon, with no leftover "Click to Download" text.
+
+**Consequences:**
+- The thumbnail-image button branch is untouched — certifications never
+  reach it, since they have no `thumbnailUrl`.
+- The button's `hover:bg-black hover:text-white` color inversion doesn't
+  extend to the logo image (a static asset can't recolor on hover) — same
+  limitation the hero's `CertificationBadge` already has.
+
+## ADR-063: Certification info moves back to the text block; Header/Subheader not applicable
+
+**Date:** 2026-08-02
+**Status:** Accepted (corrects ADR-062 — same feature, no reversal of the
+underlying data model)
+
+**Context:** Second correction in the same session: the client moved the
+logo/name/number back out of the button (ADR-062) into the text block,
+under "View Certification" — and clarified that Header/Subheader are not
+applicable to certification mode at all; they should not render.
+
+**Decision:** The button reverts fully to ADR-061's version — always
+"Click to Download" + icon, no certification branching. The `<h2>` text
+block now renders the logo/name/number under the "View Certification"
+label *instead of* header/subheader (not alongside them, as ADR-061 first
+had it) — certification mode and document mode are now mutually exclusive
+within that block: document mode shows header/subheader, certification
+mode shows logo/name/number, never both.
+
+**Consequences:**
+- `segment.header`/`segment.subheader` are still stored and still required
+  server-side (`validateSegments` has no per-`referenceKind` awareness, per
+  ADR-051's original scope note) — they're simply unused at render time in
+  certification mode. Not worth threading conditional-required logic
+  through the generic field engine for a display-only concern.
+- The admin form still shows Header/Subheader inputs regardless of which
+  reference kind is picked — only the public render treats them as
+  certification-mode no-ops. Hiding those inputs in the admin when
+  certification is selected is a possible follow-up, not done here.
+
+## ADR-064: Admin Header/Subheader auto-fill and disable for certification mode
+
+**Date:** 2026-08-02
+**Status:** Accepted (follows through on ADR-063 in the admin editor)
+
+**Context:** ADR-063 made Header/Subheader not applicable to certification
+mode on the public page, but the admin form still showed them as freely
+editable text inputs with no indication they're unused — inviting an admin
+to type something that silently never renders. The client asked for them
+to instead auto-fill and lock once a certification is picked.
+
+**Decision:** The reference picker's `onValueChange`
+(`segments-builder.tsx`) now sets both fields when a certification is
+picked: `header` from the certification's `label` (already the case, ADR-
+056/059) and `subheader` from `getCertificationSubLabel()` (the
+certificate/AKL/registration number — empty string for styles with none,
+e.g. Other/LKPP). `renderField`'s generic default branch gained an
+`isDisabledCertField` check (`segment.type === "document"`, key is
+`header`/`subheader`, `referenceKind === "certification"`) that disables
+the input and shows a small note ("Filled in automatically from the picked
+certification — not shown for certification highlights") — reusing the
+same `disabled` prop path the hero's "Same as name/tagline" fields already
+use.
+
+**Consequences:**
+- Picking a document still leaves Subheader exactly as the admin typed it
+  (no autofill/disable for document mode) — this only applies once
+  `referenceKind` is `"certification"`.
+- If the admin switches from a certification back to a document, Header/
+  Subheader become editable again immediately (the `isDisabledCertField`
+  check is live, not a one-time lock) — whatever value was auto-filled
+  stays until edited or the next certification pick overwrites it again.

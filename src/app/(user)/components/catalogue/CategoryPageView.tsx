@@ -86,6 +86,7 @@ export const CategoryPageView = ({ category, urlPrefix, productCards }: ICategor
           deviceList={hasChildren ? childCards : productCards}
           heading={hasChildren ? 'Browse Categories' : undefined}
           emptyMessage={hasChildren ? 'No sub-categories yet.' : 'No products available yet.'}
+          cardVariant={hasChildren ? 'category' : 'product'}
         />
       </BodyWrapper>
     </main>

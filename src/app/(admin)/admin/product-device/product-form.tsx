@@ -69,15 +69,25 @@ function withHeroSegment(segments: ISegmentRecord[], name: string, tagline: stri
   ];
 }
 
-// Existing `heroDocs` entries can predate `IHeroDoc.id` (added in ADR-051 so
-// the Document Highlight segment can reference one by id) — backfilled once
+// Existing `heroDocs`/`certifications` entries can predate their own `id`
+// field (IHeroDoc's added in ADR-051, ICertification's in ADR-059) — both
+// let the Document Highlight segment reference one by id. Backfilled once
 // here, alongside `withHeroSegment`, rather than on every render.
-function ensureHeroDocIds(segments: ISegmentRecord[]): ISegmentRecord[] {
+function ensureHeroFileIds(segments: ISegmentRecord[]): ISegmentRecord[] {
   return segments.map((segment) => {
     if (segment.type !== "hero") return segment;
     const docs = (segment.heroDocs as IHeroDoc[] | undefined) ?? [];
-    if (docs.every((doc) => typeof doc.id === "string" && doc.id !== "")) return segment;
-    return { ...segment, heroDocs: docs.map((doc) => ({ ...doc, id: doc.id || crypto.randomUUID() })) };
+    const certifications = (segment.certifications as ICertification[] | undefined) ?? [];
+    const docsNeedIds = !docs.every((doc) => typeof doc.id === "string" && doc.id !== "");
+    const certsNeedIds = !certifications.every((cert) => typeof cert.id === "string" && cert.id !== "");
+    if (!docsNeedIds && !certsNeedIds) return segment;
+    return {
+      ...segment,
+      heroDocs: docsNeedIds ? docs.map((doc) => ({ ...doc, id: doc.id || crypto.randomUUID() })) : docs,
+      certifications: certsNeedIds
+        ? certifications.map((cert) => ({ ...cert, id: cert.id || crypto.randomUUID() }))
+        : certifications,
+    };
   });
 }
 
@@ -134,7 +144,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   // baseline — calling withHeroSegment twice would inject two different
   // random ids for the auto-created hero, falsely marking the form dirty.
   const [initialSegments] = useState<ISegmentRecord[]>(() =>
-    ensureHeroDocIds(withHeroSegment((product?.segments as unknown as ISegmentRecord[]) ?? [], name, tagline))
+    ensureHeroFileIds(withHeroSegment((product?.segments as unknown as ISegmentRecord[]) ?? [], name, tagline))
   );
   const [segments, setSegments] = useState<ISegmentRecord[]>(initialSegments);
   const [cardBackground, setCardBackground] = useState<ICardBackgroundValue>(
