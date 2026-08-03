@@ -53,13 +53,13 @@ export default async function MediaPodcasts() {
                   />
                 </div>
 
-                <div className="xl:w-90 2xl:w-105 text-center xl:text-justify text-pretty flex flex-col">
-                  <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-3xl 2xl:text-4xl font-bold xl:leading-13 text-balance">
+                <div className="xl:w-90 2xl:w-105 text-center text-pretty flex flex-col">
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-3xl 2xl:text-4xl font-bold xl:leading-13 xl:text-start text-balance">
                     {podcast.title}
                   </h2>
 
                   {podcast.description && (
-                    <p className="text-lg sm:text-xl mt-2 xl:leading-8">
+                    <p className="text-lg sm:text-xl mt-2 xl:leading-8 xl:text-justify">
                       {podcast.description}
                     </p>
                   )}

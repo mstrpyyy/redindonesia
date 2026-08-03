@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { MAX_CONTACT_NAME_LENGTH, MAX_CONTACT_PHONE_LENGTH, MAX_CONTACT_QUESTION_LENGTH } from "./limits";
 
@@ -27,11 +28,15 @@ const contactSubmissionSchema = z.object({
     .max(MAX_CONTACT_QUESTION_LENGTH, `Question must be ${MAX_CONTACT_QUESTION_LENGTH} characters or fewer.`),
 });
 
-// No revalidate/redirect — this is a fire-and-forget public submission, not
-// content that renders anywhere. Rows land in ContactSubmission for the
-// admin Contact dashboard's "Form Response" submenu (still a placeholder
-// until that list view is built, see ADR-072). No captcha check — removed
-// for now, see ADR-074.
+// Rows land in ContactSubmission for the admin Contact dashboard's "Form
+// Response" list (src/app/(admin)/admin/contact/form-response) — that page
+// has no dynamic API usage, so Next.js's Full Route Cache serves a stale
+// snapshot until something revalidates it. Every other content type in this
+// app revalidates its admin list on write (see actions.ts across
+// admin/media, admin/product-device, etc.); do the same here so new
+// submissions actually show up instead of waiting on an unrelated
+// markContactSubmissionAsRead call to happen to revalidate it first. No
+// captcha check — removed for now, see ADR-074.
 export async function submitContactForm(formData: FormData): Promise<ActionResult<null>> {
   const parsed = contactSubmissionSchema.safeParse({
     name: formData.get("name"),
@@ -49,6 +54,7 @@ export async function submitContactForm(formData: FormData): Promise<ActionResul
 
   try {
     await prisma.contactSubmission.create({ data: parsed.data });
+    revalidatePath("/admin/contact/form-response");
     return { success: true, data: null };
   } catch {
     return {
