@@ -30,6 +30,15 @@ export interface IGallery {
   order: number
 }
 
+export interface IPodcast {
+  id: string
+  youtubeUrl: string
+  title: string
+  description: string | null
+  thumbnailUrl: string | null
+  order: number
+}
+
 export interface ICategory {
   id: string
   type: 'device' | 'product'
@@ -84,6 +93,38 @@ export interface IProductListItem {
   }
 }
 
+// Search matches `name` only (no other field in this codebase's search yet spans
+// multiple columns). `categoryIds`/`tagIds` are OR'd within themselves, AND'd together.
+export interface IProductListFilters {
+  search?: string
+  categoryIds?: string[]
+  tagIds?: string[]
+  page?: number
+  // "all" disables pagination entirely (no `skip`/`take`) — see getProductItems.
+  pageSize?: number | 'all'
+}
+
+export interface IProductListResult {
+  items: IProductListItem[]
+  total: number
+}
+
+// See ADR-084 — broadens across categories (unlike `getPublishedProductCards`, which is
+// hard-scoped to one category with one shared urlPrefix), so each result resolves its
+// own URL via `getCategoryAncestry` instead.
+export interface IPublicCatalogueFilters {
+  search?: string
+  categoryIds?: string[]
+  tagIds?: string[]
+  offset?: number
+  limit?: number
+}
+
+export interface IPublicCatalogueResult {
+  items: IDeviceCardItem[]
+  hasMore: boolean
+}
+
 // One card in the public device/product catalogue grid. Shared because the
 // admin thumbnail editor renders the same card as a live preview.
 export interface IDeviceCardItem {
@@ -116,6 +157,9 @@ export interface IProduct {
   status: 'hidden' | 'public'
   order: number
   categoryId: string
+  // Cross-listing only — `categoryId` above always stays the one that drives
+  // this product's own URL (ADR-038). See ADR-085.
+  secondaryCategoryIds: string[]
   segments: IProductSegment[]
   tags: ITag[]
 }

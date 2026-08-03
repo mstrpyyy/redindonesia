@@ -12,8 +12,15 @@ import {
   MAX_GALLERY_IMG_SIZE,
   NEW_IMAGE_TOKEN,
 } from "./upload-limits";
+import {
+  ACCEPTED_GALLERIES_IMAGE_TYPES,
+  MAX_GALLERIES_BANNER_LABEL,
+  MAX_GALLERIES_BANNER_SIZE,
+} from "./limits";
+import { isGalleriesPageSlug, type GalleriesPageSlug } from "@/lib/galleries-page";
 
 const UPLOAD_FEATURE = "galleries";
+const GALLERIES_BANNER_UPLOAD_FEATURE = "galleries-page";
 
 // Galleries render on both the admin list and the public media page — both
 // must be revalidated or the public page keeps its build-time snapshot.
@@ -52,6 +59,72 @@ function deleteGalleryImage(image: string): Promise<void> {
 
 function getNewImageFiles(formData: FormData): File[] {
   return formData.getAll("images").filter((entry): entry is File => entry instanceof File && entry.size > 0);
+}
+
+const galleriesImageSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Image is required")
+  .refine((file) => file.size <= MAX_GALLERIES_BANNER_SIZE, `Image must be smaller than ${MAX_GALLERIES_BANNER_LABEL}`)
+  .refine((file) => ACCEPTED_GALLERIES_IMAGE_TYPES.includes(file.type), "Image must be a JPEG, PNG, WEBP, or GIF");
+
+export async function uploadGalleriesPageBanner(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const parsed = galleriesImageSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid image" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, GALLERIES_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner image." } };
+  }
+}
+
+const saveGalleriesPageSchema = z.object({
+  bannerXlUrl: z.string().trim().min(1, "The 2560x1107 banner is required."),
+  bannerMdUrl: z.string().trim().optional(),
+  bannerSmUrl: z.string().trim().optional(),
+});
+
+export async function saveGalleriesPage(
+  slug: string,
+  formData: FormData
+): Promise<ActionResult<{ slug: GalleriesPageSlug }>> {
+  if (!isGalleriesPageSlug(slug)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Unknown galleries page." } };
+  }
+
+  const parsed = saveGalleriesPageSchema.safeParse({
+    bannerXlUrl: formData.get("bannerXlUrl"),
+    bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
+    bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid input" },
+    };
+  }
+
+  const { bannerXlUrl, bannerMdUrl, bannerSmUrl } = parsed.data;
+
+  try {
+    await prisma.galleriesPage.upsert({
+      where: { slug },
+      create: { slug, bannerXlUrl, bannerMdUrl: bannerMdUrl || null, bannerSmUrl: bannerSmUrl || null },
+      update: { bannerXlUrl, bannerMdUrl: bannerMdUrl || null, bannerSmUrl: bannerSmUrl || null },
+    });
+
+    revalidateGalleryPages();
+    return { success: true, data: { slug } };
+  } catch {
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to save the page." } };
+  }
 }
 
 export async function createGallery(

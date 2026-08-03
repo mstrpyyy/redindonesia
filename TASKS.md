@@ -1875,3 +1875,574 @@ URL instead of `item.href`, so no carousel link ever actually worked.
 - [x] `tsc --noEmit` passes; `eslint` reports nothing new.
 **Do not:** Rename the stored `size` column values — this is a display-only
 change plus an unrelated link bug fix.
+
+## [x] Task: Admin Contact dashboard — Content (banner + rich text) and Form Response (stub)
+
+**Context:** The admin needed a new "Contact" sidebar section with two
+submenus: "Content", managing the public `/contact` page's banner and rich
+text body (previously hardcoded, with an empty `<div className="h-150">`
+placeholder), and "Form Response", left empty for now — no requirements
+given yet for viewing submitted contact-form entries.
+**Approach:** New `ContactPage` model, identical shape to `SupportPage`
+(ADR-070), one row per fixed slug (`CONTACT_PAGE_SLUGS`, currently just
+`"content"`) — no add/delete flow. Reused the exact Support page pattern:
+`ContactPageForm` (banner uploads + `RichTextEditor`), `saveContactPage`
+Server Action, public page wired the same way Support's pages are
+(`PageBanner` + `BodyWrapper` + `hasRichTextContent` guard). "Form Response"
+got a bare placeholder page and no model. See ADR-072.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803063558_add_contact_page/` — new `ContactPage` model
+- `src/lib/contact-pages.ts` — new: `CONTACT_PAGE_SLUGS`, `getContactPage(slug)`
+- `src/app/(admin)/admin/contact/limits.ts`, `actions.ts` — new: upload actions + `saveContactPage`
+- `src/app/(admin)/admin/contact/contact-page-form.tsx` — new: banner + rich text form
+- `src/app/(admin)/admin/contact/content/page.tsx` — new
+- `src/app/(admin)/admin/contact/form-response/page.tsx` — new placeholder
+- `src/app/(admin)/admin/contact/page.tsx` — removed (empty stub, no bare `/admin/contact` route, matching Support's convention)
+- `src/app/(admin)/components/sidebar.tsx` — added the Contact section (Content, Form Response)
+- `src/app/(user)/contact/page.tsx` — wired to `getContactPage`; also dropped unused `NavbarBg`/`Image`/`React` imports left over from before
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-072)
+**Acceptance criteria:**
+- [x] `/admin/contact/content` has a banner section (three uploads,
+  2560x1107 marked required) and a rich text editor below it, saved via one
+  "Save" action.
+- [x] Saving without the 2560x1107 banner is blocked client-side (disabled
+  Save button) and rejected server-side (Zod).
+- [x] The public `/contact` page renders its saved banner across all three
+  responsive breakpoints, falling back to the original hardcoded image
+  until a banner is saved.
+- [x] The rich text body renders above the existing `<div
+  className="h-150">` placeholder once saved; renders nothing when unset.
+- [x] `/admin/contact/form-response` renders a placeholder page with no
+  errors.
+**Do not:** Build a data model for Form Response yet — its shape wasn't
+specified.
+
+## [x] Task: Public contact form (validation + Cloudflare Turnstile + submission storage)
+
+**Context:** The public `/contact` page's `<div className="h-150">`
+placeholder (left open by the previous task) needed to become a real form:
+name, mobile phone, email, and a question field, each with its own
+character cap, plus a captcha. Rich text CMS content (previous task) renders
+above it; a short "Need Something? / Please fill our contact form / we will
+get back to you ASAP" intro sits directly above the fields.
+**Approach:** New `ContactSubmission` model (append-only, one row per
+submission) and `submitContactForm` Server Action
+(`src/app/(user)/contact/actions.ts`) that Zod-validates all four fields
+(limits shared with the client via `limits.ts` so they can't drift) and
+verifies a Cloudflare Turnstile token server-side before inserting. Turnstile
+was the client's pick over reCAPTCHA/a self-hosted challenge (asked via
+`AskUserQuestion`). Per-field errors only render once a field is invalid (on
+blur, and re-checked on submit) — no standing hint text — except the
+question field's `{length}/1000` counter, which is always visible. See
+ADR-073.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803065038_add_contact_submission/` — new `ContactSubmission` model
+- `.env` — `NEXT_PUBLIC_TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` (Cloudflare's published always-pass testing keys for now)
+- `src/app/(user)/contact/limits.ts` — new: shared char-limit constants
+- `src/app/(user)/contact/actions.ts` — new: `submitContactForm` (Zod + Turnstile `siteverify` + insert)
+- `src/app/(user)/contact/contact-form.tsx` — new: the form itself
+- `src/app/(user)/contact/page.tsx` — intro copy + `<ContactForm />` in place of the old placeholder div
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-073)
+**Acceptance criteria:**
+- [x] Name/phone rejects past 150/20 characters (`maxLength`); email must be
+  a valid address; question rejects past 1000 characters. None of the three
+  non-counter fields show an error until that field is actually invalid.
+- [x] The question field always shows `{length}/1000` regardless of error
+  state.
+- [x] Submitting without completing the Turnstile widget is blocked
+  client-side with an inline message; a forged/absent token is also rejected
+  server-side (`siteverify`).
+- [x] A successful submission clears the form, resets the captcha, and shows
+  a confirmation message; a row lands in `ContactSubmission`.
+- [ ] `tsc --noEmit` passes; `eslint` reports nothing new. (not yet run)
+**Do not:** Build the admin "Form Response" list view yet, or add an
+email/notification-on-submit integration — neither was asked for; both are
+follow-up decisions of their own (see ADR-073's consequences).
+
+## [x] Task: Remove Turnstile captcha from the contact form (temporary)
+
+**Context:** With Cloudflare's always-pass testing keys in place, the
+Turnstile widget visibly showed Cloudflare's "For testing only" banner. The
+client asked to drop the captcha for now rather than set up real Cloudflare
+keys at this stage.
+**Approach:** Strip the Turnstile widget/script/verification wiring only;
+leave the `ContactSubmission` model, the four form fields, and their
+validation untouched. See ADR-074.
+**Files to create or modify:**
+- `src/app/(user)/contact/contact-form.tsx` — removed the widget, its ref/state, `next/script`, and the "complete the captcha" submit gate
+- `src/app/(user)/contact/actions.ts` — removed `verifyTurnstileToken` and its call in `submitContactForm`
+- `.env` — removed `NEXT_PUBLIC_TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`
+- `DECISIONS.md` (ADR-074, and ADR-073's Status line noting the partial supersession), `ARCHITECTURE.md` (removed the Captcha stack entry)
+**Acceptance criteria:**
+- [x] The contact form renders with no captcha widget and submits
+  successfully without one.
+- [x] Name/phone/email/question validation and the question counter are
+  unaffected.
+- [ ] `tsc --noEmit` passes; `eslint` reports nothing new. (not yet run)
+**Do not:** Remove the `ContactSubmission` model or any of the four fields
+— only the captcha layer is being pulled out.
+
+## [x] Task: Admin Media → Podcast CMS (banner + episode list); wire public `/media/podcasts`
+
+**Context:** `/admin/media/podcast` was an empty placeholder. The public
+`/media/podcasts` page rendered one hardcoded banner image and one hardcoded
+YouTube embed with static copy — no way for the client to manage either.
+**Approach:** New `PodcastPage` (banner-only, upserted by fixed slug, same
+shape as `ContactPage`/`SupportPage`) and `Podcast` (`youtubeUrl`, `title`,
+`description?`, `order`, same shape as `Gallery` minus the image grid)
+models. See ADR-076. Admin page combines a banner form (mirrors
+`ContactPageForm`, three `UploadField`s) and an episode table (mirrors
+`GalleryTable`'s add/edit/delete/drag-reorder pattern) — "Create podcast"
+opens a `Dialog` with YouTube link/Title/Description inputs. Confirmed with
+the user that the public page should also be wired up, not left inert:
+`/media/podcasts` now renders the admin-managed banner (falling back to the
+original dummy image) and repeats the page's existing hero/video-plus-text
+block once per podcast, alternating side by index parity — same precedent as
+`/media/galleries`. Each row's embed id comes from `getYoutubeVideoId`
+(already existed, used by the Category video block); the "Watch on Youtube"
+button — previously non-functional, no `href` at all — now links to the
+real `youtubeUrl`.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803070614_add_podcast/` —
+  new `Podcast`/`PodcastPage` models
+- `src/interfaces/general.ts` — `IPodcast`
+- `src/lib/podcasts.ts` — new: `getPodcasts()`
+- `src/lib/podcast-page.ts` — new: `PODCAST_PAGE_SLUGS`, `getPodcastPage()`
+- `src/app/(admin)/admin/media/podcast/limits.ts` — new
+- `src/app/(admin)/admin/media/podcast/actions.ts` — new: `uploadPodcastPageBanner`,
+  `savePodcastPage`, `createPodcast`, `updatePodcast`, `deletePodcast`, `reorderPodcasts`
+- `src/app/(admin)/admin/media/podcast/podcast-page-form.tsx` — new
+- `src/app/(admin)/admin/media/podcast/podcast-form.tsx` — new
+- `src/app/(admin)/admin/media/podcast/podcast-table.tsx` — new
+- `src/app/(admin)/admin/media/podcast/page.tsx` — wired up
+- `src/app/(user)/media/podcasts/page.tsx` — reads `PodcastPage`/`Podcast` instead of hardcoded content
+- `DECISIONS.md` (ADR-076)
+**Acceptance criteria:**
+- [x] Admin page shows a banner upload section (xl required, md/sm optional)
+  above a "Podcast List" table with a "Create podcast" button.
+- [x] "Create podcast" opens a modal with YouTube Link, Title, and
+  Description fields (matching the Category/Gallery add-modal UX pattern).
+- [x] Rows can be edited, deleted (with confirmation), and reordered via
+  drag-and-drop; order persists.
+- [x] The public `/media/podcasts` banner reflects the admin-saved image,
+  falling back to the original dummy image when unset.
+- [x] The public page renders one video+text block per saved podcast
+  (title, description, real YouTube embed), with an empty state when there
+  are none yet.
+- [x] The "Watch on Youtube" button links to the podcast's actual URL in a
+  new tab.
+- [ ] `tsc --noEmit` passes. (ran once during implementation per an explicit
+  one-off exception; not re-run after — see feedback memory on this project:
+  ask before running typecheck/lint/build.)
+**Do not:** ~~Add per-episode fields beyond YouTube link/title/description
+(e.g. thumbnail, duration) — not asked for.~~ Superseded by the task below,
+which adds an optional thumbnail and length caps.
+
+## [x] Task: Podcast thumbnail (optional) + title/description length caps
+
+**Context:** Follow-up to the task above. The client asked for an optional
+thumbnail per podcast, plus a 150-character cap on title and 400 on
+description, matching the `Article` editor's title/excerpt length-cap +
+counter pattern (ADR-013).
+**Approach:** See ADR-077. `Podcast.thumbnailUrl` (nullable) uploads via a
+new `uploadPodcastThumbnail` action into its own `/uploads/podcasts-
+thumbnails` dir (separate from the banner's `/uploads/podcasts`, since a
+thumbnail's lifecycle is tied to its own podcast row — `deletePodcast` now
+also removes the uploaded thumbnail file, matching `Gallery`'s
+cleanup-on-delete). `title`/`description` gained `maxLength` + a live
+`{length}/{max}` counter in the form and matching Zod `.max()` checks
+server-side. The thumbnail is stored and editable but intentionally not yet
+rendered on the public page — that's a separate design decision (see
+ADR-077's Context) not covered by this ask.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803072648_podcast_thumbnail/`
+  — `Podcast.thumbnailUrl`
+- `src/interfaces/general.ts` — `IPodcast.thumbnailUrl`
+- `src/app/(admin)/admin/media/podcast/limits.ts` — `MAX_PODCAST_TITLE_LENGTH`,
+  `MAX_PODCAST_DESCRIPTION_LENGTH`, `MAX_PODCAST_THUMBNAIL_SIZE/LABEL`
+- `src/app/(admin)/admin/media/podcast/actions.ts` — new `uploadPodcastThumbnail`;
+  `podcastFieldsSchema` gains the length caps + `thumbnailUrl`; `deletePodcast`
+  cleans up the thumbnail file
+- `src/app/(admin)/admin/media/podcast/podcast-form.tsx` — thumbnail
+  `UploadField`, `maxLength` + counters on Title/Description
+- `DECISIONS.md` (ADR-077), `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] The create/edit modal has an optional Thumbnail upload field.
+- [x] Title is capped at 150 characters, Description at 400, both with a
+  live counter and enforced server-side too.
+- [x] Deleting a podcast that has a thumbnail removes the uploaded file.
+- [ ] `tsc --noEmit` passes. (not run — see feedback memory: ask before
+  running typecheck/lint/build.)
+**Do not:** Wire the thumbnail into the public `/media/podcasts` page in this
+task — not asked for; flagged as an open assumption in ADR-077.
+
+## [x] Task: Contact "Form Response" — list + email-style split detail view
+
+**Context:** The admin Contact dashboard's "Form Response" submenu was a
+"Coming soon" placeholder (ADR-072) with `ContactSubmission` rows (ADR-073)
+already being collected but nothing to view them with. Asked for: a list,
+and clicking an entry splits the view with the message on the right, like
+an email client.
+**Approach:** `getContactSubmissions()` reads all rows newest-first,
+server-side. `FormResponseView` renders a two-pane layout — scrollable
+left-hand list (name, one-line question preview, timestamp), right-hand
+detail pane (name, `mailto:`/`tel:` links, timestamp, full question) for
+whichever row is selected client-side (`selectedId` state, no re-fetch on
+click). First row auto-selected on load. The detail pane is collapsible
+(`isDetailOpen` state, `PanelRightClose`/`PanelRightOpen` toggle buttons) —
+collapsing it expands the list to fill the freed width; picking any row
+reopens it. See ADR-075.
+**Files to create or modify:**
+- `src/lib/contact-submissions.ts` — new: `IContactSubmission`, `getContactSubmissions()`
+- `src/lib/utils.ts` — new: `formatDateTime` (day + time, sibling to `formatArticleDate`)
+- `src/app/(admin)/admin/contact/form-response/form-response-view.tsx` — new: the split list/detail view, with a collapsible detail pane
+- `src/app/(admin)/admin/contact/form-response/page.tsx` — fetch + render, replacing the placeholder
+- `DECISIONS.md` (ADR-075), `ARCHITECTURE.md` (updated `ContactSubmission` bullet)
+**Acceptance criteria:**
+- [x] `/admin/contact/form-response` lists every submission, newest first,
+  each showing name, a one-line question preview, and its timestamp.
+- [x] Clicking a row shows that submission's full name, email, phone,
+  timestamp, and complete question text in the right-hand pane; the clicked
+  row is visibly highlighted.
+- [x] Collapsing the detail pane hides it and the list expands to fill the
+  space; clicking a row (or the reopen button) brings the detail pane back.
+- [x] With zero submissions, the page shows an empty state instead of a
+  blank/broken layout.
+- [ ] `tsc --noEmit` passes; `eslint` reports nothing new. (not yet run)
+**Do not:** Add mark-as-read/archive/delete/pagination — none of that was
+asked for; this is a read-only view of existing data.
+
+## [x] Task: Form Response defaults to collapsed/unselected; unread dot
+
+**Context:** Two follow-up refinements to the task above: the view should
+open with nothing selected and the detail pane collapsed (not auto-opening
+the newest submission), and unread submissions need a visible marker.
+**Approach:** New `ContactSubmission.isRead` column, default `false`,
+flipped by `markContactSubmissionAsRead` the moment a row is opened
+client-side. `FormResponseView` seeds a local `readIds` set from the
+initial `isRead` values so the dot clears immediately on click without
+waiting on revalidation; `selectedId`/`isDetailOpen` now both start
+closed/empty. See ADR-078.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803073618_add_contact_submission_is_read/` — added `isRead`
+- `src/lib/contact-submissions.ts` — `IContactSubmission.isRead`
+- `src/app/(admin)/admin/contact/actions.ts` — new: `markContactSubmissionAsRead`
+- `src/app/(admin)/admin/contact/form-response/form-response-view.tsx` — default collapsed/unselected state, unread dot + bold name, mark-as-read on open
+- `DECISIONS.md` (ADR-078), `ARCHITECTURE.md` (updated `ContactSubmission` bullet)
+**Acceptance criteria:**
+- [x] Opening `/admin/contact/form-response` shows the list at full width
+  with nothing selected and no detail pane.
+- [x] Unread submissions show a dot and bold name; opening one clears both
+  immediately and persists across a page reload.
+- [ ] `tsc --noEmit` passes; `eslint` reports nothing new. (not yet run)
+**Do not:** Add a bulk "mark all read," archive, or delete action — only
+what was asked.
+
+## [x] Task: Podcast form/table polish — tighter length caps, scrollable modal, working truncation
+
+**Context:** Follow-up to the Podcast CMS tasks above. Title/description
+caps needed to be tighter, the create/edit modal wasn't scrollable when its
+content grew past the dialog height, and the list table's truncation wasn't
+actually clipping long text (risking page-wide horizontal overflow). See
+ADR-079.
+**Approach:** Lowered `MAX_PODCAST_TITLE_LENGTH`/`MAX_PODCAST_DESCRIPTION_LENGTH`
+to 50/200 (no migration needed — `String` columns, DB-unbounded, only the
+Zod/`maxLength` caps changed). `PodcastForm` restructured to mirror
+`CategoryForm`'s scrollable-modal pattern (inner `overflow-y-auto` field
+wrapper, Save/error pinned outside it). `PodcastTable`'s Title/Description
+cells fixed to actually truncate (`block max-w-* truncate` + a `title` hover
+attribute, matching `article-table.tsx`) instead of an inline `<span>` with
+an ineffective `max-w`. Root-caused and fixed the underlying layout bug too:
+`ContentWrapper`'s `main` had no `min-w-0`, so as a flex item it wouldn't
+shrink below its children's content width — any sufficiently wide admin
+table would grow the whole page horizontally instead of scrolling inside
+its own `overflow-x-auto` wrapper.
+**Files to create or modify:**
+- `src/app/(admin)/admin/media/podcast/limits.ts` — 50/200 caps
+- `src/app/(admin)/admin/media/podcast/podcast-form.tsx` — scrollable inner wrapper
+- `src/app/(admin)/admin/media/podcast/podcast-table.tsx` — fixed truncation, `title` tooltips
+- `src/app/(admin)/components/content-wrapper.tsx` — `min-w-0` on `main`
+- `DECISIONS.md` (ADR-079)
+**Acceptance criteria:**
+- [x] Title is capped at 50 characters, Description at 200 (form counters
+  and server validation both updated).
+- [x] With every field filled (including a thumbnail), the create/edit
+  modal scrolls its field area internally — the Save button and any error
+  message stay visible, pinned below.
+- [x] A long title or description in the list table visibly truncates with
+  an ellipsis (and a hover tooltip with the full text) instead of widening
+  the column or the page.
+- [ ] `tsc --noEmit` passes. (not run — see feedback memory: ask before
+  running typecheck/lint/build.)
+**Do not:** Fix the identical truncation bug in `gallery-table.tsx` — out of
+scope for this ask, left as a known gap (noted in ADR-079).
+
+## [x] Task: Banner + rich text on Marcom & Promotion (Support), above the social media list
+
+**Context:** ADR-070 gave Registration & Documentation, Warranty & Service,
+and Career a `SupportPage`-backed banner + rich text body, deliberately
+excluding Marcom & Promotion since it already had its own `SocialAccount`
+highlight list. The client now wants a banner and rich text on Marcom too,
+reflected on the public page with the rich text sitting above the social
+media list — not replacing it. See ADR-080.
+**Approach:** Added `"marcom"` to `SUPPORT_PAGE_SLUGS` (no migration — `slug`
+is a plain unique `String`) rather than a fourth standalone model, since
+Marcom already lives in the same admin Support submenu as the other three
+`SupportPage` rows. Added `SUPPORT_PAGE_PUBLIC_PATH` to map the admin slug
+(`marcom`) to its differently-named public route segment
+(`marcom-promotion`) for revalidation, since every other slug is identical
+on both sides.
+**Files to create or modify:**
+- `src/lib/support-pages.ts` — `"marcom"` slug, `SUPPORT_PAGE_PUBLIC_PATH`
+- `src/app/(admin)/admin/support/actions.ts` — `revalidateSupportPagePaths`
+  uses the new path map
+- `src/app/(admin)/admin/support/marcom/page.tsx` — renders `SupportPageForm`
+  above the existing `SocialAccountTable`
+- `src/app/(user)/support/marcom-promotion/page.tsx` — renders the saved
+  banner (falling back to the original dummy image) and, when non-empty,
+  the rich text body directly above the "Our Social Media" section
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-080, amends ADR-070's exclusion)
+**Acceptance criteria:**
+- [x] `/admin/support/marcom` shows a Banner section (three responsive
+  sizes, 2560x1107 required) and a rich text editor above the existing
+  social account table, saved independently of it.
+- [x] The public `/support/marcom-promotion` page renders the saved banner
+  across all three breakpoints and the rich text body above the social
+  media list; an empty body renders nothing extra (`hasRichTextContent`
+  guard, same as every other Support page).
+- [x] Saving the Marcom banner/body revalidates both
+  `/admin/support/marcom` and `/support/marcom-promotion`.
+- [x] The existing social account CRUD (add/edit/delete/reorder) is
+  unchanged.
+**Do not:** Replace or restructure the `SocialAccount`-driven highlight
+list — the rich text is additive, rendered above it.
+
+## [x] Task: Homepage hero banner (`HomePage` model); "Carousel" menu renamed "Content"
+
+**Context:** The Homepage sidebar section's only submenu was "Carousel",
+managing just `HomeCarousel` rows. The ask: add an editable homepage hero
+banner at four fixed sizes (2560x1440, 1440x2560, 2048x1536, 1536x2048, only
+the largest required) to that same admin page, and rename the menu to
+"Content" since it now covers more than the carousel list. See ADR-082.
+**Approach:** New `HomePage` model, one row upserted by fixed slug (`"home"`)
+— same upsert-by-slug shape as `ContactPage`/`SupportPage`, but reusing
+Category's four-size banner set (ADR-035) instead of the usual three-size
+one, since that's the exact set asked for. Upload/save actions and banner
+limits added to the existing `homepage/carousel/actions.ts`/`limits.ts`
+(same precedent as Galleries in ADR-081). `/admin/homepage/carousel` now
+renders the new `HomePageForm` banner form above the existing
+`CarouselTable`.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803083438_add_home_page/` — new `HomePage` model
+- `src/lib/home-page.ts` — new: `getHomePage()`, `HomePageSlug`, `IHomePage`
+- `src/app/(admin)/admin/homepage/carousel/limits.ts` — `MAX_HOME_BANNER_SIZE`/`_LABEL`, `ACCEPTED_HOME_IMAGE_TYPES`
+- `src/app/(admin)/admin/homepage/carousel/actions.ts` — new: `uploadHomePageBanner`, `saveHomePage`
+- `src/app/(admin)/admin/homepage/carousel/home-page-form.tsx` — new: `HomePageForm`
+- `src/app/(admin)/admin/homepage/carousel/page.tsx` — renders `HomePageForm` above `CarouselTable`; `AdminTitle` title "Carousel" → "Content"
+- `src/app/(admin)/components/sidebar.tsx` — Homepage submenu label "Carousel" → "Content" (slug unchanged)
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-082)
+**Acceptance criteria:**
+- [x] The Homepage sidebar submenu reads "Content", still linking to
+  `/admin/homepage/carousel`.
+- [x] `/admin/homepage/carousel` shows a Banner section (2560x1440,
+  1440x2560, 2048x1536, 1536x2048 — only 2560x1440 required) above the
+  existing carousel list, saved independently of it via its own Save button.
+- [x] Reloading the page after a save shows the previously uploaded images
+  in each of the four slots.
+- [x] `tsc --noEmit` passes.
+**Do not:** Wire the saved banner into the public homepage hero — that
+section still renders its own static images; this task is admin-only, same
+deferral as Category's banner (ADR-035).
+
+## [x] Task: Product/Device CMS — search, category/tag multiselect filters, pagination
+
+**Context:** `/admin/product-device/{products,devices}/items` load every row of that
+`type` in one unfiltered `getProductItems()` call — fine at today's catalogue size, not
+once it grows. Need a name search, a category multiselect, a tag multiselect, and
+pagination, shared by both Products and Devices since they're the same `ItemTable`
+parameterized by `type`. See ADR-083 for how this interacts with the existing
+drag-and-drop reorder.
+**Approach:** Move filtering/pagination server-side, driven by URL search params (`q`,
+`categories`, `tags`, `page`) so `products/items` and `devices/items` (already thin
+server components) parse them and pass filtered+paginated data down — no new API route,
+no client-side full-list loading.
+- `getProductItems(type, filters)` takes `{ search?, categoryIds?, tagIds?, page?,
+  pageSize? }`, returns `{ items, total }`. `where` combines: `name` case-insensitive
+  `contains` for search (name only, not tagline — no other search in this codebase spans
+  multiple fields); `categoryId: { in: categoryIds }` for the category filter (exact
+  match against the flattened tree, no descendant expansion — consistent with every
+  other place `categoryId` is queried, e.g. `getPublishedProductCards`); `tags: { some:
+  { id: { in: tagIds } } }` for the tag filter.
+- New generic `MultiSelectFilter` (checkbox popover, modeled on `TagPicker`'s toggle list
+  minus its create/delete affordances) reused for both the category filter (fed the
+  flattened tree, same `flattenDescendants` shape as `CategoryPicker`) and the tag
+  filter (fed `getTags(type)`).
+- New `ItemFilterBar` (client component): debounced search `Input`, the two
+  `MultiSelectFilter`s, a "Clear filters" action — all read/write the URL via
+  `useRouter`/`useSearchParams` (`router.replace`, not `push`, so typing doesn't spam
+  history), resetting `page` to 1 on any filter change.
+- New `src/components/ui/pagination.tsx` (shadcn's standard Button-based primitive) —
+  first pagination control in this codebase; rendered under the table.
+- **Reorder gating (ADR-083):** drag-and-drop reorder is only enabled when the view is
+  the plain, unfiltered, page-1 list (`!search && categoryIds.length === 0 &&
+  tagIds.length === 0 && page === 1`) — `reorderProducts` itself is unchanged, since a
+  page-1-unfiltered slice is exactly the lowest-`order` contiguous prefix and rewriting
+  its `order` to `0..pageSize-1` stays globally consistent. Any filter or page beyond 1
+  disables the grip handle.
+- **Page size is user-selectable** (`10 | 20 | 50 | "all"`, `pageSize` URL param,
+  `PRODUCT_LIST_PAGE_SIZE_OPTIONS` in `limits.ts`) — `"all"` disables `skip`/`take`
+  server-side entirely (`getProductItems` returns every matching row) and always reports
+  a single page, which also fully restores free-list reorder (page 1 with `pageSize=all`
+  and no filters *is* the complete ordered list, same as before this task).
+- `ItemTable` resyncs its local `items` state from the `items` prop via `useEffect`
+  rather than a remount-forcing `key` — an earlier version of this task keyed `ItemTable`
+  on the filter/page state, which incidentally reset every `MultiSelectFilter` popover's
+  own `open` state on each remount, closing it after every single select/unselect.
+**Files to create or modify:**
+- `src/interfaces/general.ts` — add `IProductListFilters`, `IProductListResult`
+- `src/lib/products.ts` — `getProductItems` takes filters, returns `{ items, total }`
+- `src/app/(admin)/admin/product-device/limits.ts` — `PRODUCT_LIST_PAGE_SIZE`
+- `src/components/ui/pagination.tsx` — new shadcn primitive
+- `src/app/(admin)/admin/product-device/multi-select-filter.tsx` — new
+- `src/app/(admin)/admin/product-device/item-filter-bar.tsx` — new
+- `src/app/(admin)/admin/product-device/parse-item-list-search-params.ts` — new: shared
+  `searchParams` → `{ search, categoryIds, tagIds, page }` parsing for both list routes
+- `src/app/(admin)/admin/product-device/item-table.tsx` — paginated items, filter bar,
+  pagination controls, reorder gated per ADR-083
+- `src/app/(admin)/admin/product-device/products/items/page.tsx`,
+  `devices/items/page.tsx` — parse `searchParams`, fetch categories/tags for filter
+  options, fetch filtered+paginated items
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-083)
+**Acceptance criteria:**
+- [ ] Typing in the search box filters the list by product/device name (debounced, no
+  full page reload flash). (implemented, not yet browser-verified)
+- [ ] Selecting categories/tags in either multiselect narrows the list to matches;
+  multiple selections within one filter are OR'd, the two filters AND together with
+  search. (implemented, not yet browser-verified)
+- [ ] The list is paginated at `PRODUCT_LIST_PAGE_SIZE` per page with working
+  prev/next/page-number controls; filters + search persist across page navigation via
+  the URL. (implemented, not yet browser-verified)
+- [ ] Refreshing the page or sharing the URL preserves the current search/filter/page
+  state. (implemented, not yet browser-verified)
+- [ ] The reorder grip handle is enabled only when no search/filter is active and
+  `page === 1`; it's visibly disabled (not just silently broken) otherwise. (implemented,
+  not yet browser-verified)
+- [ ] Reordering on the plain page-1 view still persists correctly (existing behavior
+  unchanged). (implemented, not yet browser-verified)
+- [x] `tsc --noEmit` passes.
+**Do not:** Add descendant-inclusive category filtering, cross-page drag reorder, or a
+generic reusable pagination/filter data-fetching hook — out of scope for this task.
+
+## [x] Task: Public catalogue — search, category/tag multiselect filters, infinite scroll
+
+**Context:** Same ask as the admin task above (search, category multiselect, tag
+multiselect), applied to the public `/devices/[...slug]` and `/products/[...slug]`
+catalogue grid (`CategoryPageView`, rendered for a leaf category's own products), but
+with infinite scroll instead of page-number pagination — a public shopper-facing grid,
+not an admin table. Visual language borrowed from the existing (currently unused)
+`CatalogueFilter`/`Filter.tsx` — floating label cut into the trigger's top border,
+`text-lg font-medium`, `text-brand-red` label. See ADR-084 for the two real decisions
+this forces: filter scope crossing the current category, and a client-triggered public
+read path that didn't exist before.
+**Approach:**
+- New `getPublicCatalogueCards(type, filters)` in `src/lib/products.ts` — published-only
+  (`status: "public"`), same `where` shape as the admin task's `getProductItems`
+  (search on `name`, exact `categoryId` match, `tags: { some: ... } }`), offset/limit
+  pagination (`skip`/`take: limit + 1` to detect `hasMore` without a second `count`
+  query). Each card resolves its own URL via `getCategoryAncestry` (same per-product
+  ancestry lookup and accepted cost as `getPublishedProductPickerOptions`) rather than a
+  single shared `urlPrefix`, since results can now span more than one category.
+- New `src/app/(user)/components/catalogue/catalogue-actions.ts` (`"use server"`) —
+  thin `loadCatalogueCards(type, filters)` wrapper the client calls for both "filters
+  changed" (refetch from offset 0) and "scrolled near the bottom" (fetch the next batch
+  and append). Read-only — a server action rather than a new API route, since the
+  client only ever needs one round trip per interaction.
+- New `CatalogueProductGrid.tsx` (client component) replaces the plain grid in
+  `CategoryPageView` for a leaf category: search input + category multiselect (options:
+  the full cached `getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`,
+  pre-selected to the current category) + tag multiselect (`getTags(type)`) + the
+  existing `DeviceCard` grid + an `IntersectionObserver` sentinel that calls
+  `loadCatalogueCards` for the next batch while `hasMore` and not already loading.
+  Unlike the admin task, filter/scroll state is **not** URL-driven — infinite scroll
+  isn't meaningfully deep-linkable the way a numbered page is.
+- New `CataloguePopoverFilter.tsx` — the category/tag multiselect popover, restyled to
+  match `Filter.tsx`'s floating-label trigger rather than reusing the admin's
+  `MultiSelectFilter` (different route group, different visual language).
+- `src/app/(user)/components/catalogue/limits.ts` — `CATALOGUE_PAGE_SIZE`.
+**Files to create or modify:**
+- `src/lib/products.ts` — new `getPublicCatalogueCards`, `IPublicCatalogueFilters`,
+  `IPublicCatalogueResult`
+- `src/app/(user)/components/catalogue/limits.ts` — new: `CATALOGUE_PAGE_SIZE`
+- `src/app/(user)/components/catalogue/catalogue-actions.ts` — new: `loadCatalogueCards`
+- `src/app/(user)/components/catalogue/CataloguePopoverFilter.tsx` — new
+- `src/app/(user)/components/catalogue/CatalogueProductGrid.tsx` — new
+- `src/app/(user)/components/catalogue/CategoryPageView.tsx` — renders
+  `CatalogueProductGrid` instead of `DeviceFilterList` for a leaf category's own products
+  (the "Browse Categories" sub-category grid is unchanged, still `DeviceFilterList`)
+- `src/app/(user)/devices/[...slug]/page.tsx`, `src/app/(user)/products/[...slug]/page.tsx`
+  — fetch the first batch via `getPublicCatalogueCards` instead of the fixed
+  `getPublishedProductCards`, plus the category tree/tag list for filter options
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-084)
+**Acceptance criteria:**
+- [ ] The leaf-category product grid loads its first batch server-side (no
+  client-side-only fetch on initial paint). (implemented, not yet browser-verified)
+- [ ] Typing in the search box (debounced) or toggling a category/tag replaces the grid
+  with a fresh first batch matching the new filters. (implemented, not yet
+  browser-verified)
+- [ ] Scrolling near the bottom of the grid loads and appends the next batch
+  automatically, with no page-number controls anywhere on this page. (implemented, not
+  yet browser-verified)
+- [x] ~~The category multiselect defaults to the current leaf category pre-selected...~~
+  Removed per feedback — the public grid stays scoped to its own leaf category (search +
+  tag filter only); `getPublicCatalogueCards` still accepts `categoryIds` generally, it's
+  just always called with `[defaultCategoryId]` now, not exposed as a filter control.
+- [x] `getPublishedProductCards`/`home-carousels.ts`'s homepage-carousel usage is
+  unchanged — this task adds a new function, it does not touch that one.
+- [x] `tsc --noEmit` passes.
+**Do not:** Make filter/scroll state URL-driven, touch `getPublishedProductCards` (the
+homepage carousel's fixed-category fetch), or reuse the admin's `MultiSelectFilter`
+component directly across the `(admin)`/`(user)` route-group boundary.
+
+## [x] Task: Product/Device secondary categories (many-to-many cross-listing)
+
+**Context:** A device/product could only ever belong to one `Category`. Ask: let one
+product be assigned to multiple categories, so e.g. a device filed under "Laser" can
+also show up on the "Skin Restoration" category page. See ADR-085.
+**Approach:** Keep `Product.categoryId` as the single required routing/primary category
+(unchanged — still drives the product's own URL/breadcrumb, ADR-038) and add an optional
+many-to-many `secondaryCategories` for cross-listing only, same implicit-m2m shape as
+`Tag` (ADR-041). Extend the two query paths that already resolve each card's URL
+per-product (so a secondary-category match can never produce a broken link) to match
+either primary or secondary; leave the one path that shares a single `urlPrefix`
+(`getPublishedProductCards`/home carousels) untouched.
+**Files to create or modify:**
+- `prisma/schema.prisma` — `Product.secondaryCategories` / `Category.secondaryProducts`
+  implicit m2m relation
+- `prisma/migrations/20260803092310_add_product_secondary_categories/` — new, additive
+  (`CREATE TABLE` only)
+- `src/interfaces/general.ts` — `IProduct.secondaryCategoryIds: string[]`
+- `src/app/(admin)/admin/product-device/product-actions.ts` — `resolveSecondaryCategoryIds`,
+  wired into `createProduct`/`updateProduct`
+- `src/app/(admin)/admin/product-device/product-form.tsx` — "Secondary Categories" field
+  (Identity tab), excludes the current primary category from its own options
+- `src/app/(admin)/admin/product-device/multi-select-filter.tsx` — optional `className`
+  prop so the form field (not just the filter bars) can size the trigger full-width
+- `src/lib/products.ts` — `mapProductRow`/`getProductById`/`getPublishedProductBySlug`
+  include the relation; `getProductItems`/`getPublicCatalogueCards`'s `categoryIds` filter
+  OR-matches primary or secondary
+- `DECISIONS.md` (ADR-085)
+**Acceptance criteria:**
+- [x] Migration is additive only — no existing column altered or dropped.
+- [x] Saving a product with one or more secondary categories persists them; picking the
+  same category as both primary and secondary is prevented (client-side picker excludes
+  it, server re-validates).
+- [x] Admin list filter and public catalogue browse/search match a product filed under a
+  category either as primary or secondary.
+- [x] Every card produced by a secondary-category match still resolves to the product's
+  one real (primary-category) URL.
+- [x] Home-carousel "category" mode is unaffected — still primary-category-only.
+- [x] `tsc --noEmit` passes.
+- [ ] Manually verified in the browser (admin form save/reload round-trip, public
+  category page cross-listing).
+**Do not:** Make `categoryId` itself many-to-many, or let a product resolve at more than
+one public URL.

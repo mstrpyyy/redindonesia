@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { saveUpload } from "@/lib/uploads";
-import { isSupportPageSlug, type SupportPageSlug } from "@/lib/support-pages";
+import { isSupportPageSlug, SUPPORT_PAGE_PUBLIC_PATH, type SupportPageSlug } from "@/lib/support-pages";
 import {
   ACCEPTED_SUPPORT_IMAGE_TYPES,
   MAX_SUPPORT_BANNER_LABEL,
@@ -73,7 +73,7 @@ const saveSupportPageSchema = z.object({
 
 function revalidateSupportPagePaths(slug: SupportPageSlug) {
   revalidatePath(`/admin/support/${slug}`);
-  revalidatePath(`/support/${slug}`);
+  revalidatePath(`/support/${SUPPORT_PAGE_PUBLIC_PATH[slug]}`);
 }
 
 export async function saveSupportPage(

@@ -16,3 +16,10 @@ export const MAX_CAROUSEL_ITEM_IMAGE_LABEL = "1MB";
 // slightly larger cap than MAX_CAROUSEL_ITEM_IMAGE_SIZE is fine.
 export const MAX_CAROUSEL_TITLE_IMAGE_SIZE = 2 * 1000 * 1024;
 export const MAX_CAROUSEL_TITLE_IMAGE_LABEL = "2MB";
+
+// Homepage hero banner (HomePage model, ADR-082) — same size/type budget as
+// the Category page banner (see product-device/limits.ts), since it's the
+// same four-size banner set.
+export const MAX_HOME_BANNER_SIZE = 2 * 1000 * 1024;
+export const MAX_HOME_BANNER_LABEL = "2MB";
+export const ACCEPTED_HOME_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];

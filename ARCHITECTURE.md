@@ -104,15 +104,28 @@ The application follows a **hybrid data architecture**:
     `uploadSegmentAsset` (`segment-upload-actions.ts`, `/uploads/products-content`)
     and store the resulting URL — see ADR-021.
   - `SupportPage` — one row per static Support page (Registration &
-    Documentation, Warranty & Service, Career — Marcom & Promotion keeps its
-    own `SocialAccount`-driven content instead), keyed by a fixed `slug`
+    Documentation, Warranty & Service, Career, and Marcom & Promotion — the
+    latter also keeps its own `SocialAccount`-driven highlight list
+    alongside its banner/body, see ADR-080), keyed by a fixed `slug`
     (see ADR-070). `id`, `slug` (unique, one of `SUPPORT_PAGE_SLUGS`,
     `src/lib/support-pages.ts`), `bannerXlUrl` (2560x1107, required in
     practice via the save action's Zod schema, not a DB constraint),
     `bannerMdUrl?` (1363x1107), `bannerSmUrl?` (1107x1107, all relative
     paths under `/uploads/support-pages`), `body?` (Tiptap-produced HTML),
     `createdAt`, `updatedAt`. No add/delete flow — only upsert-by-slug from
-    each page's own admin form (`/admin/support/<slug>`).
+    each page's own admin form (`/admin/support/<slug>`). Marcom's admin
+    slug (`marcom`) and public route (`/support/marcom-promotion`) differ —
+    `SUPPORT_PAGE_PUBLIC_PATH` maps between them for revalidation.
+  - `ContactPage` — same shape as `SupportPage`, for the admin Contact
+    dashboard's "Content" submenu (see ADR-072). Currently one fixed slug
+    (`content`, `CONTACT_PAGE_SLUGS` in `src/lib/contact-pages.ts`) feeding
+    the public `/contact` page's banner + rich text body.
+  - `ContactSubmission` — one row per public `/contact` form submission (see
+    ADR-073). `id`, `name`, `phone`, `email`, `question`, `isRead` (see
+    ADR-078), `createdAt`. No `updatedAt` — the only post-insert write is
+    `markContactSubmissionAsRead` flipping `isRead`. Read by the admin
+    Contact dashboard's "Form Response" list/detail view
+    (`/admin/contact/form-response`).
   - `HomeCarousel` — a homepage carousel section (see ADR-066).
     `mode: "category" | "custom"` discriminates two authoring paths:
     "category" stores only `categoryId` (a leaf `Category` node — no
@@ -135,6 +148,34 @@ The application follows a **hybrid data architecture**:
     either way and always renders as a screen-reader-only heading —
     `ProductHomeSection` already did this unconditionally before this
     feature existed, so no public component change was needed.
+  - `PodcastPage` — same shape as `SupportPage`/`ContactPage` (banner-only,
+    upsert-by-fixed-slug, see ADR-076). Currently one fixed slug
+    (`podcasts`, `PODCAST_PAGE_SLUGS` in `src/lib/podcast-page.ts`) feeding
+    the public `/media/podcasts` page's banner.
+  - `Podcast` — one episode shown on `/media/podcasts` (admin add/edit/
+    delete/drag-reorder list, see ADR-076). `id`, `youtubeUrl`, `title`
+    (max 50 chars), `description?` (max 200 chars), `thumbnailUrl?`
+    (relative path under `/uploads/podcasts-thumbnails`, optional —
+    admin-editable but not yet rendered on the public page, see ADR-077),
+    `order`, `createdAt`, `updatedAt`. Same shape as `Gallery` minus the
+    image grid — a podcast's only media is its one YouTube video, embedded
+    via the existing `getYoutubeVideoId` helper.
+  - `ArticlesPage` / `GalleriesPage` — same shape as `PodcastPage`
+    (banner-only, upsert-by-fixed-slug, see ADR-081), one per Media menu.
+    `ArticlesPage` (`ARTICLES_PAGE_SLUGS`, currently just `articles`) feeds
+    `/media/articles`'s banner; `GalleriesPage` (`GALLERIES_PAGE_SLUGS`,
+    currently just `galleries`) feeds `/media/galleries`'s banner. Kept as
+    separate models rather than folding into `PodcastPage`, same reasoning
+    as `ContactPage` vs `SupportPage` (ADR-072).
+  - `HomePage` — the homepage hero banner, upsert-by-fixed-slug (currently
+    just `"home"`, `HOME_PAGE_SLUGS` in `src/lib/home-page.ts`), managed on
+    the admin Homepage → "Content" page (renamed from "Carousel", see
+    ADR-082) above the `HomeCarousel` list. Four banner sizes rather than
+    the usual three — `bannerSmUrl`/`bannerMdUrl`/`bannerLgUrl`/
+    `bannerXlUrl` at 1440x2560/1536x2048/2048x1536/2560x1440 — reusing the
+    exact set `Category` established (ADR-035); only `bannerXlUrl` is
+    required. Not yet wired to the public homepage hero, which still renders
+    its own static images.
 - **Auth model**: a single shared login for the whole client team — not multi-user,
   not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
   httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`

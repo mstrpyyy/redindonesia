@@ -1,7 +1,9 @@
 import { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { resolveDevicesRoute } from '@/lib/devices-route'
-import { getPublishedProductCards } from '@/lib/products'
+import { getPublicCatalogueCards } from '@/lib/products'
+import { getTags } from '@/lib/tags'
+import { CATALOGUE_PAGE_SIZE } from '@/app/(user)/components/catalogue/limits'
 import { CategoryPageView } from '@/app/(user)/components/catalogue/CategoryPageView'
 import { ProductPageView } from '@/app/(user)/components/catalogue/ProductPageView'
 import { IHeroSegment } from '@/interfaces/segments'
@@ -66,11 +68,24 @@ export default async function ProductsCatchAllPage({ params }: IPageProps) {
     if (!category.isPage) redirect('/')
 
     const urlPrefix = `/products/${slug.join('/')}`
-    const productCards = category.children.length === 0
-      ? await getPublishedProductCards(category.id, urlPrefix)
-      : []
+    const isLeaf = category.children.length === 0
 
-    return <CategoryPageView category={category} urlPrefix={urlPrefix} productCards={productCards} />
+    const [{ items: productCards, hasMore: productCardsHasMore }, tags] = await Promise.all([
+      isLeaf
+        ? getPublicCatalogueCards('product', { categoryIds: [category.id], limit: CATALOGUE_PAGE_SIZE })
+        : Promise.resolve({ items: [], hasMore: false }),
+      getTags('product'),
+    ])
+
+    return (
+      <CategoryPageView
+        category={category}
+        urlPrefix={urlPrefix}
+        productCards={productCards}
+        productCardsHasMore={productCardsHasMore}
+        tags={tags}
+      />
+    )
   }
 
   return <ProductPageView product={resolved.product} />

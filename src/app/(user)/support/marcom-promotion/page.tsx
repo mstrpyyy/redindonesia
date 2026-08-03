@@ -9,6 +9,8 @@ import {
 } from '@lineiconshq/react-lineicons'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { getSocialAccounts } from '@/lib/social-accounts'
+import { getSupportPage } from '@/lib/support-pages'
+import { hasRichTextContent } from '@/lib/utils'
 import { BodyWrapper } from '../../components/BodyWrapper'
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -20,18 +22,30 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 }
 
 export default async function SupportMarcomPromotion() {
-  const accounts = await getSocialAccounts()
+  const [accounts, page] = await Promise.all([
+    getSocialAccounts(),
+    getSupportPage('marcom'),
+  ])
+  const bodyHtml = page.body && hasRichTextContent(page.body) ? page.body : null
 
   return (
     <main>
       <PageBanner
-        defImage={'/image/support/marcom/dummy.jpg'}
+        defImage={page.bannerXlUrl ?? '/image/support/marcom/dummy.jpg'}
+        mdImage={page.bannerMdUrl ?? undefined}
+        smImage={page.bannerSmUrl ?? undefined}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
           <span className='text-brand-red2'>Marcom</span>
           {" "}
           <span className='text-white'>& Promotion</span>
       </PageBanner>
+
+      {bodyHtml && (
+        <BodyWrapper className='py-20'>
+          <div className='tiptap-content' dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+        </BodyWrapper>
+      )}
 
       <BodyWrapper className="py-20 radial-gradient3">
         <h2 className='h2-format text-center'>

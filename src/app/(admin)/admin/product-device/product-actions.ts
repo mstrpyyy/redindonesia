@@ -27,6 +27,11 @@ const statusSchema = z.enum(["hidden", "public"]);
 function revalidateProductPages(type: "device" | "product") {
   const base = type === "device" ? "/admin/product-device/devices" : "/admin/product-device/products";
   revalidatePath(`${base}/items`);
+  // The homepage carousel's "Custom" item picker (product-picker-field.tsx)
+  // reads every published product server-side on each visit — without this,
+  // a product created/edited/hidden here wouldn't show up (or wouldn't drop
+  // out) there until something else happened to revalidate that route.
+  revalidatePath("/admin/homepage/carousel");
 }
 
 const DIACRITIC_MARKS_PATTERN = new RegExp("[\\u0300-\\u036f]", "g");
@@ -206,6 +211,32 @@ async function resolveTagIds(formData: FormData, type: "device" | "product"): Pr
   }
 }
 
+// Re-checked against the DB rather than trusted from the client, same
+// precedent as `resolveTagIds` above. `primaryCategoryId` is excluded even if
+// the client somehow sent it — a category can't be both this product's
+// routing category and a secondary cross-listing at once (ADR-085).
+async function resolveSecondaryCategoryIds(
+  formData: FormData,
+  type: "device" | "product",
+  primaryCategoryId: string
+): Promise<string[]> {
+  const raw = formData.get("secondaryCategoryIds");
+  if (typeof raw !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === "string")) return [];
+
+    const ids = parsed.filter((id) => id !== primaryCategoryId);
+    if (ids.length === 0) return [];
+
+    const validCategories = await prisma.category.findMany({ where: { id: { in: ids }, type }, select: { id: true } });
+    return validCategories.map((category) => category.id);
+  } catch {
+    return [];
+  }
+}
+
 export async function createProduct(
   formData: FormData
 ): Promise<ActionResult<{ id: string; slug: string }>> {
@@ -239,6 +270,11 @@ export async function createProduct(
   }
 
   const tagIds = await resolveTagIds(formData, parsedType.data);
+  const secondaryCategoryIds = await resolveSecondaryCategoryIds(
+    formData,
+    parsedType.data,
+    parsedFields.data.categoryId
+  );
 
   const fileEntry = formData.get("thumbnail");
   const hasThumbnailFile = fileEntry instanceof File && fileEntry.size > 0;
@@ -280,6 +316,7 @@ export async function createProduct(
         segments: parsedSegments.segments as Prisma.InputJsonValue,
         order: siblingCount,
         tags: { connect: tagIds.map((id) => ({ id })) },
+        secondaryCategories: { connect: secondaryCategoryIds.map((id) => ({ id })) },
       },
     });
 
@@ -330,6 +367,7 @@ export async function updateProduct(
   }
 
   const tagIds = await resolveTagIds(formData, type);
+  const secondaryCategoryIds = await resolveSecondaryCategoryIds(formData, type, parsedFields.data.categoryId);
 
   const fileEntry = formData.get("thumbnail");
   const hasNewThumbnailFile = fileEntry instanceof File && fileEntry.size > 0;
@@ -378,6 +416,7 @@ export async function updateProduct(
         // correct for both adding and removing tags, unlike `connect` (which
         // is create-only above since a brand-new product has none to remove).
         tags: { set: tagIds.map((id) => ({ id })) },
+        secondaryCategories: { set: secondaryCategoryIds.map((id) => ({ id })) },
       },
     });
 

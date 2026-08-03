@@ -33,6 +33,7 @@ import { ICategory, IProduct, ITag } from "@/interfaces/general";
 import { createProduct, updateProduct } from "./product-actions";
 import { CategoryPicker } from "./category-picker";
 import { TagPicker } from "./tag-picker";
+import { IMultiSelectOption, MultiSelectFilter } from "./multi-select-filter";
 import { SegmentsBuilder, type ISegmentRecord } from "./segments-builder";
 import { ProductFilesEditor, isCertificationComplete, isHeroDocComplete } from "./product-files-editor";
 import type { ICertification, IHeroDoc } from "@/interfaces/segments";
@@ -99,6 +100,29 @@ function sameTagIds(a: ITag[], b: ITag[]): boolean {
   return b.every((tag) => ids.has(tag.id));
 }
 
+// Same order-independent comparison as `sameTagIds`, for the secondary
+// category picker's plain id array.
+function sameIds(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const ids = new Set(a);
+  return b.every((id) => ids.has(id));
+}
+
+// Mirrors CategoryPicker's own `buildGroups`/`flattenDescendants` (root
+// categories aren't directly assignable, only their descendants are) but
+// without the per-root header grouping, same as item-filter-bar's own copy —
+// this one also excludes the product's current primary category, which can't
+// also be picked as a secondary cross-listing (ADR-085).
+function flattenSecondaryCategoryOptions(categories: ICategory[], excludeId: string): IMultiSelectOption[] {
+  const flattenDescendants = (nodes: ICategory[], indent: number): IMultiSelectOption[] =>
+    nodes.flatMap((node) => [
+      ...(node.id === excludeId ? [] : [{ id: node.id, name: node.name, indent }]),
+      ...flattenDescendants(node.children, indent + 1),
+    ]);
+
+  return categories.flatMap((root) => flattenDescendants(root.children, 0));
+}
+
 type IEditorTab = "identity" | "thumbnail" | "files" | "segments";
 
 // Source of truth for both the tab strip's order and the Next button's
@@ -139,6 +163,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   const [name, setName] = useState(product?.name ?? "");
   const [tagline, setTagline] = useState(product?.tagline ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
+  const [secondaryCategoryIds, setSecondaryCategoryIds] = useState<string[]>(product?.secondaryCategoryIds ?? []);
   const [status, setStatus] = useState<"hidden" | "public">(product?.status ?? "hidden");
   // Computed once and reused as both the initial value and the dirty-check
   // baseline — calling withHeroSegment twice would inject two different
@@ -207,6 +232,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
     cardBackground !== (product?.cardBackground ?? DEFAULT_CARD_BACKGROUND) ||
     JSON.stringify(segments) !== JSON.stringify(initialSegments) ||
     !sameTagIds(selectedTags, product?.tags ?? []) ||
+    !sameIds(secondaryCategoryIds, product?.secondaryCategoryIds ?? []) ||
     Boolean(thumbnail);
 
   // The hero's title/description can be pinned to the product's Name/Tagline
@@ -232,6 +258,15 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   const handleTaglineChange = (value: string) => {
     setTagline(value);
     syncHeroMirror("description", "descriptionSameAsTagline", value);
+  };
+
+  // A category can't be both this product's primary (routing) category and a
+  // secondary cross-listing at once (ADR-085) — dropping it here keeps the
+  // picker's own list (which already excludes the current `categoryId`) in
+  // sync rather than relying solely on the server-side re-check.
+  const handleCategoryChange = (value: string) => {
+    setCategoryId(value);
+    setSecondaryCategoryIds((current) => current.filter((id) => id !== value));
   };
 
   useEffect(() => {
@@ -287,6 +322,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
     formData.set("status", nextStatus);
     formData.set("segments", JSON.stringify(segments));
     formData.set("tagIds", JSON.stringify(selectedTags.map((tag) => tag.id)));
+    formData.set("secondaryCategoryIds", JSON.stringify(secondaryCategoryIds));
     if (thumbnail) formData.set("thumbnail", thumbnail);
 
     startTransition(async () => {
@@ -337,7 +373,22 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
               <Label>
                 Category<span className="text-destructive"> *</span>
               </Label>
-              <CategoryPicker categories={categories} value={categoryId} onChange={setCategoryId} />
+              <CategoryPicker categories={categories} value={categoryId} onChange={handleCategoryChange} />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Secondary Categories</Label>
+              <MultiSelectFilter
+                label="Select categories"
+                options={flattenSecondaryCategoryOptions(categories, categoryId)}
+                selectedIds={secondaryCategoryIds}
+                onChange={setSecondaryCategoryIds}
+                className="w-full"
+              />
+              <p className="text-muted-foreground text-xs">
+                Also shows this {entityLabel.toLowerCase()} on these categories&apos; pages, in addition to its main
+                Category above.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">

@@ -50,7 +50,7 @@ export function ProductCarousel({ carouselList, size }: ICarousel) {
             "
           >
             <div className="p-1">
-              <div className={`flex flex-col justify-end h-[400px] z-50 relative`}>
+              <div className={`flex flex-col justify-end h-[450px] z-50 relative`}>
                 <div className={`relative w-full flex-1`}>
                   <Image
                     src={item.img}
@@ -76,7 +76,7 @@ export function ProductCarousel({ carouselList, size }: ICarousel) {
                 </div>
                 <div 
                   className="
-                    absolute bottom-0 h-[50%] w-full
+                    absolute bottom-0 h-[60%] w-full
                     shadow-[0_4px_8px_rgba(0,0,0,0.25)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.35)]
                     transition-shadow duration-150 ease-in-out
                   bg-white rounded-4xl -z-10

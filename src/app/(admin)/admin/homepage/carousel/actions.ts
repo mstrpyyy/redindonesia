@@ -1,22 +1,108 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { saveUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
+  ACCEPTED_HOME_IMAGE_TYPES,
   MAX_CAROUSEL_ITEM_TITLE_LENGTH,
   MAX_CAROUSEL_ITEMS,
   MAX_CAROUSEL_SEE_MORE_URL_LENGTH,
   MAX_CAROUSEL_TITLE_LENGTH,
+  MAX_HOME_BANNER_LABEL,
+  MAX_HOME_BANNER_SIZE,
 } from "./limits";
+import { isHomePageSlug, type HomePageSlug } from "@/lib/home-page";
 
 type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: { code: string; message: string } };
 
+const HOME_BANNER_UPLOAD_FEATURE = "home-page";
+
 function revalidateHomeCarouselPages() {
   revalidatePath("/admin/homepage/carousel");
   revalidatePath("/");
+}
+
+const homeBannerImageSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Image is required")
+  .refine((file) => file.size <= MAX_HOME_BANNER_SIZE, `Image must be smaller than ${MAX_HOME_BANNER_LABEL}`)
+  .refine((file) => ACCEPTED_HOME_IMAGE_TYPES.includes(file.type), "Image must be a JPEG, PNG, or WEBP");
+
+export async function uploadHomePageBanner(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const parsed = homeBannerImageSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid image" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, HOME_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner image." } };
+  }
+}
+
+const saveHomePageSchema = z.object({
+  bannerSmUrl: z.string().trim().optional(),
+  bannerMdUrl: z.string().trim().optional(),
+  bannerLgUrl: z.string().trim().optional(),
+  bannerXlUrl: z.string().trim().min(1, "Banner (2560x1440) image is required"),
+});
+
+export async function saveHomePage(
+  slug: string,
+  formData: FormData
+): Promise<ActionResult<{ slug: HomePageSlug }>> {
+  if (!isHomePageSlug(slug)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Unknown homepage page." } };
+  }
+
+  const parsed = saveHomePageSchema.safeParse({
+    bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
+    bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
+    bannerLgUrl: formData.get("bannerLgUrl") ?? undefined,
+    bannerXlUrl: formData.get("bannerXlUrl"),
+  });
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid input" },
+    };
+  }
+
+  const { bannerSmUrl, bannerMdUrl, bannerLgUrl, bannerXlUrl } = parsed.data;
+
+  try {
+    await prisma.homePage.upsert({
+      where: { slug },
+      create: {
+        slug,
+        bannerSmUrl: bannerSmUrl || null,
+        bannerMdUrl: bannerMdUrl || null,
+        bannerLgUrl: bannerLgUrl || null,
+        bannerXlUrl,
+      },
+      update: {
+        bannerSmUrl: bannerSmUrl || null,
+        bannerMdUrl: bannerMdUrl || null,
+        bannerLgUrl: bannerLgUrl || null,
+        bannerXlUrl,
+      },
+    });
+
+    revalidateHomeCarouselPages();
+    return { success: true, data: { slug } };
+  } catch {
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to save the page." } };
+  }
 }
 
 const modeSchema = z.enum(["category", "custom"]);

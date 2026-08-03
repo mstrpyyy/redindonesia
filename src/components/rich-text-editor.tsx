@@ -8,7 +8,6 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
-import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
@@ -45,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { ColorPickerButton } from "@/components/color-picker-button";
 import { AlignableImage } from "@/components/tiptap-image-align";
 import { AlignableTable } from "@/components/tiptap-table-align";
+import { FontSize } from "@/components/tiptap-font-size";
 import { TrailingNode } from "@/components/tiptap-trailing-node";
 import {
   DropdownMenu,
@@ -53,6 +53,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Common presets, Google Docs/Word style — not an exhaustive palette, just
 // recognizable defaults; anything else is reachable via the custom picker.
@@ -69,6 +76,17 @@ const TEXT_COLORS = [
   "#2F9E44",
   "#1971C2",
   "#5F3DC4",
+];
+
+// "default" is a sentinel for "no fontSize mark" (Radix Select can't use an
+// empty string as an item value) — mapped back to `unsetFontSize()` below.
+const FONT_SIZES = [
+  { label: "Small", value: "12px" },
+  { label: "Normal", value: "default" },
+  { label: "Medium", value: "18px" },
+  { label: "Large", value: "24px" },
+  { label: "X-Large", value: "32px" },
+  { label: "XX-Large", value: "48px" },
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -143,7 +161,7 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
       Placeholder.configure({ placeholder: placeholder ?? "Write something..." }),
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ["heading", "paragraph"], defaultAlignment: "justify" }),
-      TextStyle,
+      FontSize,
       Color,
       AlignableImage,
       // `resizable: true` gives every column an explicit pixel width (drag
@@ -263,6 +281,30 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
           onSelect={(color) => editor.chain().focus().setColor(color).run()}
           onClear={() => editor.chain().focus().unsetColor().run()}
         />
+
+        <span className="bg-border mx-1 h-5 w-px" />
+
+        <Select
+          value={editor.getAttributes("textStyle").fontSize ?? "default"}
+          onValueChange={(value) => {
+            if (value === "default") {
+              editor.chain().focus().unsetFontSize().run();
+              return;
+            }
+            editor.chain().focus().setFontSize(value).run();
+          }}
+        >
+          <SelectTrigger size="sm" aria-label="Font size" className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FONT_SIZES.map((size) => (
+              <SelectItem key={size.value} value={size.value}>
+                {size.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <span className="bg-border mx-1 h-5 w-px" />
 

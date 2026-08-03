@@ -14,10 +14,15 @@ interface ISidebar {
 
 export const SidebarMenu = ({ menu: navMenus, pathname, DROPDOWNSIZE, TOP_HEIGHT, setDarkenBg }: ISidebar) => {
   const [open, setOpen] = useState(false)
-  
+
   const handleOpen = () => {
     setOpen(prev => !prev)
     setDarkenBg(prev => !prev)
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    setDarkenBg(false)
   }
 
   return (
@@ -56,20 +61,22 @@ export const SidebarMenu = ({ menu: navMenus, pathname, DROPDOWNSIZE, TOP_HEIGHT
                   if (menu.menu) {
                     return (
                       <li key={index}>
-                        <DropdownNavButton 
-                          name={menu.name} 
-                          isActive={pathname === menu.slug} 
-                          menu={menu.menu} 
+                        <DropdownNavButton
+                          name={menu.name}
+                          isActive={pathname === menu.slug}
+                          menu={menu.menu}
+                          onNavigate={handleClose}
                         />
                       </li>
                     )
                   }
                   return (
                     <li key={index}>
-                      <SidebarNavButton 
-                        name={menu.name} 
-                        href={menu.slug ?? ''} 
-                        isActive={pathname === menu.slug} 
+                      <SidebarNavButton
+                        name={menu.name}
+                        href={menu.slug ?? ''}
+                        isActive={pathname === menu.slug}
+                        onNavigate={handleClose}
                       />
                     </li>
                   )
@@ -86,13 +93,15 @@ export const SidebarMenu = ({ menu: navMenus, pathname, DROPDOWNSIZE, TOP_HEIGHT
 interface ISidebarNavButton {
   name: string,
   href: string,
-  isActive: boolean
+  isActive: boolean,
+  onNavigate: () => void
 }
 
-const SidebarNavButton = ({ name, href, isActive }: ISidebarNavButton) => {
+const SidebarNavButton = ({ name, href, isActive, onNavigate }: ISidebarNavButton) => {
   return (
-    <Link 
-      href={href} 
+    <Link
+      href={href}
+      onClick={onNavigate}
       className={`text-white font-semibold py-2 ${isActive ? 'text-red-500 font-semibold' : 'hover:underline'}`}
     >
       {name}

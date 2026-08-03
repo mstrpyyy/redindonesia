@@ -9,13 +9,15 @@ interface IDropdownNavButton {
   isActive: boolean
   level?: number
   parentPath?: string
+  onNavigate: () => void
 }
 
 export const DropdownNavButton = ({
   name,
   menu,
   level = 0,
-  parentPath = ""
+  parentPath = "",
+  onNavigate
 }: IDropdownNavButton) => {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -80,11 +82,13 @@ export const DropdownNavButton = ({
                     isActive={false}
                     level={level + 1}
                     parentPath={fullPath}
+                    onNavigate={onNavigate}
                   />
                 ) : (
                   <NavMenuLink
                     href={fullPath}
                     isPage={item.isPage}
+                    onClick={onNavigate}
                     className={`block py-2 text-white ${
                       item.isPage === false ? "" : "hover:underline"
                     } ${

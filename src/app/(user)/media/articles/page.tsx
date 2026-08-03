@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { getArticlePreviewText, getPublishedArticles } from '@/lib/articles'
+import { getArticlesPage } from '@/lib/articles-page'
 import { formatArticleDate } from '@/lib/utils'
 
 export const metadata: Metadata = {
@@ -13,12 +14,17 @@ export const metadata: Metadata = {
 }
 
 export default async function MediaArticles() {
-  const articles = await getPublishedArticles()
+  const [articles, page] = await Promise.all([
+    getPublishedArticles(),
+    getArticlesPage('articles'),
+  ])
 
   return (
     <main>
       <PageBanner
-        defImage={'/image/media/articles/dummy2.jpg'}
+        defImage={page.bannerXlUrl ?? '/image/media/articles/dummy2.jpg'}
+        mdImage={page.bannerMdUrl ?? undefined}
+        smImage={page.bannerSmUrl ?? undefined}
         alt='RED (Radian Elok Distriversa) articles'
       >
         <span className='text-brand-red2'>RED</span>

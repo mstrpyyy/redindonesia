@@ -2,6 +2,7 @@ import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { BodyWrapper } from '../../components/BodyWrapper'
 import { GalleryViewer } from '../../components/GalleryViewer'
 import { getGalleries } from '@/lib/galleries'
+import { getGalleriesPage } from '@/lib/galleries-page'
 
 // Only the first 6 image paths per gallery are sent to the client on initial
 // render — GalleryViewer fetches the rest on demand (opening the lightbox or
@@ -10,12 +11,17 @@ import { getGalleries } from '@/lib/galleries'
 const INITIAL_IMAGE_COUNT = 6
 
 export default async function MediaGalleries() {
-  const galleries = await getGalleries()
+  const [galleries, page] = await Promise.all([
+    getGalleries(),
+    getGalleriesPage('galleries'),
+  ])
 
   return (
     <main>
       <PageBanner
-        defImage={'/image/media/galleries/dummy.jpg'}
+        defImage={page.bannerXlUrl ?? '/image/media/galleries/dummy.jpg'}
+        mdImage={page.bannerMdUrl ?? undefined}
+        smImage={page.bannerSmUrl ?? undefined}
         alt='RED (Radian Elok Distriversa) galleries'
       >
         <span className='text-brand-red2'>RED</span>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, GalleryHorizontal, Image as ImageIcon, Layers, Shield } from 'lucide-react'
+import { ChevronRight, GalleryHorizontal, Image as ImageIcon, Layers, Mail, Shield } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -19,7 +19,7 @@ const navMenus = [
     icon: <GalleryHorizontal size={18} strokeWidth={2} />,
     menu: [
       {
-        name: 'Carousel',
+        name: 'Content',
         slug: '/admin/homepage/carousel',
       },
     ]
@@ -81,6 +81,20 @@ const navMenus = [
       {
         name: 'Career',
         slug: '/admin/support/career',
+      },
+    ]
+  },
+  {
+    name: 'Contact',
+    icon: <Mail size={18} strokeWidth={2}  />,
+    menu: [
+      {
+        name: 'Content',
+        slug: '/admin/contact/content',
+      },
+      {
+        name: 'Form Response',
+        slug: '/admin/contact/form-response',
       },
     ]
   },

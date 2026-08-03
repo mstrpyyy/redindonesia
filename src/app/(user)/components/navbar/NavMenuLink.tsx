@@ -5,6 +5,7 @@ interface INavMenuLink {
   isPage?: boolean
   className?: string
   style?: React.CSSProperties
+  onClick?: () => void
   children: React.ReactNode
 }
 
@@ -13,7 +14,7 @@ interface INavMenuLink {
 // instead of a link, in both LargeDropdown and SidebarDropdown. `isPage`
 // undefined (every static Products/Support/Media entry) behaves as a normal
 // link, same as before this distinction existed.
-export const NavMenuLink = ({ href, isPage, className, style, children }: INavMenuLink) => {
+export const NavMenuLink = ({ href, isPage, className, style, onClick, children }: INavMenuLink) => {
   if (isPage === false) {
     return (
       <span className={`cursor-text ${className ?? ""}`} style={style}>
@@ -23,7 +24,7 @@ export const NavMenuLink = ({ href, isPage, className, style, children }: INavMe
   }
 
   return (
-    <Link href={href} className={className} style={style}>
+    <Link href={href} className={className} style={style} onClick={onClick}>
       {children}
     </Link>
   )

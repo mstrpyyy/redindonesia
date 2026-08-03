@@ -3249,7 +3249,7 @@ several other form sections rather than being the form's only content.
 ## ADR-070: `SupportPage` model for banner + rich text on static Support pages
 
 **Date:** 2026-08-03
-**Status:** Accepted
+**Status:** Accepted (Marcom's exclusion superseded by ADR-080 — model design unchanged)
 
 **Context:** Registration & Documentation, Warranty & Service, and Career
 under the public Support menu each had a hardcoded `PageBanner` image and an
@@ -3351,3 +3351,669 @@ no clipping, so the image visually poked past the card's rounded top edges.
 - If `"sm"`/`"md"` ever need to read clearly as `"square"`/`"transparent"`
   in code too (not just the admin label), that's a follow-up schema/prop
   rename, not a silent extension of this one.
+
+## ADR-072: `ContactPage` model for the admin Contact dashboard's Content submenu
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** The admin dashboard needed a new "Contact" section with two
+submenus: "Content" (banner + rich text body feeding the public `/contact`
+page, which previously had a hardcoded `PageBanner` image and an empty
+`<div className="h-150">` placeholder) and "Form Response" (viewing
+submitted contact-form entries — no design or model requested yet, left as
+a placeholder page).
+
+**Options considered:**
+1. **Extend `SupportPage` with a `feature`/namespace discriminator so
+   Contact's "Content" page shares the same table** — rejected; `slug` is
+   already the row-selection key for `SupportPage`, and Support/Contact are
+   unrelated feature areas in the admin nav. Bolting a second discriminator
+   on to reuse one table saves a migration but couples two features that
+   have no reason to share rows or a uniqueness constraint.
+2. **New `ContactPage` model, identical shape to `SupportPage`, one row per
+   fixed slug (chosen)** — same reasoning as ADR-070: `slug` is one of
+   `CONTACT_PAGE_SLUGS` (`src/lib/contact-pages.ts`, currently just
+   `"content"`), not a free-form catalogue slug — no add/delete flow, only
+   upsert-by-slug from the admin form. Keeps Contact's data independent of
+   Support's while reusing the exact same admin form shape
+   (`ContactPageForm`, `admin/contact/contact-page-form.tsx`) and public
+   rendering pattern (`PageBanner` + `BodyWrapper` + `hasRichTextContent`
+   guard) already proven out for Support.
+
+**Decision:** Option 2. "Form Response" gets a bare placeholder page
+(`admin/contact/form-response/page.tsx`, "Coming soon") and no model — its
+data shape (stored submissions? a form-builder? third-party integration?)
+wasn't specified, so nothing was built ahead of that decision being made.
+
+**Consequences:**
+- `/admin/contact/content` renders the same banner (three responsive sizes,
+  2560x1107 required) + rich text editor as any Support page; saving
+  revalidates `/admin/contact/content` and the public `/contact` path.
+- The public `/contact` page now renders its saved banner across all three
+  breakpoints (falling back to the original hardcoded dummy image until one
+  is saved) and the rich text body above the still-empty `<div
+  className="h-150">` placeholder — that placeholder is reserved for the
+  actual contact form, out of scope here.
+- Adding a real "Form Response" feature later (e.g. a `ContactSubmission`
+  model for a public-facing contact form) is a separate ADR — this one only
+  covers Content.
+
+## ADR-073: `ContactSubmission` model + Cloudflare Turnstile for the public contact form
+
+**Date:** 2026-08-03
+**Status:** Accepted (captcha portion superseded by ADR-074 — `ContactSubmission` and the rest of the form stand)
+
+**Context:** The public `/contact` page's `<div className="h-150">`
+placeholder (left open by ADR-072) needed to become an actual form: name
+(150 chars), mobile phone (20 chars), email, and a question (1000 chars,
+counter always visible; the other three only show a validation message once
+invalid, not as a standing hint) — plus a captcha so the form can't be
+trivially spammed.
+
+**Options considered — captcha:**
+1. **Google reCAPTCHA v2** — most recognized widget, but ties the site to a
+   Google account/ToS for something with a same-shape free alternative.
+2. **Self-hosted math/text challenge** — no third-party account at all, but
+   weaker against scripted bots than a managed service, and the client asked
+   for "a captcha," not a custom challenge.
+3. **Cloudflare Turnstile (chosen, user's call)** — free, no CAPTCHA-style
+   puzzle for most visitors (usually a single checkbox or fully invisible
+   pass), and doesn't add a Google dependency next to a Google-free stack.
+   Verified server-side against Cloudflare's `siteverify` endpoint in the
+   form's Server Action — the client-side token is never trusted alone.
+
+**Options considered — where submissions go:**
+1. **Don't persist anything; just show a success message** — rejected, a
+   submit button that discards the data is a broken feature, and the admin
+   dashboard already has a "Form Response" submenu (ADR-072) explicitly
+   waiting for this data.
+2. **New `ContactSubmission` model, one row per submission (chosen)** — no
+   third-party email/notification service introduced (out of scope, wasn't
+   asked); matches the project's self-hosted-Postgres-for-everything
+   pattern. Append-only, no edit flow, so no `updatedAt`.
+
+**Decision:** Options 3 and 2 above. `submitContactForm`
+(`src/app/(user)/contact/actions.ts`) Zod-validates all four fields
+server-side (mirroring the client's own maxLength/required checks, defined
+once in `limits.ts` so the two can't drift), verifies the Turnstile token,
+then inserts a `ContactSubmission` row. Turnstile is rendered explicitly
+(`?render=explicit` + `window.turnstile.render`) tied to a single ref,
+rather than the implicit `cf-turnstile`-class auto-scan, so exactly one
+widget instance exists regardless of client-side navigation. Site/secret
+keys are read from env (`NEXT_PUBLIC_TURNSTILE_SITE_KEY`/
+`TURNSTILE_SECRET_KEY`); `.env` currently holds Cloudflare's published
+always-pass testing key pair, not real production keys.
+
+**Consequences:**
+- The form is fully functional end to end (validate → captcha → persist),
+  but nothing renders those `ContactSubmission` rows yet — "Form Response"
+  in the admin dashboard is still the ADR-072 placeholder. Building that
+  list view is a follow-up task, not part of this one.
+- Real Turnstile keys must be generated in a Cloudflare account and swapped
+  into `.env`/the production environment before launch — the testing keys
+  in place now always pass verification and provide no actual bot
+  protection.
+- No email/notification is sent on submission — an admin has to open the
+  (not-yet-built) Form Response list to see new entries. If that turns out
+  to be too passive, adding notifications is a separate decision (a new
+  third-party service — email provider — with its own cost/ToS tradeoffs).
+
+## ADR-074: Turnstile captcha removed from the contact form (temporary)
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** With the always-pass Cloudflare testing keys in place (ADR-073),
+the Turnstile widget visibly displays Cloudflare's "For testing only. If
+seen, report to site owner" banner — expected behavior for the dummy keys,
+but the client asked to drop the captcha from the form for now rather than
+carry that banner (or set up real Cloudflare keys) at this stage.
+
+**Decision:** Removed the Turnstile widget, its `next/script` load, the
+`window.turnstile` render/reset wiring, and the client-side "complete the
+captcha" gate from `contact-form.tsx`; removed `verifyTurnstileToken` and
+its call from `submitContactForm` (`actions.ts`); removed the now-unused
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY` pair from `.env`.
+Left untouched: the `ContactSubmission` model, all four form fields and
+their validation, and the rest of ADR-073's submission-storage decision —
+none of that was about captcha.
+
+**Consequences:**
+- The public contact form now submits with no bot protection at all —
+  acceptable short-term per the client's own call, not a security gap
+  introduced silently.
+- Re-adding a captcha later means re-adding the widget/verification code
+  this ADR removed (recoverable from git history / ADR-073's original
+  write-up) plus real Cloudflare keys — not a new design decision, since
+  Turnstile was already the chosen approach.
+
+## ADR-075: Contact "Form Response" is a two-pane list/detail view, not a table
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** The admin Contact dashboard's "Form Response" submenu (a
+placeholder since ADR-072) needed to actually show `ContactSubmission` rows
+(ADR-073). The client asked for a list that, on click, splits the view with
+the full message on the right — an email-inbox layout, not the row-based
+table + edit-dialog pattern every other admin list in this project uses
+(Article/Gallery/SocialAccount tables).
+
+**Options considered:**
+1. **Reuse the existing admin table pattern (row list + click-to-open
+   dialog)** — rejected; the client specifically asked for a split view, and
+   `ContactSubmission` has no edit flow to justify a dialog anyway (it's
+   read-only, append-only data).
+2. **Two-pane list/detail, both panes scrolling independently inside a fixed-
+   height container (chosen)** — left pane: name, a one-line question
+   preview, and timestamp per row, newest first; right pane: full name,
+   `mailto:`/`tel:` links, timestamp, and the complete question text for
+   whichever row is selected. First submission auto-selected on load so the
+   view isn't empty on first paint, matching how desktop email clients open
+   to the top message.
+
+**Decision:** Option 2. `getContactSubmissions()`
+(`src/lib/contact-submissions.ts`) reads all rows server-side, newest first;
+`FormResponseView` (`admin/contact/form-response/form-response-view.tsx`) is
+a client component holding only `selectedId` — no fetch-on-select, the full
+list (question text included) is already in memory from the initial load.
+
+**Consequences:**
+- No pagination — every submission loads on page load. Fine at current
+  volume; revisit (cursor pagination or a date filter) if the table grows
+  large enough for that initial load to matter.
+- Still read-only: no mark-as-read/archive/delete/reply-tracking. Only
+  viewing was asked for.
+- `formatDateTime` (`src/lib/utils.ts`) is a new sibling to
+  `formatArticleDate` — the existing one has no time component, and same-day
+  submission ordering needs one.
+
+## ADR-076: `Podcast`/`PodcastPage` models for the admin Media → Podcast CMS
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** `/admin/media/podcast` was an empty placeholder. The client needs
+to manage the public `/media/podcasts` page's banner and the list of podcast
+episodes (YouTube link, title, description) shown there — that page
+previously rendered one hardcoded banner image and one hardcoded YouTube
+embed with static copy.
+
+**Options considered:**
+1. **One combined model** (banner fields + a `Json` list of episodes) —
+   would need its own ordering/CRUD scheme reinvented inside a JSON blob for
+   what the rest of the codebase already models as a real list.
+2. **Two models, mirroring existing precedent (chosen)** — `PodcastPage`
+   (banner-only, one row upserted by a fixed slug, same shape as
+   `ContactPage`/`SupportPage`, ADR-070/072) for the page chrome, and
+   `Podcast` (`youtubeUrl`, `title`, `description?`, `order`) for the
+   episode list, same shape as `Gallery` (ADR-011) minus the image grid —
+   a podcast's only media is its one YouTube video, so no upload/array
+   column is needed.
+
+**Decision:** Option 2. Admin CRUD (`src/app/(admin)/admin/media/podcast/`)
+reuses the `Gallery` table's add/edit/delete/drag-reorder pattern
+(`@dnd-kit`, `Dialog`-based create/edit modal) and the `ContactPage`/
+`SupportPage` banner-form pattern (three `UploadField`s, xl required,
+md/sm optional). The public page was also wired up (not left as a dead
+CMS): `/media/podcasts` now renders `page.bannerXlUrl` (falling back to the
+original hardcoded dummy image) and repeats the existing hero/video-plus-text
+block once per `Podcast` row, alternating side by index parity — the same
+per-item, alternating-layout precedent `/media/galleries` already
+established. Each episode's embed id is derived from its stored
+`youtubeUrl` via the existing `getYoutubeVideoId` helper
+(`src/lib/utils.ts`); a row whose URL fails to parse is skipped rather than
+rendering a broken iframe. The "Watch on Youtube" button — previously a
+non-functional `Button` with no `href` at all — now links to the podcast's
+real `youtubeUrl` in a new tab.
+
+**Consequences:**
+- The admin's banner form and podcast list are independent saves (banner
+  "Save" button vs. per-row create/edit modal), matching how `ContactPage`'s
+  banner and `Article`'s list are two separate save surfaces rather than one
+  combined form.
+- No per-episode thumbnail/duration/publish-date field exists yet — only
+  what was asked for (YouTube link, title, description). Adding richer
+  episode metadata later is an additive column, not a breaking change.
+- A podcast with a malformed `youtubeUrl` (shouldn't happen given the Zod
+  `url()` validation on save, but could via direct DB edit) silently
+  disappears from the public page instead of rendering a broken embed —
+  consistent with how `CategoryPageView` already treats an unparseable
+  `youtubeUrl`.
+
+## ADR-077: Podcast thumbnail added as optional, admin-only for now; title/description length caps
+
+**Date:** 2026-08-03
+**Status:** Accepted (amends ADR-076)
+
+**Context:** Follow-up ask: give each podcast an optional thumbnail image,
+and cap `title`/`description` the way `Article`'s title/excerpt already are
+(ADR-013's precedent — `maxLength` + a live character counter, both client
+and server enforced).
+
+**Decision:** `Podcast.thumbnailUrl` (nullable, `/uploads/podcasts-thumbnails`,
+own upload feature dir separate from the banner's `/uploads/podcasts` since
+it's a per-episode asset with its own lifecycle — deleted from disk when its
+podcast row is deleted, matching `Gallery`'s cleanup-on-delete). `title`
+capped at 150 characters, `description` at 400 — both enforced via the
+form's `maxLength` + a `{length}/{max}` counter and the server's Zod schema,
+same split already used for `Article.title`/`excerpt`.
+
+The thumbnail is stored and editable but **not yet rendered anywhere on the
+public `/media/podcasts` page** — only a form field + column were asked for
+this round. Assumption, not confirmed with the client: left unwired rather
+than guessing at where it should appear (e.g. as a `YoutubeEmbed` poster
+overriding the video's own auto-generated thumbnail, mirroring
+`Category.youtubeThumbnailUrl`/`VideoTextSection`'s existing pattern) — that
+would change the public page's video-loading behavior (immediate iframe →
+lazy poster + click-to-play), a UX call beyond "add a thumbnail input."
+
+**Consequences:**
+- Uploading a thumbnail today has no visible effect on the site — expected
+  until a follow-up task decides how (or whether) it should render.
+- No orphan cleanup on *replace* (uploading a new thumbnail over an old one)
+  — same "no cleanup on replace, only on full delete" precedent as every
+  other single-image field in this codebase (Category banners, Article
+  cover image aside). Only whole-podcast deletion cleans up its thumbnail
+  file.
+- Existing `Podcast` rows (created before this column) have `thumbnailUrl:
+  null` — no backfill needed, the field was always optional.
+
+## ADR-078: Form Response starts collapsed/unselected; unread tracked via `ContactSubmission.isRead`
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** Two refinements to the "Form Response" list/detail view
+(ADR-075): the view should open with the detail pane collapsed and nothing
+selected (rather than auto-opening the newest submission), and unread
+submissions need a visible marker — both directly reversing ADR-075's own
+"no mark-as-read" scope note now that it's been asked for.
+
+**Options considered — where "read" lives:**
+1. **Client-only (localStorage) unread tracking** — no migration, but this
+   is a single shared admin login (no per-user session, see
+   `CLAUDE.md`/`ARCHITECTURE.md`'s CMS & Auth section) — "read" is a
+   property of the submission itself, not of one browser. Two different
+   machines logging into the same admin would show different unread state
+   for the same data, which is wrong for a shared inbox.
+2. **`ContactSubmission.isRead: Boolean @default(false)`, flipped server-
+   side on open (chosen)** — one source of truth, consistent regardless of
+   which browser/machine opens the admin. `markContactSubmissionAsRead`
+   (`admin/contact/actions.ts`) is fire-and-forget from the client the
+   moment a row opens; the list pane also keeps a local `readIds` set so the
+   dot clears immediately without waiting on revalidation.
+
+**Decision:** Option 2. Additive, non-destructive column
+(`add_contact_submission_is_read` migration), defaulting existing rows to
+unread. `FormResponseView`'s `selectedId`/`isDetailOpen` now both default to
+their closed/empty state instead of auto-opening the newest row.
+
+**Consequences:**
+- Every submission that existed before this migration shows as unread on
+  first load — expected, there's no way to know their true prior state.
+- Still no bulk "mark all read," archive, or delete — only what was asked.
+
+## ADR-079: Podcast form/table polish — tighter length caps, scrollable modal, working truncation; admin `min-w-0` fix
+
+**Date:** 2026-08-03
+**Status:** Accepted (amends ADR-076/077)
+
+**Context:** Three follow-up fixes to the Podcast CMS. (1) The client
+tightened `title`/`description` caps to 50/200 characters (from 150/400).
+(2) The create/edit modal's fields could grow past the dialog's `max-h-
+[85vh]` with no way to scroll to the Save button. (3) The list table's
+title/description truncation didn't actually clip — `truncate` was applied
+to a bare `<span>`, and non-replaced inline elements ignore `max-width` per
+the CSS spec, so long text just grew the column instead of clipping.
+
+**Options considered — truncation:**
+1. **Patch just this table** — fixes the symptom here, leaves the same
+   bug in `gallery-table.tsx` (identical `<span className="max-w-48
+   truncate">` with no `block`) and the underlying page-level cause.
+2. **Fix the span (`block` + `max-w-*` + `title` attr for a hover tooltip,
+   mirroring `article-table.tsx`'s already-correct pattern) AND the root
+   layout cause (chosen)** — `ContentWrapper`'s `main` was `flex-1` with no
+   `min-w-0`; a flex item's default `min-width: auto` means it won't shrink
+   below its children's intrinsic content width, so any admin table whose
+   natural width exceeds the viewport would grow the whole page
+   horizontally instead of scrolling inside the table's own `overflow-x-
+   auto` wrapper (`Table`, `src/components/ui/table.tsx`, already has that
+   wrapper — it just couldn't take effect). Fixing this once at the layout
+   root benefits every admin list table, not just Podcast.
+
+**Decision:** Option 2. `ContentWrapper`'s `main` gained `min-w-0`.
+Podcast's Title/Description cells now use `block max-w-* truncate` +
+`title={...}` (matching `article-table.tsx` exactly, not `gallery-table.tsx`'s
+still-broken version, which was left alone — out of scope here). The modal
+fix mirrors `CategoryForm`'s established pattern (ADR from the carousel
+scrolling fix): `PodcastForm`'s outer element is `flex min-h-0 flex-1
+flex-col gap-4`, wrapping an inner `flex min-h-0 flex-1 flex-col gap-4
+overflow-y-auto px-1 py-1` div around every field; the error message and
+Save button sit outside that inner div, pinned below.
+
+**Consequences:**
+- `gallery-table.tsx`'s Title cell has the identical inline-`<span>`-with-
+  `max-w`-and-`truncate` bug, now visibly not fixed here — left as a known
+  gap since it wasn't part of this ask; the `min-w-0` fix means it no
+  longer risks widening the whole page, only that specific column no longer
+  visually truncating.
+- Existing `Podcast` rows with a title/description longer than the new
+  50/200 caps are not truncated or migrated — the cap is enforced only on
+  the next save through the form (client `maxLength` + server Zod `.max()`),
+  same as every other length-cap change in this codebase (e.g. `Article`'s
+  title cap, ADR-013).
+- The modal's Save button and error message are now always visible without
+  scrolling, regardless of how much content the fields (especially the
+  thumbnail preview) add above them.
+
+## ADR-080: Marcom & Promotion gains a banner + rich text body via `SupportPage`
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** ADR-070 deliberately excluded Marcom & Promotion from the
+`SupportPage` rollout because it already had its own `SocialAccount`-driven
+content and banner+body wasn't part of that ask. The client has now asked
+for a banner and rich text on this page too, rendered above the existing
+social media highlight list — not replacing it.
+
+**Options considered:**
+1. **New standalone model (mirroring how `ContactPage`/`PodcastPage` each
+   got their own model despite an identical shape to `SupportPage`)** —
+   rejected here; ADR-072's reasoning for a separate model was that Contact
+   and Podcast are unrelated feature *areas* in the admin nav. Marcom &
+   Promotion is not a separate area — it already lives inside the same
+   Support submenu as the other three `SupportPage` rows
+   (`/admin/support/marcom`, alongside `registration-documentation`/
+   `warranty-service`/`career`), so a fourth standalone model would just be
+   duplication for no isolation benefit.
+2. **Add `"marcom"` to `SUPPORT_PAGE_SLUGS` (chosen)** — `SupportPage.slug`
+   is a plain unique `String` in the DB (no enum), so this needed no
+   migration, only a `src/lib/support-pages.ts` change. The admin's existing
+   `/admin/support/marcom` route slug doesn't match the public route's
+   `/support/marcom-promotion` segment (the public page was named before
+   this model existed) — every other `SupportPage` slug is identical on both
+   sides, so a `SUPPORT_PAGE_PUBLIC_PATH` map was added instead of renaming
+   either route.
+
+**Decision:** Option 2. `/admin/support/marcom` renders `SupportPageForm`
+(the same banner + rich text form every other Support page uses) above the
+existing `SocialAccountTable`, both as independent saves. The public
+`/support/marcom-promotion` page renders the saved banner (falling back to
+the original hardcoded dummy image) and, when non-empty
+(`hasRichTextContent`), the rich text body directly above the "Our Social
+Media" section — the social account list itself is untouched.
+
+**Consequences:**
+- Saving the Marcom banner/body revalidates `/admin/support/marcom` and
+  `/support/marcom-promotion` (via `SUPPORT_PAGE_PUBLIC_PATH`), not a
+  literal `/support/marcom` path that doesn't exist.
+- No data migration was needed — `SupportPage` already had the exact shape
+  this required; only a new slug value and one small path-mapping addition.
+- If a future Support-area page's admin/public slugs also diverge,
+  `SUPPORT_PAGE_PUBLIC_PATH` is where that mapping goes, not another
+  one-off `if` in `actions.ts`.
+
+## ADR-081: `ArticlesPage`/`GalleriesPage` models — banner input added to the two remaining Media menus
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** Of the three menus under the admin Media section (Articles,
+Galleries, Podcast), only Podcast had an editable banner (`PodcastPage`,
+ADR-076). The public `/media/articles` and `/media/galleries` pages each
+still rendered a hardcoded `defImage` (`dummy2.jpg`/`dummy.jpg`) with no
+admin control. The ask was to add the same banner input to all Media
+menus, so Articles and Galleries needed the same treatment Podcast already
+had.
+
+**Options considered:**
+1. **One shared model (e.g. `MediaPage`, keyed by slug `"articles"` /
+   `"galleries"` / `"podcasts"`), replacing `PodcastPage` too** — rejected;
+   same reasoning as ADR-072/076 for keeping Contact/Podcast separate from
+   `SupportPage` — these are three unrelated feature areas in the admin
+   nav (Articles has its own list model, Galleries its own, Podcast its
+   own), and folding them into one table just to save two migrations would
+   couple rows that have no reason to share a uniqueness constraint.
+   Retrofitting `PodcastPage` itself was also out of scope for this ask.
+2. **Two new models, `ArticlesPage`/`GalleriesPage`, identical shape to
+   `PodcastPage` (chosen)** — banner-only (no rich text body — not asked
+   for here, unlike `ContactPage`/`SupportPage`), one row per fixed slug
+   (`ARTICLES_PAGE_SLUGS`/`GALLERIES_PAGE_SLUGS`, currently just
+   `"articles"`/`"galleries"`), upserted, no add/delete flow — the exact
+   shape and form/action pattern already proven out for Podcast.
+
+**Decision:** Option 2. `/admin/media/articles` and `/admin/media/galleries`
+each render a banner form (`ArticlesPageForm`/`GalleriesPageForm` — three
+responsive sizes, 2560x1107 required) above their existing table
+(`ArticleTable`/`GalleryTable`), same layout Podcast uses. The Galleries
+banner actions (`uploadGalleriesPageBanner`/`saveGalleriesPage`) were added
+to the folder's existing `actions.ts`/`limits.ts` rather than new files,
+since gallery image upload already lives there; Articles had no top-level
+`actions.ts` yet, so a fresh one was created (separate from
+`editor/actions.ts`, which handles article content, not this page banner).
+The public pages now render the saved banner across all three breakpoints,
+falling back to the original hardcoded dummy image until one is saved.
+
+**Consequences:**
+- All three Media menus now have a consistent, admin-editable banner.
+- Saving either banner revalidates its own admin route and public path
+  (`/admin/media/articles` + `/media/articles`, or `/admin/media/galleries`
+  + `/media/galleries`) — mirroring `revalidatePodcastPages`.
+- `PodcastPage` was left untouched; a future unification of all three
+  banner-only page models (if the duplication becomes a real problem) is a
+  separate decision, not bundled into this one.
+
+## ADR-082: `HomePage` model — homepage hero banner added; Homepage's "Carousel" menu renamed "Content"
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** The Homepage sidebar section had a single submenu, "Carousel"
+(`/admin/homepage/carousel`), managing only `HomeCarousel` rows. The ask was
+to add an editable homepage hero banner to that same page, at four fixed
+sizes — 2560x1440, 1440x2560, 2048x1536, 1536x2048, only the largest
+required — and rename the menu to reflect that it now covers more than just
+carousels.
+
+**Decision:** New `HomePage` model, one row upserted by fixed slug (`"home"`,
+`HOME_PAGE_SLUGS` in `src/lib/home-page.ts`) — same upsert-by-slug shape as
+`ContactPage`/`SupportPage`. Reused the exact four-size banner set Category
+already established (`bannerSmUrl`/`bannerMdUrl`/`bannerLgUrl`/`bannerXlUrl`
+at 1440x2560/1536x2048/2048x1536/2560x1440, see ADR-035) rather than the
+three-size set Contact/Support/Podcast/Articles/Galleries use, since the ask
+specified this exact set; only `bannerXlUrl` is required, enforced in
+`saveHomePage`'s Zod schema. The upload/save actions and banner limits were
+added to the existing `homepage/carousel/actions.ts`/`limits.ts` rather than
+new files, matching the Galleries precedent (ADR-081) of reusing a folder
+that already has route-scoped actions. `/admin/homepage/carousel` renders
+the new `HomePageForm` banner form above the existing `CarouselTable`; the
+sidebar entry and `AdminTitle` both changed from "Carousel" to "Content" —
+the route itself (`/admin/homepage/carousel`) was left unchanged to avoid
+touching the carousel feature's own paths/revalidation.
+
+**Consequences:**
+- The public homepage hero is **not** wired to `HomePage` yet — same
+  "admin-only for now" deferral as Category's banner (ADR-035); the hero
+  section still renders its own static `herobanner-sm/md/lg/xl.webp` images.
+  Wiring the public hero to this new banner is a separate, not-yet-scheduled
+  task.
+- Homepage now has one admin page doing two jobs (banner + carousel list),
+  same layout precedent as Contact's "Content" page doing banner + rich
+  text — a divider (`<hr>`) separates the two sections.
+
+## ADR-083: Product/Device CMS filters + pagination are server-side (URL-driven); reorder disabled outside the plain page-1 view
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** `/admin/product-device/{products,devices}/items` needed a name search, a
+category multiselect, a tag multiselect, and pagination. The table already supports
+free drag-and-drop reorder via `reorderProducts`, which takes an ordered `ids` array and
+rewrites every one of those rows' `order` to its index in that array (`0..n-1`) — it
+implicitly assumes the array it receives *is* the complete ordered list for that
+`type`. Introducing search/filters/pagination means the table can now hold an arbitrary
+subset, so that assumption breaks: reordering a filtered or non-first page would
+renumber only the visible subset from `0`, colliding with the `order` values already
+held by every row that isn't currently visible.
+
+**Options considered:**
+1. **Disable reorder whenever the view isn't the plain, unfiltered, page-1 list.**
+   Simplest; only loses the ability to reorder past the first page (or while a filter is
+   active) via drag — a "clear filters to reorder" workflow.
+2. **Make reorder filter/page-aware** — resolve the moved item's true neighbors from
+   the full order space (not just the visible subset) and only touch the moved row(s),
+   e.g. via fractional/neighbor-based ordering instead of a full array rewrite. Correct
+   in every case, but a materially bigger change to `reorderProducts` and the drag
+   handler for a feature not asked for.
+3. **Keep pagination as "load more" only, never truly paging out already-loaded rows** —
+   preserves full free-list reorder, but reintroduces the original "load everything" cost
+   this task exists to avoid, just deferred to whenever "load more" is clicked enough.
+
+**Decision:** Option 1. Filters and pagination are server-side, driven by URL search
+params (`q`, `categories`, `tags`, `page`) so the table only ever holds one page's worth
+of rows; `getProductItems` gained a `filters` argument and now returns `{ items, total }`
+instead of the full array. The drag handle is enabled only when
+`!search && categoryIds.length === 0 && tagIds.length === 0 && page === 1` — under that
+condition the visible rows are exactly the lowest-`order` contiguous prefix (size
+`PRODUCT_LIST_PAGE_SIZE`), so `reorderProducts`' existing "rewrite to `0..n-1`" logic
+stays globally correct without any change to that function. Category filtering matches
+`categoryId` exactly against the selected id(s) — no descendant expansion — consistent
+with every other `categoryId` query in the codebase (e.g. `getPublishedProductCards`).
+
+**Consequences:**
+- Reordering is now only possible on an unfiltered page-1 view; moving an item that's on
+  page 2+ (or currently filtered out) requires clearing filters/paging back to page 1
+  first — an accepted UX trade-off, not a bug.
+- No change to `reorderProducts`, `Product.order`, or existing reordered data.
+- A future "reorder across pages/filters" ask would need option 2 above — a distinct,
+  larger change, deliberately deferred rather than bundled in here.
+
+## ADR-084: Public catalogue filters broaden across categories; infinite scroll uses a new read-only server action
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** The admin CMS task (ADR-083) added search/category/tag filters to the
+admin product list. The same ask, applied to the public `/devices/[...slug]` and
+`/products/[...slug]` leaf-category grid, forces two decisions ADR-083 didn't have to
+make: today that grid (`getPublishedProductCards(categoryId, urlPrefix)`) is hard-scoped
+to one category with one shared `urlPrefix` for every card — a category *multiselect*
+only makes sense if it can span more than one category, which breaks the
+one-shared-`urlPrefix` assumption. Separately, infinite scroll needs the client to
+request more data after the initial server-rendered batch, and no read-only
+client-triggered fetch path exists anywhere in this codebase yet (every existing
+`"use server"` file is a mutation).
+
+**Options considered:**
+1. **Broaden the filter across every category of that `type`, resolving each card's URL
+   individually via `getCategoryAncestry`** (the same per-product ancestry lookup
+   `getPublishedProductPickerOptions` already accepts the cost of, for the admin "custom
+   carousel item" picker). Correct, consistent with the admin task's actual intent (a
+   category filter that only ever matches one value isn't a filter), reuses an existing,
+   already-accepted trade-off.
+2. **Keep the category filter cosmetic** — render the multiselect but only actually
+   allow toggling within the current category (or disable it) — avoids the ancestry-cost
+   question entirely, but doesn't implement what was asked.
+3. **Precompute and cache every product's resolved URL** (e.g. on `Product` write) to
+   avoid the live ancestry lookup — correct and fast, but a materially bigger change
+   (denormalized field, backfill, keep-in-sync-on-move logic) for a page whose catalogue
+   size doesn't yet justify it.
+
+**Decision:** Option 1. New `getPublicCatalogueCards(type, filters)` (`src/lib/products.ts`)
+is additive — `getPublishedProductCards` is untouched and still serves its one caller
+that genuinely has a single fixed category, `getHomeCarousels`'s "category" carousel
+mode. The new function's `where` can match any category of `type` (or none, i.e. every
+category), resolving each result's own URL via `getCategoryAncestry`. Category and tag
+filter options are the same full flattened tree/tag-list scope the admin task uses — no
+"only siblings" or "only current branch" restriction.
+
+For infinite scroll, a new `"use server"` file
+(`src/app/(user)/components/catalogue/catalogue-actions.ts`) exports a thin read-only
+`loadCatalogueCards` wrapper around `getPublicCatalogueCards`, called from the new client
+component `CatalogueProductGrid` both when a filter changes (refetch from offset 0) and
+when an `IntersectionObserver` sentinel at the grid's bottom enters the viewport (fetch
+the next batch, append). Filter/scroll state lives in client component state, not the
+URL — unlike ADR-083's admin table, an infinite-scroll position isn't the kind of state
+a shareable/bookmarkable URL is expected to capture.
+
+**Consequences:**
+- One more per-request cost: every card in a filtered/scrolled batch does its own
+  `getCategoryAncestry` walk (up to `MAX_CATEGORY_DEPTH` queries each) — acceptable at
+  today's catalogue size per the same reasoning already accepted for the admin product
+  picker; revisit (option 3) if the catalogue grows enough for this to show up in
+  practice.
+- Refreshing the page or sharing its URL always lands back on the plain, unfiltered,
+  first-batch view — filters/scroll depth are session-only, not shareable. A future ask
+  to make them shareable would need to reconcile that with "infinite scroll has no
+  natural page number," a separate design question.
+- `getPublishedProductCards` keeps its original single-category signature and its one
+  caller (`getHomeCarousels`) — nothing about the homepage carousel changes.
+
+## ADR-085: Product/Device many-to-many secondary categories, `categoryId` stays the sole routing category
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** A device/product can currently belong to exactly one `Category`
+(`Product.categoryId`), which doubles as both "where this item is filed for
+browsing" and "what its own public URL is" (the `[...slug]` catch-all route,
+ADR-038, resolves a product's URL by walking up from `categoryId`). The ask:
+let a product be assigned to more than one category — e.g. a device that's
+both "Laser" and "Skin Restoration" should show up on both category pages.
+
+**Options considered:**
+1. **Make `categoryId` itself many-to-many** (drop the FK, require every
+   product to have ≥1 category via a join table) — but then routing has no
+   single answer: which category's URL does the product's own detail page
+   live at if it has three? Would force either an arbitrary "first" pick
+   (fragile, order-dependent) or letting one product resolve at multiple
+   URLs simultaneously (duplicate content, ambiguous breadcrumbs, and the
+   admin editor would need a way to declare "which one is canonical" anyway
+   — which is just option 2 with extra steps).
+2. **Keep `categoryId` as the single required routing/primary category
+   (unchanged), add an optional many-to-many `secondaryCategories` for
+   cross-listing** (chosen) — a product still has exactly one canonical URL
+   and breadcrumb, but can additionally appear on other category pages'
+   product grids. Same shape as `Tag` (ADR-041): an implicit many-to-many
+   join table, no join model of its own needed.
+
+**Decision:** Option 2. `Product.secondaryCategories Category[]` (implicit
+m2m, migration `20260803092310_add_product_secondary_categories` — additive
+only, a new `_ProductSecondaryCategories` join table, no existing column
+touched). Admin editor (`product-form.tsx`) gets a "Secondary Categories"
+field next to Category, reusing `MultiSelectFilter` (already built for the
+list filter bars) rather than a new component; picking the current primary
+category as a secondary (or vice versa) is prevented client-side and
+re-validated server-side (`resolveSecondaryCategoryIds`, `product-actions.ts`,
+same "re-check against the DB" precedent as `resolveTagIds`).
+
+A category filter match (`filters.categoryIds`) now matches a product filed
+there as primary OR secondary — updated in both `getProductItems` (admin
+list) and `getPublicCatalogueCards` (public browse/search, ADR-084). Both are
+safe to extend this way because they already resolve each result's own
+canonical URL independently per-product (via `categoryId`/`getCategoryAncestry`),
+so a card reached through a secondary-category match still links to the
+product's one real detail page.
+
+`getPublishedProductCards` (`home-carousels.ts`'s "category" mode) is
+deliberately left untouched — it builds every card's URL by concatenating one
+shared `urlPrefix` (the carousel's linked category) with the product's slug.
+Extending its match to secondary categories would produce a broken link for
+any product whose primary category differs from the carousel's, since
+`getPublishedProductBySlug` strictly requires the primary `categoryId` to
+match. Fixing that would mean rewriting it to resolve per-product ancestry
+like `getPublicCatalogueCards` does — out of scope here; home carousels stay
+primary-category-scoped for now.
+
+**Consequences:**
+- `IProduct.secondaryCategoryIds: string[]` — always populated (empty array,
+  not omitted) since every read path now includes the relation.
+- Deleting a category cascades to drop its rows from
+  `_ProductSecondaryCategories` (`onDelete: Cascade`, same as `Category`'s
+  other relations) — a product just loses that cross-listing, same
+  no-cascade-to-content precedent as deleting a `Tag` (ADR-065).
+- A product with zero secondary categories behaves exactly as before this
+  ADR — no behavior change for the existing single-category catalogue.

@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
@@ -34,9 +35,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
-import { IProductListItem } from "@/interfaces/general";
+import { ICategory, IProductListItem, ITag } from "@/interfaces/general";
 import { deleteProduct, reorderProducts, updateProductStatus } from "./product-actions";
+import { ItemFilterBar } from "./item-filter-bar";
+import { PRODUCT_LIST_PAGE_SIZE, PRODUCT_LIST_PAGE_SIZE_OPTIONS } from "./limits";
 
 function categoryBreadcrumb(category: IProductListItem["category"]): string {
   const parts = [category.parent?.parent?.name, category.parent?.name, category.name].filter(Boolean);
@@ -130,13 +134,30 @@ export function ItemTable({
   type,
   title,
   items: initialItems,
+  total,
+  page,
+  pageSize,
+  search,
+  categoryIds,
+  tagIds,
+  categories,
+  tags,
 }: {
   type: "device" | "product";
   title: string;
   items: IProductListItem[];
+  total: number;
+  page: number;
+  pageSize: number | "all";
+  search: string;
+  categoryIds: string[];
+  tagIds: string[];
+  categories: ICategory[];
+  tags: ITag[];
 }) {
-  const basePath = `/admin/product-device/${type === "device" ? "devices" : "products"}`;
   const editorBasePath = `/admin/product-device/items/editor`;
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [items, setItems] = useState(initialItems);
   const [deleting, setDeleting] = useState<IProductListItem | null>(null);
@@ -145,12 +166,54 @@ export function ItemTable({
   const [isPending, startTransition] = useTransition();
   const dndId = useId();
 
+  // `initialItems` is a fresh array every time the server re-fetches after a
+  // filter/page/page-size navigation — resync local state to it rather than
+  // forcing a remount (a remount would also reset each MultiSelectFilter
+  // popover's own open state, closing it after every single select/unselect).
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  const hasFilters = search.trim() !== "" || categoryIds.length > 0 || tagIds.length > 0;
+  // See ADR-083: dragging only stays globally consistent when the visible
+  // rows are exactly the lowest-`order` contiguous prefix — the plain,
+  // unfiltered, page-1 view (which "all" trivially satisfies, since it *is*
+  // every row). Any filter or later page disables the handle.
+  const canReorder = page === 1 && !hasFilters;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(total / pageSize));
+
+  function navigate(
+    next: { q?: string; categoryIds?: string[]; tagIds?: string[]; page?: number; pageSize?: number | "all" },
+    push = false
+  ) {
+    const nextQ = next.q ?? search;
+    const nextCategoryIds = next.categoryIds ?? categoryIds;
+    const nextTagIds = next.tagIds ?? tagIds;
+    const nextPageSize = next.pageSize ?? pageSize;
+    const filtersOrSizeChanged =
+      next.q !== undefined || next.categoryIds !== undefined || next.tagIds !== undefined || next.pageSize !== undefined;
+    const nextPage = next.page ?? (filtersOrSizeChanged ? 1 : page);
+
+    const params = new URLSearchParams();
+    if (nextQ.trim()) params.set("q", nextQ.trim());
+    if (nextCategoryIds.length) params.set("categories", nextCategoryIds.join(","));
+    if (nextTagIds.length) params.set("tags", nextTagIds.join(","));
+    if (nextPageSize !== PRODUCT_LIST_PAGE_SIZE) params.set("pageSize", String(nextPageSize));
+    if (nextPageSize !== "all" && nextPage > 1) params.set("page", String(nextPage));
+
+    const qs = params.toString();
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    if (push) router.push(href, { scroll: false });
+    else router.replace(href, { scroll: false });
+  }
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (!canReorder) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -213,6 +276,24 @@ export function ItemTable({
         </Button>
       </div>
 
+      <ItemFilterBar
+        categories={categories}
+        tags={tags}
+        search={search}
+        categoryIds={categoryIds}
+        tagIds={tagIds}
+        onSearchChange={(value) => navigate({ q: value })}
+        onCategoryIdsChange={(ids) => navigate({ categoryIds: ids })}
+        onTagIdsChange={(ids) => navigate({ tagIds: ids })}
+        onClear={() => navigate({ q: "", categoryIds: [], tagIds: [] })}
+      />
+
+      {!canReorder && (
+        <p className="text-muted-foreground text-xs">
+          Reordering is only available on the unfiltered first page — clear filters and return to page 1 to drag items.
+        </p>
+      )}
+
       {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="rounded-lg border">
@@ -238,7 +319,7 @@ export function ItemTable({
               {items.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
-                    No {basePath.includes("devices") ? "devices" : "products"} yet.
+                    {hasFilters ? "No matches for these filters." : `No ${type === "device" ? "devices" : "products"} yet.`}
                   </TableCell>
                 </TableRow>
               )}
@@ -248,7 +329,7 @@ export function ItemTable({
                     key={item.id}
                     item={item}
                     editorBasePath={editorBasePath}
-                    disabled={isPending}
+                    disabled={isPending || !canReorder}
                     onStatusChange={handleStatusChange}
                     onDelete={setDeleting}
                   />
@@ -257,6 +338,30 @@ export function ItemTable({
             </TableBody>
           </Table>
         </DndContext>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          Show
+          <Select
+            value={String(pageSize)}
+            onValueChange={(value) => navigate({ pageSize: value === "all" ? "all" : Number(value) }, true)}
+          >
+            <SelectTrigger size="sm" className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRODUCT_LIST_PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  {size}
+                </SelectItem>
+              ))}
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+          per page · {total} total
+        </div>
+        <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => navigate({ page: nextPage }, true)} />
       </div>
 
       <Dialog open={deleting !== null} onOpenChange={(open) => !open && !isDeleting && setDeleting(null)}>

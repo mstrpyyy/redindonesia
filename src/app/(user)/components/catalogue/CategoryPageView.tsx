@@ -1,27 +1,38 @@
 import { HeroDevice } from './Hero'
 import { VideoTextSection } from '../VideoTextSection'
 import { DeviceFilterList } from './DeviceList'
+import { CatalogueProductGrid } from './CatalogueProductGrid'
 import { BodyWrapper } from '../BodyWrapper'
-import { ICategory, IDeviceCardItem } from '@/interfaces/general'
+import { ICategory, IDeviceCardItem, ITag } from '@/interfaces/general'
 import { getYoutubeVideoId, hasRichTextContent } from '@/lib/utils'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
 
 interface ICategoryPageViewProps {
   category: ICategory
   // The current page's own path, e.g. "/devices/medical-aesthetic-devices" —
-  // child-category and product cards link to `${urlPrefix}/${slug}`.
+  // child-category cards link to `${urlPrefix}/${slug}`.
   urlPrefix: string
-  // Public products directly assigned to this category — only rendered
-  // when the category has no sub-categories of its own (see the page.tsx
-  // callers, which only fetch these for a leaf node).
+  // First batch of public products directly assigned to this category (see
+  // ADR-084) — only fetched when the category has no sub-categories of its
+  // own (the page.tsx callers only fetch these for a leaf node).
   productCards: IDeviceCardItem[]
+  productCardsHasMore: boolean
+  // Tag list for `category.type` — filter options for `CatalogueProductGrid`'s
+  // tag multiselect (ADR-084; the category multiselect was removed per feedback).
+  tags: ITag[]
 }
 
 // Shared by both `/devices/[category]/page.tsx` and
 // `/devices/[category]/[brand]/page.tsx` — a `Category` row renders the same
 // way regardless of depth: its own hero/body/video when `isPage` (ADR-033),
 // then either a grid of its sub-categories or, for a leaf, its own products.
-export const CategoryPageView = ({ category, urlPrefix, productCards }: ICategoryPageViewProps) => {
+export const CategoryPageView = ({
+  category,
+  urlPrefix,
+  productCards,
+  productCardsHasMore,
+  tags,
+}: ICategoryPageViewProps) => {
   const hasChildren = category.children.length > 0
 
   const childCards: IDeviceCardItem[] = category.children.map((child) => ({
@@ -82,12 +93,17 @@ export const CategoryPageView = ({ category, urlPrefix, productCards }: ICategor
       )}
 
       <BodyWrapper className="bg-secondary">
-        <DeviceFilterList
-          deviceList={hasChildren ? childCards : productCards}
-          heading={hasChildren ? 'Browse Categories' : undefined}
-          emptyMessage={hasChildren ? 'No sub-categories yet.' : 'No products available yet.'}
-          cardVariant={hasChildren ? 'category' : 'product'}
-        />
+        {hasChildren ? (
+          <DeviceFilterList deviceList={childCards} heading="Browse Categories" emptyMessage="No sub-categories yet." cardVariant="category" />
+        ) : (
+          <CatalogueProductGrid
+            type={category.type}
+            initialItems={productCards}
+            initialHasMore={productCardsHasMore}
+            defaultCategoryId={category.id}
+            tags={tags}
+          />
+        )}
       </BodyWrapper>
     </main>
   )

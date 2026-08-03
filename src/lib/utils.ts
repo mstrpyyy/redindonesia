@@ -34,6 +34,22 @@ export function formatArticleDate(date: Date) {
   return articleDateFormatter.format(date)
 }
 
+// Includes time (unlike formatArticleDate) — for lists where entries can
+// arrive multiple times a day, like Contact form submissions, and same-day
+// ordering matters at a glance.
+const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+
+// e.g. "24 July 2026, 14:32"
+export function formatDateTime(date: Date) {
+  return dateTimeFormatter.format(date)
+}
+
 // Admin-entered YouTube URLs are plain watch/share links (see the category
 // editor's placeholder, "https://www.youtube.com/watch?v=..."), not embed
 // URLs or a bare id — this pulls the video id out of whatever format was

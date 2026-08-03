@@ -70,7 +70,7 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
           root `lang="en"`) breaks long words with a hyphen; `wrap-break-word`
           catches the ones no dictionary knows, like model codes. */}
       <div className="flex flex-col flex-1 min-w-0 hyphens-auto wrap-break-word p-5">
-        <h3 className="h3-format font-semibold text-balance">{item.name}</h3>
+        <h3 className="h3-format font-semibold text-balance max-sm:text-center">{item.name}</h3>
         {/* The description is clamped to 4 lines, so a one-line tagline used
             to make its card ~3 lines shorter than a long one and every card
             ended up a different shape. Reserving the full 4 lines whatever
@@ -81,7 +81,7 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
             tag list below without growing the card. */}
         <p
           className={cn(
-            "p-card-format text-left! mt-2 line-clamp-4 min-h-20 lg:min-h-24 2xl:min-h-28",
+            "p-card-format text-left! max-sm:text-center mt-2 line-clamp-4 sm:min-h-20 lg:min-h-24 2xl:min-h-28",
             hasTags ? "mb-2" : "mb-6"
           )}
         >
@@ -107,7 +107,7 @@ export const DeviceCard = ({ item, className, ...props }: IDeviceCardProps) => {
           asChild
           variant={'outlineSecondary'}
           className={cn(
-            'bg-transparent text-base!',
+            'bg-transparent text-base! max-sm:w-full',
             background.dark
               ? 'sm:border-neutral-300 sm:text-neutral-300 group-hover:border-white group-hover:text-white hover:bg-white hover:text-black'
               : 'sm:border-neutral-500 sm:text-neutral-500 group-hover:border-black group-hover:text-black hover:bg-black hover:text-white'
