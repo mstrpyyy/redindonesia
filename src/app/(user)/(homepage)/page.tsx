@@ -9,18 +9,27 @@ import { VideoHomeSection } from "./(sections)/Video";
 import { BrandHomeSection } from "./(sections)/Brand";
 import { ProductHomeSection } from "./(sections)/Products";
 import { getPublicHomeCarousels } from "@/lib/home-carousels";
+import { getHomePage } from "@/lib/home-page";
 
 export const metadata: Metadata = {
   title: 'Home'
 };
 
 export default async function Home() {
-  const carousels = await getPublicHomeCarousels();
+  const [carousels, homePage] = await Promise.all([
+    getPublicHomeCarousels(),
+    getHomePage("home"),
+  ]);
 
   return (
     <main className="">
       {/* HERO */}
-      <HeroHomeSection />
+      <HeroHomeSection
+        bannerSmUrl={homePage.bannerSmUrl}
+        bannerMdUrl={homePage.bannerMdUrl}
+        bannerLgUrl={homePage.bannerLgUrl}
+        bannerXlUrl={homePage.bannerXlUrl}
+      />
 
       <div className="shadow-[0_5px_25px_rgba(0,0,0,0.20)]">
         {/* ABOUT */}

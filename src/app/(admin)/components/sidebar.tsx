@@ -20,7 +20,7 @@ const navMenus = [
     menu: [
       {
         name: 'Content',
-        slug: '/admin/homepage/carousel',
+        slug: '/admin/homepage/content',
       },
     ]
   },

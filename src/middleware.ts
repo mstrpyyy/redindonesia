@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
 
     try {
       await jwtVerify(token, secret);
-      return NextResponse.redirect(new URL("/admin", request.url));
+      return NextResponse.redirect(new URL("/admin/homepage/content", request.url));
     } catch {
       return NextResponse.next();
     }

@@ -31,7 +31,7 @@ function revalidateProductPages(type: "device" | "product") {
   // reads every published product server-side on each visit — without this,
   // a product created/edited/hidden here wouldn't show up (or wouldn't drop
   // out) there until something else happened to revalidate that route.
-  revalidatePath("/admin/homepage/carousel");
+  revalidatePath("/admin/homepage/content");
 }
 
 const DIACRITIC_MARKS_PATTERN = new RegExp("[\\u0300-\\u036f]", "g");

@@ -22,7 +22,7 @@ type ActionResult<T> =
 const HOME_BANNER_UPLOAD_FEATURE = "home-page";
 
 function revalidateHomeCarouselPages() {
-  revalidatePath("/admin/homepage/carousel");
+  revalidatePath("/admin/homepage/content");
   revalidatePath("/");
 }
 

@@ -24,12 +24,19 @@ const socialMediaList = [
   }
 ]
 
-export const HeroHomeSection = () => {
+interface IHeroHomeSectionProps {
+  bannerSmUrl?: string | null;
+  bannerMdUrl?: string | null;
+  bannerLgUrl?: string | null;
+  bannerXlUrl?: string | null;
+}
+
+export const HeroHomeSection = ({ bannerSmUrl, bannerMdUrl, bannerLgUrl, bannerXlUrl }: IHeroHomeSectionProps) => {
   return (
     <section className="h-svh w-full relative flex flex-col items-center md:items-start bg-black">
       {/* portrait, width < md */}
       <Image
-        src="/image/home/hero/herobanner-sm.webp"
+        src={bannerSmUrl || "/image/home/hero/herobanner-sm.webp"}
         alt="Alma Harmony hero banner"
         fill
         priority
@@ -39,7 +46,7 @@ export const HeroHomeSection = () => {
       />
       {/* portrait, width >= md */}
       <Image
-        src="/image/home/hero/herobanner-md.webp"
+        src={bannerMdUrl || "/image/home/hero/herobanner-md.webp"}
         alt="Alma Harmony hero banner"
         fill
         priority
@@ -49,7 +56,7 @@ export const HeroHomeSection = () => {
       />
       {/* landscape, width < xl */}
       <Image
-        src="/image/home/hero/herobanner-lg.webp"
+        src={bannerLgUrl || "/image/home/hero/herobanner-lg.webp"}
         alt="Alma Harmony hero banner"
         fill
         priority
@@ -59,7 +66,7 @@ export const HeroHomeSection = () => {
       />
       {/* landscape, width >= xl */}
       <Image
-        src="/image/home/hero/herobanner-xl.webp"
+        src={bannerXlUrl || "/image/home/hero/herobanner-xl.webp"}
         alt="Alma Harmony hero banner"
         fill
         priority
