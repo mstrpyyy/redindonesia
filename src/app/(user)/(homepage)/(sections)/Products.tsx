@@ -7,7 +7,9 @@ import Link from "next/link"
 interface IProductHomeSection {
   title: string
   titleImg?: string
-  href: string
+  // Omitted (or empty) hides the "See More" button entirely — a carousel
+  // isn't required to link anywhere (see ADR-066).
+  href?: string
   size?: 'sm' | 'md'
   carouselList: {
     img: string
@@ -31,12 +33,14 @@ export const ProductHomeSection = ({ title, titleImg, href, carouselList, size }
           )}
         </h2>
         <div className="flex-1 border-t-2 border-t-neutral-200" />
-        <Button asChild variant={'outlineSecondary'}>
-          <Link href={href}>
-            See More
-            <MoveRight strokeWidth={1.5} size={30} />
-          </Link>
-        </Button>
+        {href && (
+          <Button asChild variant={'outlineSecondary'}>
+            <Link href={href}>
+              See More
+              <MoveRight strokeWidth={1.5} size={30} />
+            </Link>
+          </Button>
+        )}
       </div>
 
       <ProductCarousel carouselList={carouselList} size={size ?? 'md'} />

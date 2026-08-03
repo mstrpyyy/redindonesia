@@ -35,7 +35,7 @@ import {
   isSegmentComplete,
   type IFieldDef,
 } from "./segment-types";
-import { UploadField } from "./upload-field";
+import { UploadField } from "@/components/upload-field";
 import { SEGMENT_BACKGROUND_COLORS, getSegmentBackgroundColor } from "@/lib/segment-colors";
 import { uploadViewer360Frames } from "./viewer360-upload-actions";
 import { uploadSegmentContentImage } from "./segment-upload-actions";

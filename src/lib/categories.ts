@@ -80,6 +80,37 @@ export async function getCategoryBySlugPath(
   return findCategoryInTree(tree, slugPath);
 }
 
+// Walks a category's `parentId` chain up to its root (at most
+// `MAX_CATEGORY_DEPTH` hops, one query per hop) collecting both its name
+// breadcrumb and slug path. Used by `HomeCarousel` "category" mode
+// (ADR-066) to derive its title/breadcrumb/"See More" URL live rather than
+// storing values that would go stale if the category is renamed or moved.
+// Returns null if the id doesn't resolve (category deleted).
+export async function getCategoryAncestry(
+  categoryId: string
+): Promise<{ type: "device" | "product"; names: string[]; slugPath: string[] } | null> {
+  const names: string[] = [];
+  const slugPath: string[] = [];
+  let current = await prisma.category.findUnique({
+    where: { id: categoryId },
+    select: { type: true, name: true, slug: true, parentId: true },
+  });
+  if (!current) return null;
+
+  const type = current.type as "device" | "product";
+  while (current) {
+    names.unshift(current.name);
+    slugPath.unshift(current.slug);
+    if (!current.parentId) break;
+    current = await prisma.category.findUnique({
+      where: { id: current.parentId },
+      select: { type: true, name: true, slug: true, parentId: true },
+    });
+  }
+
+  return { type, names, slugPath };
+}
+
 // Cached separately from `getCategoryTree` itself — the public navbar renders
 // this on every page, unlike the admin pages' own uncached reads (low-traffic,
 // no benefit to caching those). Tagged so a category mutation can invalidate

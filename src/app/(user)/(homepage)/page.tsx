@@ -8,13 +8,15 @@ import { AboutHomeSection } from "./(sections)/About";
 import { VideoHomeSection } from "./(sections)/Video";
 import { BrandHomeSection } from "./(sections)/Brand";
 import { ProductHomeSection } from "./(sections)/Products";
-import { almaCarouselList, innoCarouselList } from "@/lib/data";
+import { getPublicHomeCarousels } from "@/lib/home-carousels";
 
 export const metadata: Metadata = {
   title: 'Home'
 };
 
-export default function Home() {
+export default async function Home() {
+  const carousels = await getPublicHomeCarousels();
+
   return (
     <main className="">
       {/* HERO */}
@@ -50,24 +52,26 @@ export default function Home() {
         </BodyWrapper>
 
         {/* PRODUCTS */}
-        <BodyWrapper className="py-24 bg-secondary">
-          <div className="space-y-20">
-            <ProductHomeSection
-              title="Alma Laser"
-              titleImg="/image/home/alma-showcase/300ppi/logo-alma.webp"
-              href="/devices/medical-aesthetics/alma-laser"
-              size="md"
-              carouselList={almaCarouselList}
-            />
-            <ProductHomeSection 
-              title="INNO CE"
-              titleImg="/image/home/inno-showcase/logo-inno-ce.webp"
-              href="/devices/medical-aesthetics/inno-ce"
-              size="sm"
-              carouselList={innoCarouselList}
-            />
-          </div>
-        </BodyWrapper>
+        {carousels.length > 0 && (
+          <BodyWrapper className="py-24 bg-secondary">
+            <div className="space-y-20">
+              {carousels.map((carousel) => (
+                <ProductHomeSection
+                  key={carousel.id}
+                  title={carousel.title}
+                  titleImg={carousel.titleImage ?? undefined}
+                  href={carousel.seeMoreUrl ?? undefined}
+                  size={carousel.size}
+                  carouselList={carousel.items.map((item) => ({
+                    img: item.img,
+                    title: item.title,
+                    href: item.href,
+                  }))}
+                />
+              ))}
+            </div>
+          </BodyWrapper>
+        )}
       </div>
     </main>
   );

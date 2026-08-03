@@ -120,6 +120,71 @@ export interface IProduct {
   tags: ITag[]
 }
 
+// One card in a homepage carousel — same {img, title, href} shape
+// `ProductCarousel` (src/app/(user)/components/Carousels.tsx) already takes.
+// A published device/product available to pick for a "custom" homepage
+// carousel item (see ADR-068) — `url` is its real public detail page.
+export interface IProductPickerOption {
+  id: string
+  type: 'device' | 'product'
+  name: string
+  thumbnail: string | null
+  url: string
+}
+
+export interface ICarouselItem {
+  id: string
+  title: string
+  img: string
+  href: string
+  // Set when this item was picked from the catalogue picker (ADR-069) —
+  // `img`/`href` are locked to that product in the admin editor. Unused
+  // (undefined) for "category" mode's resolved public items.
+  productId?: string | null
+}
+
+// See ADR-066. "category" mode derives title/items/seeMoreUrl live from
+// `categoryId` at render time — `title`/`seeMoreUrl`/`items` are unused in
+// that mode. "custom" mode uses `title`/`seeMoreUrl`/`items` directly and
+// ignores `categoryId`.
+export interface IHomeCarousel {
+  id: string
+  mode: 'category' | 'custom'
+  order: number
+  size: 'sm' | 'md'
+  showSeeMore: boolean
+  categoryId: string | null
+  title: string | null
+  seeMoreUrl: string | null
+  items: ICarouselItem[]
+  // "image" swaps the visible heading for `titleImage` — the text title
+  // (this row's own `title`, or the linked category's `name` in "category"
+  // mode) still renders as a screen-reader-only heading either way, so it's
+  // always required regardless of this setting.
+  titleDisplayMode: 'text' | 'image'
+  titleImage: string | null
+}
+
+// Admin list view — `categoryLabel` is the linked category's breadcrumb name
+// (only set for `mode: 'category'`), or null when that category has since
+// been deleted (`categoryId` is nulled via `onDelete: SetNull`) so the table
+// can surface a "category missing" warning without a second query per row.
+export interface IHomeCarouselListItem extends IHomeCarousel {
+  categoryLabel: string | null
+}
+
+// Fully resolved shape for the public homepage — same fields
+// `ProductHomeSection`/`ProductCarousel` already take, whichever mode
+// produced them.
+export interface IPublicHomeCarousel {
+  id: string
+  title: string
+  titleImage: string | null
+  size: 'sm' | 'md'
+  seeMoreUrl: string | null
+  items: ICarouselItem[]
+}
+
 export interface IArticle {
   id: string
   title: string

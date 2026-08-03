@@ -5,14 +5,16 @@ import Image from "next/image";
 import { Eye, ImagePlus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { uploadSegmentAsset } from "./segment-upload-actions";
+import { uploadSegmentAsset } from "@/app/(admin)/admin/product-device/segment-upload-actions";
 
 // Uploads immediately on file select and reports back a plain URL string —
 // see the comment on `uploadSegmentAsset` for why this happens at select
 // time rather than at form submit.
 //
-// Lives in its own file because both the segments builder and the Product
-// Files editor need it; it started out inside segments-builder.tsx.
+// Lives here (rather than inside product-device, where it started) because
+// it's shared across features — product-device's segments/category/product
+// files editors, and the Support pages' banner fields — each passing its own
+// `uploadAction` for its own upload folder.
 type UploadActionResult =
   | { success: true; data: { url: string } }
   | { success: false; error: { code: string; message: string } };

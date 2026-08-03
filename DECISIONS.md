@@ -2973,3 +2973,381 @@ it happened to be applied to the item currently being edited.
   revisit if admins ask for a usage count before confirming.
 - No audit trail — a deleted tag's name is gone once confirmed, same as
   category deletion today.
+
+## ADR-066: `HomeCarousel` model — category-linked carousels resolve live, not snapshotted
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** The homepage's product carousels were hardcoded (`almaCarouselList`/
+`innoCarouselList` in `src/lib/data.ts`, every card linking to the same
+placeholder URL). The client asked for admin CRUD under a new "Homepage →
+Carousel" section, with two authoring modes: pick a leaf category (the
+"lowest level of each branch") and have title/products/"See More" link fill
+in automatically, or build a carousel entirely by hand. The "See More"
+button must be optional either way.
+
+**Options considered — category mode's data:**
+1. **Snapshot the category's name/products/URL into the row at save time,
+   same shape as custom mode** — simplest schema (one shared set of columns
+   for both modes), but the whole point of "automatically fill" is
+   undermined the moment the category is renamed, a product is
+   published/unpublished under it, or the category moves — the carousel
+   would silently drift from what the admin thinks they configured.
+2. **Store only `categoryId`; resolve title/products/URL live at render
+   time (chosen)** — `getCategoryAncestry(categoryId)` (`src/lib/
+  categories.ts`) walks the `parentId` chain (at most `MAX_CATEGORY_DEPTH`
+   hops) to get the name breadcrumb and slug path; `getPublishedProductCards`
+   (already built for the catalogue grid, ADR-036) supplies the product
+   list. A category-mode carousel is a live view over the category, not a
+   copy of it.
+
+**Options considered — enforcing "lowest level of each branch":**
+1. **Reuse the product editor's own `CategoryPicker`, which never lists a
+   root** — that component deliberately excludes depth-1 nodes (assumes
+   every root always has sub-brands, true for product assignment today) but
+   would wrongly hide a root that happens to have zero children, which *is*
+   the lowest level of that branch.
+2. **New `CarouselCategoryPicker`, flattening both the Devices and Products
+   trees down to nodes with `children.length === 0`, root or not (chosen)**
+   — a plain grouped `Select` (no `cmdk` in this project, same precedent as
+   `CategoryPicker`), with each option labeled by its full breadcrumb.
+   Re-checked server-side (`assertLeafCategory` in `actions.ts`) in case the
+   tree changed between page load and submit.
+
+**Options considered — category deletion:**
+1. **`onDelete: Cascade`** — matches `Category`'s own self-relation, but
+   would silently delete a homepage section out from under the admin the
+   moment someone prunes a category tree elsewhere in the admin.
+2. **`onDelete: SetNull` (chosen)** — `categoryId` is nullable; a deleted
+   category leaves the `HomeCarousel` row in place with `categoryId: null`,
+   surfaced in the admin list as a "category missing" warning (mirrors the
+   document-picker precedent in ADR-051/057: broken references are shown,
+   not silently discarded).
+
+**Options considered — the "See More" button being optional:**
+1. **Empty URL = hidden, no separate toggle** — works for custom mode (a
+   blank input naturally means "no link"), but category mode's URL is
+   always derivable, so there would be no way to omit the button there.
+2. **A `showSeeMore` boolean, independent of mode (chosen)** — controls
+   whether the button renders at all in both modes; custom mode's URL input
+   is only required when the toggle is on.
+
+**Options considered — custom mode's item list:** Same precedent as
+`Gallery.images`/`Product.segments` (ADR-011/ADR-020) — `items: Json`
+holding an ordered `{id, title, img, href}[]` array rather than a join
+table, since the list has no independent query need of its own and is
+always read as "this carousel's ordered cards."
+
+**Decision:** Options 2, 2, 2, and 2 above. `HomeCarousel { mode, order,
+size, showSeeMore, categoryId?, title?, seeMoreUrl?, items }` — the last
+three columns are unused/null in "category" mode. Admin CRUD
+(`src/app/(admin)/admin/homepage/carousel/`) mirrors the Gallery/Category
+table pattern (drag-reorder via `@dnd-kit`, dialog add/edit, discard-changes
+confirmation). The public homepage (`getPublicHomeCarousels()`) resolves
+every row and drops any that end up with zero items — a category with no
+published products, or one that's been deleted — rather than rendering an
+empty carousel.
+
+**Consequences:**
+- A category-mode carousel needs zero maintenance when products under that
+  category change — publish a new product, and it appears in the homepage
+  carousel on the next render, no admin action needed. This is a deliberate
+  trade for the snapshot alternative's stability: an admin cannot "freeze"
+  a category carousel's exact card set at a point in time without switching
+  it to custom mode.
+- `getCategoryAncestry` costs up to `MAX_CATEGORY_DEPTH` sequential queries
+  per category-mode carousel per homepage render (no caching layer, unlike
+  the navbar's `unstable_cache`d category tree) — acceptable at the
+  homepage's current carousel count; revisit if this list grows large
+  enough to matter.
+- The old hardcoded Alma/Inno carousel content was not migrated into the
+  new system — every card pointed at the same placeholder URL, so there
+  was nothing real to preserve; the client re-creates what they want
+  through the admin.
+- Custom-mode item images upload immediately on file select (same pattern
+  as every other admin-authored image field, ADR-015/ADR-021) into a new
+  `home-carousel-items` upload feature directory, with no orphan cleanup on
+  remove — same accepted trade-off as those ADRs.
+
+## ADR-067: Carousel title can be swapped for an image; text title stays mandatory
+
+**Date:** 2026-08-03
+**Status:** Accepted (amends ADR-066)
+
+**Context:** Follow-up to ADR-066. The client asked for the carousel's
+visible name to optionally be an image (e.g. a brand logo) instead of plain
+text, in either authoring mode — but a text title must still be captured
+even when an image is used, for accessibility/SEO ("semantics").
+
+**Options considered:**
+1. **Infer display mode from whether a title image is present** — no new
+   column, but ambiguous: an admin who uploads an image then wants to
+   temporarily go back to text would have to delete the image (losing it)
+   rather than just flipping a toggle.
+2. **Explicit `titleDisplayMode: "text" | "image"` column, independent of
+   `mode` (chosen)** — matches this project's existing convention for this
+   kind of choice (`Category.isPage` is an explicit boolean rather than
+   inferred from whether page fields are filled). Toggling back to "text"
+   leaves a previously uploaded `titleImage` in the row untouched — it
+   reappears if the admin switches back to "image" later, rather than
+   being deleted.
+
+**Decision:** `HomeCarousel` gains `titleDisplayMode` (default `"text"`) and
+`titleImage` (nullable). Required only when `titleDisplayMode === "image"`
+(`parseTitleImage` in `actions.ts`); enforced for both `mode`s. No change
+was needed to the public `ProductHomeSection` component — it already
+renders an `sr-only` span with the text `title` unconditionally, and swaps
+in `titleImg` visually only when provided (pre-existing behavior, used by
+the original hardcoded Alma/Inno logos). `getPublicHomeCarousels()` simply
+passes `titleImage` through only when `titleDisplayMode === "image"`; the
+text `title` (the carousel's own `title` in "custom" mode, or the linked
+category's `name` in "category" mode) is unconditionally required
+independently of this ADR, so no new validation was needed there.
+
+**Consequences:**
+- The image, once uploaded, persists in the row even after switching back
+  to "text" display — no orphan cleanup either way, consistent with
+  ADR-015/ADR-021's accepted no-cleanup trade-off for admin-authored assets.
+- "category" mode has no editable text-title field at all (the category's
+  own required `name` always satisfies the accessibility requirement), so
+  the admin form's helper copy differs slightly by mode when explaining
+  what the image replaces.
+
+## ADR-068: Custom carousel items get a search-as-you-type catalogue picker, no `cmdk` added
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** Follow-up to ADR-066. "Custom" mode carousel items were
+entirely hand-typed (title, image upload, link). The client asked for a
+searchable dropdown over every device/product so an admin can pick a real
+catalogue item instead of re-typing its name/image/URL from scratch.
+ADR-020 had previously noted this project has no `cmdk`/`Command` component
+installed, so a category picker settled for a plain grouped `Select`.
+
+**Options considered — search UI:**
+1. **Install shadcn's `Command` component (adds the `cmdk` package)** — the
+   idiomatic shadcn combobox, but a new runtime dependency for a need this
+   codebase already has a working pattern for (see option 2).
+2. **Reuse the `TagPicker`'s existing `Popover` + `Input` + client-side
+   filtered list pattern (chosen)** — no new dependency; `TagPicker`
+   (`src/app/(admin)/admin/product-device/tag-picker.tsx`) already proved
+   this exact shape (search box in a `PopoverContent`, filtered list below)
+   for a different picker. `ProductPickerField` follows it, using
+   `PopoverAnchor` (not `PopoverTrigger`) so opening is driven by the input's
+   own focus/typing rather than a separate trigger click.
+
+**Options considered — where the picker attaches:**
+1. **A separate "Pick from catalogue" button/icon per item row, alongside
+   the existing title/image/link fields** — keeps manual entry and picking
+   visually distinct, but adds a column to an already-dense row and forces a
+   choice between two entry points for what is conceptually one field
+   (the item's name).
+2. **Attach the dropdown directly to the title field itself (chosen)** —
+   typing behaves as a normal free-text title (still needed for items that
+   link somewhere outside the catalogue, e.g. an external URL); a dropdown
+   of matching published devices/products appears alongside, and picking
+   one fills `title`/`img`/`href` from that product. Nothing is mutually
+   exclusive — an admin can still hand-edit any field after picking.
+
+**Options considered — what's searchable:** A new `getPublishedProductPickerOptions()`
+(`src/lib/products.ts`) flattens every **published** `Product` row across
+both `type`s (device and product — "all product & devices" per the ask)
+into `{id, type, name, thumbnail, url}`, resolving each one's real public
+detail URL via the existing `getCategoryAncestry` (same helper ADR-066
+already built). Only published items are offered — an admin shouldn't be
+able to link the public homepage to a draft/hidden item's page.
+
+**Decision:** Options 2, 2, and the picker function above.
+`ProductPickerField` (`src/app/(admin)/admin/homepage/carousel/
+product-picker-field.tsx`) replaces the plain title `Input` in each custom
+item row's search field; `carousel-items-editor.tsx` threads
+`productOptions` down to it. `page.tsx` fetches
+`getPublishedProductPickerOptions()` alongside the two category trees.
+
+**Consequences:**
+- No new npm dependency for this feature (`cmdk` still isn't installed) —
+  if a full `cmdk`-style combobox (keyboard-arrow navigation, `Command`
+  primitives) is wanted broadly across the admin later, that's a bigger,
+  separate decision affecting more than this one field.
+- `getPublishedProductPickerOptions()` costs one ancestry walk (up to
+  `MAX_CATEGORY_DEPTH` sequential queries) per published product, on every
+  page load of `/admin/homepage/carousel` — same accepted trade-off as
+  `getHomeCarousels`'s and `getPublicHomeCarousels()`'s own per-row ancestry
+  lookups; revisit if the catalogue grows large enough for this to matter.
+- Picking a thumbnail-less product leaves the row's image exactly as it was
+  (unset, or whatever was already there) rather than clearing it — the
+  admin still has to upload one manually in that case.
+- The picker only offers suggestions; it never forces a match. A custom
+  item can still point anywhere (an external URL, a page outside the
+  catalogue) by simply not picking a suggestion.
+
+## ADR-069: Picked catalogue items lock image/link; row layout redone for a visible preview + scroll cap
+
+**Date:** 2026-08-03
+**Status:** Accepted (amends ADR-068)
+
+**Context:** Follow-up to ADR-068. Three gaps found once the catalogue
+picker was in use: (1) picking a product still left its image/link editable,
+so an admin could silently drift a picked item's link away from the actual
+product it was picked for; (2) the image field was a compact icon-only
+upload button (`preview={false}`) — the picked/uploaded image was never
+actually visible in the row; (3) the items list had no cap on its own
+height, so it grew past the dialog's `max-h-[85vh]` with more than a
+handful of items instead of scrolling internally (`GalleryForm`'s image
+grid already solves this the same way for its own list).
+
+**Options considered — locking:**
+1. **Leave image/link editable after picking** — simplest, but lets a
+   picked item's link/image quietly diverge from the product it claims to
+   represent.
+2. **Disable image/link once a product is picked, track the binding via a
+   new `productId` on `ICarouselItem` (chosen)** — `ProductPickerField`'s
+   `onPick` now also sets `productId`; `UploadField`/`Input` both take
+   `disabled={item.productId != null}`. No way to unbind and re-enable the
+   fields in place — correcting a wrong pick means removing the row and
+   adding another, the same precedent `product-files-editor.tsx` already
+   set for a certification's fixed style ("removing the row and adding
+   another"). `productId` is not re-validated against the `Product` table
+   on save — same admin-authored trust boundary as every other reference id
+   in this project (e.g. a `document` segment's `documentId`).
+
+**Options considered — layout:**
+1. **Keep the single-line row, just widen the image box** — minimal change,
+   but a single line has no room left for a real preview image plus a
+   locked-state explanation once image/link are disabled.
+2. **Two-line card per item (chosen)** — line one: drag handle, the
+   catalogue picker (renamed "Browse or Add Item," full width), remove
+   button. Line two: a real square image preview (`aspect="square"`,
+   default `preview={true}` instead of the previous `false`) beside the
+   link input, plus a one-line note when locked. The picker intentionally
+   sits above the image/link it fills, reflecting that it's the entry point
+   for both fields.
+
+**Options considered — scrolling:** Wrap the item list in
+`max-h-80 overflow-y-auto` (its own fixed cap, not dependent on the
+surrounding flex chain reaching all the way down with `min-h-0`) — same
+precedent as `GalleryForm`'s image grid (`min-h-0 flex-1 overflow-y-auto`),
+just a fixed max-height instead of `flex-1` since this list sits among
+several other form sections rather than being the form's only content.
+
+**Decision:** Options 2, 2, and the scroll wrapper above.
+
+**Consequences:**
+- `ICarouselItem.productId` is optional/nullable — unset for hand-typed
+  custom items and for "category" mode's live-resolved public items
+  (`getPublicHomeCarousels` never sets it, since that path doesn't go
+  through this admin editor at all).
+- The old three-column header strip (Image/Title/Link) above the list was
+  dropped in favor of a label above each field inside its own card, since
+  the layout is no longer a flat single-line table.
+- Items beyond the capped `max-h-80` (20rem) window scroll within the list
+  itself instead of pushing the "Add item" button and Save button
+  off-screen.
+
+## ADR-070: `SupportPage` model for banner + rich text on static Support pages
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** Registration & Documentation, Warranty & Service, and Career
+under the public Support menu each had a hardcoded `PageBanner` image and an
+empty `<div className="h-150">` placeholder below it. The admin needs to
+manage each page's banner (three responsive sizes — 2560x1107 required,
+1363x1107 and 1107x1107 optional, mirroring `PageBanner`'s existing
+`defImage`/`mdImage`/`smImage` props) and a rich text body underneath.
+Marcom & Promotion is excluded — it already has its own content model
+(`SocialAccount`) and wasn't part of this ask.
+
+**Options considered:**
+1. **Reuse `Category`'s `isPage` banner/body fields** — rejected; `Category`
+   is the device/product taxonomy tree, and these three pages have no
+   taxonomy relationship to it. Bending it into a generic "any page with a
+   banner" model would break its own invariants (depth, parent/child,
+   type discriminator) for no shared benefit.
+2. **One `SupportPage` model, one row per fixed slug, upserted (chosen)** —
+   `slug` is one of `SUPPORT_PAGE_SLUGS` (`src/lib/support-pages.ts`), not a
+   free-form catalogue slug — there is no add/delete flow, only
+   create-or-update by slug from each page's own admin form. Mirrors
+   `Category`'s three-banner-size + rich text body shape (ADR-033/ADR-035)
+   without the tree/taxonomy fields that don't apply here.
+
+**Decision:** Option 2. `bannerXlUrl`/`bannerMdUrl`/`bannerSmUrl`/`body` all
+nullable at the DB layer (a row may not exist yet before the first save);
+`bannerXlUrl` required in practice via the save Server Action's Zod schema
+and the form's disabled-until-set Save button, same split `Category` already
+uses for its own isPage-gated required fields.
+
+**Consequences:**
+- Three admin routes (`/admin/support/{registration-documentation,
+  warranty-service,career}`) each render the same `SupportPageForm`,
+  parameterized by slug — one shared component, not three near-duplicates.
+- The public pages fall back to their original hardcoded dummy banner image
+  when no admin banner has been saved yet, and render nothing where the
+  empty placeholder div used to be until a rich text body is saved
+  (`hasRichTextContent`, same empty-Tiptap-HTML guard `CategoryPageView`
+  already uses).
+- `UploadField` (previously `product-device/upload-field.tsx`, used only by
+  category/product-device editors) moved to `src/components/upload-field.tsx`
+  since a second, unrelated feature area now needs it — each caller still
+  passes its own `uploadAction` for its own upload folder.
+
+## ADR-071: Carousel "Card Style" relabeled Square/Transparent; Square clips its image to the card
+
+**Date:** 2026-08-03
+**Status:** Accepted
+
+**Context:** `ProductCarousel`'s `size` prop ("sm"/"md") controls two very
+different-looking card treatments — `size: "sm"` is a fully opaque white
+card the image sits inside, `size: "md"` is a shorter card with the image
+deliberately floating above it over the transparent background (the
+original Alma/Inno homepage look). "Small"/"Medium" never described that
+difference; the client asked for names that do. Separately, the "sm"
+variant's image wasn't actually staying inside its card — its rectangular
+image wrapper sat at the same z-index above the card's rounded corners with
+no clipping, so the image visually poked past the card's rounded top edges.
+
+**Options considered — renaming:**
+1. **Rename the stored/prop values themselves (`"sm"`/`"md"` → `"square"`/
+   `"transparent"`)** — reads better in code, but touches the DB column,
+   every Zod schema, and `IHomeCarousel`/`ProductCarousel`'s prop type for a
+   change that's purely about what the admin sees in one dropdown.
+2. **Relabel only the admin form's `SelectItem` text — "Small"→"Square",
+   "Medium"→"Transparent" — keep `size: "sm" | "md"` as the stored value
+   everywhere else (chosen)** — same precedent as ADR-055 (Draft/Publish
+   wording restored over `status`'s unchanged `"hidden"/"public"` values):
+   the display text and the stored representation are allowed to diverge
+   when only the text was asked to change. Also renamed the field's own
+   `Label` from "Card Size" to "Card Style," since "Square"/"Transparent"
+   describe a look, not a dimension.
+
+**Options considered — containing the Square image:**
+1. **Shrink the image's height percentage so it never reaches the card's
+   rounded corners** — fragile, depends on every image's aspect ratio
+   happening to leave enough margin; a wide image would still reach the
+   corners.
+2. **Clip the image's absolutely-positioned wrapper to the same
+   `rounded-4xl` shape as the card underneath (`overflow-hidden rounded-4xl`,
+   Square only) (chosen)** — guarantees containment regardless of the
+   image's own aspect ratio, since the browser now clips at the exact same
+   boundary the card's own corners are drawn at. Left untouched for
+   Transparent (`size: "md"`), where floating past the (shorter) card is the
+   intended look.
+
+**Decision:** Options 2 and 2 above, in `carousel-form.tsx` and
+`src/app/(user)/components/Carousels.tsx`'s `ProductCarousel`.
+
+**Consequences:**
+- Existing carousels keep working with no data migration — every stored
+  `HomeCarousel.size` value ("sm"/"md") is still valid, only its on-screen
+  label changed.
+- While fixing this, also found (and fixed, unrelated to naming) that every
+  carousel card's "View Details" button linked to a hardcoded dummy URL
+  (`'devices/medical-aesthetics/alma-laser/alma-harmony'`) instead of each
+  item's own `href` — meaning no admin-configured carousel link (custom
+  item or category-mode product card) ever actually worked on the public
+  homepage until this fix.
+- If `"sm"`/`"md"` ever need to read clearly as `"square"`/`"transparent"`
+  in code too (not just the admin label), that's a follow-up schema/prop
+  rename, not a silent extension of this one.

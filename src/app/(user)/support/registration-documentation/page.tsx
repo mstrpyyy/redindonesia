@@ -1,14 +1,19 @@
-import { NavbarBg } from '@/app/(user)/components/navbar/NavbarBg'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
-import Image from 'next/image'
-import React from 'react'
+import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
+import { getSupportPage } from '@/lib/support-pages'
+import { hasRichTextContent } from '@/lib/utils'
 
-export default function SupportRegistrationDocumentation() {
+export default async function SupportRegistrationDocumentation() {
+  const page = await getSupportPage('registration-documentation')
+  const bodyHtml = page.body && hasRichTextContent(page.body) ? page.body : null
+
   return (
     <main>
 
       <PageBanner
-        defImage={'/image/support/registration/dummy2.jpg'}
+        defImage={page.bannerXlUrl ?? '/image/support/registration/dummy2.jpg'}
+        mdImage={page.bannerMdUrl ?? undefined}
+        smImage={page.bannerSmUrl ?? undefined}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
         <div className='flex flex-col items-center'>
@@ -17,9 +22,11 @@ export default function SupportRegistrationDocumentation() {
         </div>
       </PageBanner>
 
-      <div className="h-150">
-
-      </div>
+      {bodyHtml && (
+        <BodyWrapper className='py-20'>
+          <div className='tiptap-content' dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+        </BodyWrapper>
+      )}
     </main>
   )
 }

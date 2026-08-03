@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UploadField } from "./upload-field";
+import { UploadField } from "@/components/upload-field";
 import { MAX_HERO_DOC_TITLE_LENGTH } from "./limits";
 import { CERTIFICATION_LOGOS } from "@/lib/certification-logos";
 import type { ICertification, IHeroDoc } from "@/interfaces/segments";

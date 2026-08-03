@@ -103,6 +103,38 @@ The application follows a **hybrid data architecture**:
     certification logo + certificate) upload immediately on file select via
     `uploadSegmentAsset` (`segment-upload-actions.ts`, `/uploads/products-content`)
     and store the resulting URL — see ADR-021.
+  - `SupportPage` — one row per static Support page (Registration &
+    Documentation, Warranty & Service, Career — Marcom & Promotion keeps its
+    own `SocialAccount`-driven content instead), keyed by a fixed `slug`
+    (see ADR-070). `id`, `slug` (unique, one of `SUPPORT_PAGE_SLUGS`,
+    `src/lib/support-pages.ts`), `bannerXlUrl` (2560x1107, required in
+    practice via the save action's Zod schema, not a DB constraint),
+    `bannerMdUrl?` (1363x1107), `bannerSmUrl?` (1107x1107, all relative
+    paths under `/uploads/support-pages`), `body?` (Tiptap-produced HTML),
+    `createdAt`, `updatedAt`. No add/delete flow — only upsert-by-slug from
+    each page's own admin form (`/admin/support/<slug>`).
+  - `HomeCarousel` — a homepage carousel section (see ADR-066).
+    `mode: "category" | "custom"` discriminates two authoring paths:
+    "category" stores only `categoryId` (a leaf `Category` node — no
+    children of its own); its title, product list, and "See More" link are
+    resolved live at render time (`src/lib/home-carousels.ts`,
+    `getCategoryAncestry` in `src/lib/categories.ts` +
+    `getPublishedProductCards`), never snapshotted, so the carousel tracks
+    the category's current name/slug/published products automatically.
+    "custom" stores `title`, an ordered `items: Json` array
+    (`{id, title, img, href}[]`), and `seeMoreUrl` directly. `showSeeMore`
+    (boolean) makes the "See More" button optional in either mode.
+    `categoryId` uses `onDelete: SetNull` (not `Cascade`) — a deleted
+    category leaves the row in place, flagged in the admin as
+    "category missing," rather than silently vanishing. `order` scopes a
+    single flat list (no sibling grouping, unlike `Category`).
+    `titleDisplayMode: "text" | "image"` + `titleImage` (see ADR-067,
+    independent of `mode`) let the visible heading be an image (e.g. a
+    brand logo) instead of text; the text title (this row's `title`, or the
+    category's `name` in "category" mode) is unconditionally required
+    either way and always renders as a screen-reader-only heading —
+    `ProductHomeSection` already did this unconditionally before this
+    feature existed, so no public component change was needed.
 - **Auth model**: a single shared login for the whole client team — not multi-user,
   not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
   httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`

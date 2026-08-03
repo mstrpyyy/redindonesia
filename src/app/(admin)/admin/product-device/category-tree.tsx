@@ -59,7 +59,7 @@ import {
   uploadCategoryContentImage,
   uploadCategoryVideoThumbnail,
 } from "./actions";
-import { UploadField } from "./upload-field";
+import { UploadField } from "@/components/upload-field";
 import {
   MAX_CATEGORY_BANNER_LABEL,
   MAX_CATEGORY_DEPTH,
@@ -288,8 +288,8 @@ function CategoryForm({
                   Up to {MAX_CATEGORY_BANNER_LABEL} each. JPEG, PNG, or WEBP.
                 </p>
 
-                <div className="flex flex-row flex-wrap justify-between gap-4">
-                  <div className="flex flex-1 flex-col gap-1.5">
+                <div className="flex flex-row flex-wrap justify-start gap-4">
+                  <div className="flex w-40 flex-col gap-1.5">
                     <Label className="text-xxs">
                       2560x1440
                       <RequiredMark />
@@ -304,7 +304,7 @@ function CategoryForm({
                     />
                   </div>
 
-                  <div className="flex flex-1 flex-col gap-1.5">
+                  <div className="flex w-40 flex-col gap-1.5">
                     <Label className="text-xxs">2048x1536</Label>
                     <UploadField
                       kind="image"
@@ -316,7 +316,7 @@ function CategoryForm({
                     />
                   </div>
 
-                  <div className="flex flex-1 flex-col gap-1.5">
+                  <div className="flex w-40 flex-col gap-1.5">
                     <Label className="text-xxs">1536x2048</Label>
                     <UploadField
                       kind="image"
@@ -328,7 +328,7 @@ function CategoryForm({
                     />
                   </div>
 
-                  <div className="flex flex-1 flex-col gap-1.5">
+                  <div className="flex w-40 flex-col gap-1.5">
                     <Label className="text-xxs">1440x2560</Label>
                     <UploadField
                       kind="image"

@@ -1607,3 +1607,271 @@ hero's "Same as name/tagline" fields already use.
 - [x] Switching back to a document re-enables both fields immediately.
 **Do not:** Add conditional-required validation based on `referenceKind` —
 this is a display/UX-only change, matching ADR-063's own scope note.
+
+## [x] Task: Admin CMS for homepage carousels (Homepage → Carousel)
+
+**Context:** The homepage's product carousels (`ProductHomeSection` ×2 —
+"Alma Laser"/"INNO CE") were hardcoded: static `almaCarouselList`/
+`innoCarouselList` arrays in `src/lib/data.ts`, every card linking to the
+same placeholder `alma-harmony` URL. The client wants to manage these from
+the admin, either by pointing a carousel at an existing leaf category (auto-
+filling title/products/link) or by building one entirely by hand. See
+ADR-066.
+**Approach:** New `HomeCarousel` model, discriminated by `mode: "category" |
+"custom"`. "category" mode stores only `categoryId` (a leaf `Category` node —
+no children of its own); title, product list, and the "See More" URL are all
+resolved live from that category at render time via a new
+`getCategoryAncestry` helper (`src/lib/categories.ts`) and the existing
+`getPublishedProductCards`, rather than snapshotted — so the carousel always
+reflects the category's current name/slug and published products. "custom"
+mode stores `title`/`items` (ordered `{id, title, img, href}[]` JSON, same
+"JSON over join table" precedent as `Gallery.images`/`Product.segments`) /
+`seeMoreUrl` directly. A `showSeeMore` toggle (default on) makes the "See
+More" button optional in both modes, per the ask. Admin CRUD mirrors the
+Gallery/Category table pattern (drag-reorder, dialog add/edit, discard-
+changes confirmation). Public homepage renders whatever `HomeCarousel` rows
+exist via `getPublicHomeCarousels()`, dropping any row that resolves to zero
+items (missing category, or a leaf with no published products) instead of
+rendering an empty carousel.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803013954_add_home_carousel/` — new `HomeCarousel` model
+- `src/interfaces/general.ts` — `ICarouselItem`, `IHomeCarousel`, `IHomeCarouselListItem`, `IPublicHomeCarousel`
+- `src/lib/categories.ts` — new `getCategoryAncestry(categoryId)`
+- `src/lib/home-carousels.ts` — new: `getHomeCarousels()`, `getPublicHomeCarousels()`
+- `src/app/(admin)/admin/homepage/carousel/limits.ts` — new
+- `src/app/(admin)/admin/homepage/carousel/upload-actions.ts` — new: `uploadHomeCarouselItemImage`
+- `src/app/(admin)/admin/homepage/carousel/actions.ts` — new: `createHomeCarousel`, `updateHomeCarousel`, `deleteHomeCarousel`, `reorderHomeCarousels`
+- `src/app/(admin)/admin/homepage/carousel/carousel-category-picker.tsx` — new: combined Devices/Products leaf-only picker
+- `src/app/(admin)/admin/homepage/carousel/carousel-items-editor.tsx` — new: custom-mode item list (drag reorder, image/title/link per row)
+- `src/app/(admin)/admin/homepage/carousel/carousel-form.tsx`, `carousel-table.tsx`, `page.tsx` — new
+- `src/app/(admin)/components/sidebar.tsx` — new "Homepage → Carousel" nav entry
+- `src/app/(user)/(homepage)/page.tsx` — renders `getPublicHomeCarousels()` instead of the two hardcoded sections
+- `src/app/(user)/(homepage)/(sections)/Products.tsx` — `href` made optional (button hidden when absent)
+- `src/lib/data.ts` — removed the now-unused `almaCarouselList`/`innoCarouselList`
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-066)
+**Acceptance criteria:**
+- [x] Admin can create a carousel by picking a leaf category (no
+  sub-categories) — title, product cards, and "See More" link populate
+  automatically and stay in sync if the category is later renamed/moved or
+  its published products change.
+- [x] Admin can create a custom carousel with its own title and an ordered,
+  drag-reorderable list of items (image upload, title, link).
+- [x] The "See More" button is optional in both modes (a toggle hides it;
+  custom mode requires a URL only when the toggle is on).
+- [x] Carousels can be reordered (drag) and deleted from the list table.
+- [x] A category-mode carousel whose category was deleted shows a "category
+  missing" warning in the admin list instead of silently breaking.
+- [x] The public homepage renders carousels in admin-chosen order and shows
+  nothing where a `space-y-20` block would otherwise be if no carousels
+  (or a category with zero published products) resolve to any items.
+- [x] `tsc --noEmit` passes.
+**Do not:** Seed/migrate the old hardcoded Alma/Inno carousel content into
+the new system — the client re-creates what they want through the admin.
+
+## [x] Task: Carousel title can be text or image, image mode still requires a text title
+
+**Context:** Follow-up to the task above (ADR-067). The client wants the
+carousel's visible name to optionally be an image (e.g. a brand logo)
+instead of plain text, in either authoring mode, while still capturing a
+text title for accessibility/SEO even when an image is shown.
+**Approach:** New `titleDisplayMode: "text" | "image"` + `titleImage`
+columns on `HomeCarousel`, independent of `mode`. `titleImage` is required
+only when `titleDisplayMode === "image"`. No public component change was
+needed — `ProductHomeSection` already renders the text title as an
+`sr-only` heading unconditionally and only swaps in `titleImg` visually
+when provided.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803015934_home_carousel_title_display/`
+- `src/interfaces/general.ts` — `IHomeCarousel`/`IPublicHomeCarousel` gain `titleDisplayMode`/`titleImage`
+- `src/lib/home-carousels.ts` — reads/resolves the new fields
+- `src/app/(admin)/admin/homepage/carousel/limits.ts` — title image size constants
+- `src/app/(admin)/admin/homepage/carousel/upload-actions.ts` — new: `uploadHomeCarouselTitleImage`
+- `src/app/(admin)/admin/homepage/carousel/actions.ts` — `parseTitleImage`, wired into create/update
+- `src/app/(admin)/admin/homepage/carousel/carousel-form.tsx` — "Carousel Title Display" select + upload field
+- `src/app/(user)/(homepage)/page.tsx` — passes `titleImage` through as `titleImg`
+- `DECISIONS.md` (ADR-067)
+**Acceptance criteria:**
+- [x] Admin can switch a carousel's title between "Text" and "Image", in
+  either category or custom mode.
+- [x] Choosing "Image" requires uploading an image before saving.
+- [x] In custom mode, the text Title field remains required even when
+  "Image" is chosen, with a note explaining it's kept for accessibility.
+- [x] In category mode, the category's own name satisfies the text-title
+  requirement automatically — no extra field needed.
+- [x] Switching back to "Text" after uploading an image does not delete the
+  uploaded image (it reappears if switched back to "Image").
+- [x] `tsc --noEmit` passes.
+**Do not:** Change `ProductHomeSection`'s public rendering — it already
+supports this exact behavior via its existing `titleImg` prop.
+
+## [x] Task: Custom carousel items get a searchable devices/products picker
+
+**Context:** Follow-up to ADR-066. "Custom" mode carousel items required
+typing a title, uploading an image, and typing a link by hand for every
+item. The client asked for a searchable dropdown across all devices and
+products so an admin can pick a real catalogue entry instead. See ADR-068.
+**Approach:** New `getPublishedProductPickerOptions()` flattens every
+published `Product` (both device and product types) into `{id, type, name,
+thumbnail, url}`, resolving each one's real public URL via the existing
+`getCategoryAncestry`. A new `ProductPickerField` (reusing the `TagPicker`'s
+existing `Popover` + `Input` + filtered-list pattern — no new `cmdk`
+dependency) replaces each item row's plain title input: typing still works
+as a normal custom title, and a dropdown of matching published devices/
+products appears alongside; picking one fills that row's title/image/link
+from the selected item.
+**Files to create or modify:**
+- `src/interfaces/general.ts` — new `IProductPickerOption`
+- `src/lib/products.ts` — new `getPublishedProductPickerOptions()`
+- `src/app/(admin)/admin/homepage/carousel/product-picker-field.tsx` — new
+- `src/app/(admin)/admin/homepage/carousel/carousel-items-editor.tsx` — wires `ProductPickerField` in place of the title `Input`
+- `src/app/(admin)/admin/homepage/carousel/carousel-form.tsx`, `carousel-table.tsx`, `page.tsx` — thread `productOptions` through
+- `DECISIONS.md` (ADR-068)
+**Acceptance criteria:**
+- [x] Typing in a custom item's title field shows a dropdown of matching
+  published devices/products (searching across both types).
+- [x] Picking a result fills that item's title, image, and link from the
+  selected catalogue item.
+- [x] Typing without picking a result still works as a plain custom title —
+  the picker never forces a match (a custom item can link anywhere).
+- [x] Only published devices/products are offered, never drafts/hidden ones.
+- [x] `tsc --noEmit` passes.
+**Do not:** Add the `cmdk` package/shadcn `Command` component for this —
+the existing `Popover`+filtered-list pattern (`TagPicker`) covers it.
+
+## [x] Task: Lock picked item's image/link, make the image visible, cap the item list's height
+
+**Context:** Follow-up to the catalogue picker task above (ADR-069). Three
+gaps: picking a product still left its image/link freely editable (letting
+them drift from the actual product); the image field was an icon-only
+upload button with no visible preview; the item list had no height cap, so
+it grew past the dialog instead of scrolling.
+**Approach:** New `ICarouselItem.productId` (optional/nullable), set by
+`ProductPickerField`'s `onPick`; the image `UploadField` and link `Input`
+both take `disabled={item.productId != null}` once set — no in-place
+unbind, matching the "remove and re-add" precedent already used for a
+certification row's fixed style. Row layout redone as a two-line card: the
+picker (renamed "Browse or Add Item") on its own full-width line first,
+then a real square image preview (`aspect="square"`, `preview` no longer
+forced off) beside the link input. The item list itself is wrapped in
+`max-h-80 overflow-y-auto`, same precedent as `GalleryForm`'s image grid.
+**Files to create or modify:**
+- `src/interfaces/general.ts` — `ICarouselItem.productId`
+- `src/app/(admin)/admin/homepage/carousel/actions.ts` — `carouselItemSchema` accepts `productId`
+- `src/app/(admin)/admin/homepage/carousel/carousel-items-editor.tsx` — two-line card layout, lock-on-pick, scrollable list
+- `src/app/(admin)/admin/homepage/carousel/product-picker-field.tsx` — updated placeholder copy
+- `DECISIONS.md` (ADR-069)
+**Acceptance criteria:**
+- [x] Picking a catalogue item disables that row's image upload and link
+  input; they show the picked product's own thumbnail/URL.
+- [x] The picker field appears above the image/link fields in each row.
+- [x] The image field shows an actual visible preview, not just an
+  icon-only button.
+- [x] The item list scrolls internally past a fixed height instead of
+  growing the dialog past its own max height.
+- [x] `tsc --noEmit` passes.
+**Do not:** Add an "unbind"/"use custom link" control — correcting a wrong
+pick means removing the item and adding another.
+
+## [x] Task: Fix carousel add/edit modal scrolling (mirror the Category admin's pattern)
+
+**Context:** The previous task capped the item list's own height
+(`max-h-80 overflow-y-auto`) to fix scrolling — the wrong target. The
+client meant the add/edit **modal itself** wasn't scrollable, the same way
+the Category admin's add/edit modal already is (`category-tree.tsx`'s
+`CategoryForm`: only the field area scrolls, Save stays pinned below it).
+**Approach:** Removed the item list's own scroll cap. `CarouselForm`'s body
+(the mode Tabs, Title Display section, Size/Show-See-More grid, See More
+URL) is now wrapped in `flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto
+px-1 py-1` — the exact class list `CategoryForm` uses — with the error
+message and Save button left outside it, pinned below.
+**Files to create or modify:**
+- `src/app/(admin)/admin/homepage/carousel/carousel-form.tsx`
+- `src/app/(admin)/admin/homepage/carousel/carousel-items-editor.tsx` — dropped the now-redundant inner scroll cap
+**Acceptance criteria:**
+- [x] With many carousel items, the add/edit dialog scrolls internally
+  (Save button stays visible, pinned at the bottom) instead of growing past
+  the dialog or the item list scrolling on its own.
+- [x] `tsc --noEmit` passes.
+**Do not:** Reintroduce a second, nested scroll region on the item list —
+the whole modal body is the single scroll container now.
+
+## [x] Task: Banner + rich text management for the static Support pages
+
+**Context:** Registration & Documentation, Warranty & Service, and Career
+(under the public Support menu) each had a hardcoded `PageBanner` image and
+an empty `<div className="h-150">` placeholder below it, with no admin
+control over either. Marcom & Promotion is unaffected — it already has its
+own `SocialAccount`-driven content and wasn't part of this ask.
+**Approach:** New `SupportPage` model, one row per fixed slug
+(`registration-documentation` / `warranty-service` / `career`), upserted by
+slug — no add/delete flow. Three banner fields (`bannerXlUrl` 2560x1107
+required, `bannerMdUrl` 1363x1107 and `bannerSmUrl` 1107x1107 optional) map
+directly onto `PageBanner`'s existing `defImage`/`mdImage`/`smImage` props,
+and a `body` rich text field renders where each page's empty placeholder
+div used to be. One shared `SupportPageForm`/admin route pattern per slug,
+mirroring `Category`'s isPage banner+body shape (ADR-033) without its
+tree/taxonomy fields. `UploadField` moved from `product-device/` to
+`src/components/upload-field.tsx` since this is now its second, unrelated
+caller. See ADR-070.
+**Files to create or modify:**
+- `prisma/schema.prisma`, `prisma/migrations/20260803022808_add_support_page/` — new `SupportPage` model
+- `src/lib/support-pages.ts` — new: `SUPPORT_PAGE_SLUGS`, `getSupportPage(slug)`
+- `src/components/upload-field.tsx` — moved from `product-device/upload-field.tsx`
+- `src/app/(admin)/admin/product-device/{category-tree,segments-builder,product-files-editor}.tsx`,
+  `src/app/(admin)/admin/homepage/carousel/{carousel-form,carousel-items-editor}.tsx` — updated `UploadField` import path
+- `src/app/(admin)/admin/support/limits.ts`, `actions.ts` — new: upload actions + `saveSupportPage`
+- `src/app/(admin)/admin/support/support-page-form.tsx` — new: shared banner + rich text form
+- `src/app/(admin)/admin/support/{registration-documentation,warranty-service,career}/page.tsx` — new
+- `src/app/(admin)/components/sidebar.tsx` — added the three nav links (Marcom & Promotion unchanged)
+- `src/app/(user)/support/{registration-documentation,warranty-service,career}/page.tsx` — wired to `getSupportPage`
+- `ARCHITECTURE.md`, `DECISIONS.md` (ADR-070)
+**Acceptance criteria:**
+- [x] Each of the three admin pages has a banner section (three uploads,
+  2560x1107 marked required, the other two optional) and a rich text editor
+  below it, saved via one "Save" action.
+- [x] Saving without the 2560x1107 banner is blocked client-side (disabled
+  Save button) and rejected server-side (Zod).
+- [x] Each public page renders its saved banner across all three responsive
+  breakpoints, falling back to its original hardcoded image until a banner
+  is saved.
+- [x] The rich text body renders below the banner once saved; renders
+  nothing (no empty gradient box) when unset, same empty-Tiptap-HTML guard
+  `CategoryPageView` already uses.
+- [x] Marcom & Promotion's page/route/content are untouched.
+- [x] `tsc --noEmit` passes; `eslint` reports nothing new.
+**Do not:** Build this on top of `Category` — these pages have no taxonomy
+relationship to the device/product tree.
+
+## [x] Task: Carousel "Card Style" renamed Square/Transparent; Square no longer overflows its card
+
+**Context:** The carousel admin's "Card Size" dropdown ("Small"/"Medium")
+never described what the two styles actually look like — one is a
+self-contained opaque card ("Square"), the other floats the image above a
+shorter, partial card ("Transparent"). The client asked for these names.
+Separately, the Square style's image visually overflowed past the card's
+rounded corners instead of staying inside it. See ADR-071.
+**Approach:** Relabeled the `Select`'s options and its own field label
+("Card Size" → "Card Style") in `carousel-form.tsx`; the underlying stored
+`size: "sm" | "md"` values are unchanged (label-only rename, same precedent
+as ADR-055). Fixed the overflow by clipping the Square variant's image
+wrapper to the same `rounded-4xl` shape as the card underneath
+(`overflow-hidden`), left the Transparent variant untouched since floating
+past its shorter card is intentional. Also fixed an unrelated bug found in
+the process: every card's "View Details" button linked to a hardcoded dummy
+URL instead of `item.href`, so no carousel link ever actually worked.
+**Files to create or modify:**
+- `src/app/(admin)/admin/homepage/carousel/carousel-form.tsx` — relabeled Select
+- `src/app/(user)/components/Carousels.tsx` — `ProductCarousel`'s image-wrapper clipping + `item.href` fix
+- `DECISIONS.md` (ADR-071)
+**Acceptance criteria:**
+- [x] The Card Style dropdown shows "Square" and "Transparent" instead of
+  "Small"/"Medium"; existing carousels' stored size still loads correctly.
+- [x] Square cards' images stay fully inside the card's rounded boundary at
+  every corner, regardless of the image's own aspect ratio.
+- [x] Transparent cards are unaffected — the image still floats above the
+  shorter card as before.
+- [x] Each carousel item's "View Details" button links to that item's own
+  URL, not a hardcoded placeholder.
+- [x] `tsc --noEmit` passes; `eslint` reports nothing new.
+**Do not:** Rename the stored `size` column values — this is a display-only
+change plus an unrelated link bug fix.

@@ -159,6 +159,35 @@ html {
   background-color: rgba(255,255,255,.6);
 }
 
+/* Minimalist scrollbar for the admin sidebar nav — thin thumb, no track,
+   no up/down arrow buttons. Moved to the left edge by pairing this with
+   `dir="rtl"` on the scrolling element itself (see sidebar.tsx) and
+   `dir="ltr"` on its content wrapper to keep the content's own layout
+   unflipped — browsers put the scrollbar on the side text starts from. */
+.sidebar-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--border) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .body-container-limit {
   @apply sm:w-[560px] md:w-[688px] lg:w-[900px] xl:w-[1000px] 2xl:w-[1200px];
 }

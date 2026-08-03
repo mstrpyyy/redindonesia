@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { IDeviceCardItem, IProduct, IProductListItem } from "@/interfaces/general";
+import { IDeviceCardItem, IProduct, IProductListItem, IProductPickerOption } from "@/interfaces/general";
 import { ICardBackgroundValue } from "@/lib/card-backgrounds";
 import { IProductSegment } from "@/interfaces/segments";
+import { getCategoryAncestry } from "@/lib/categories";
 
 const listItemSelect = {
   id: true,
@@ -70,6 +71,39 @@ export async function getPublishedProductCards(
     background: row.cardBackground as ICardBackgroundValue | null,
     tags: row.tags.map((tag) => tag.name),
   }));
+}
+
+// Every published device/product, flattened across both `type`s, with each
+// one's own resolved public URL — used by the homepage carousel's "custom"
+// mode item search (see ADR-068) to pick a real catalogue item instead of
+// typing its title/image/link by hand. Costs up to `MAX_CATEGORY_DEPTH`
+// sequential ancestry queries per product (no caching) — acceptable for an
+// admin-only picker at the current catalogue size, same trade-off already
+// accepted by `getHomeCarousels`'s per-row category lookup.
+export async function getPublishedProductPickerOptions(): Promise<IProductPickerOption[]> {
+  const rows = await prisma.product.findMany({
+    where: { status: "public" },
+    orderBy: { name: "asc" },
+    select: { id: true, type: true, name: true, thumbnail: true, slug: true, categoryId: true },
+  });
+
+  const resolved = await Promise.all(
+    rows.map(async (row): Promise<IProductPickerOption | null> => {
+      const ancestry = await getCategoryAncestry(row.categoryId);
+      if (!ancestry) return null;
+
+      const urlPrefix = `/${row.type === "device" ? "devices" : "products"}/${ancestry.slugPath.join("/")}`;
+      return {
+        id: row.id,
+        type: row.type as "device" | "product",
+        name: row.name,
+        thumbnail: row.thumbnail,
+        url: `${urlPrefix}/${row.slug}`,
+      };
+    })
+  );
+
+  return resolved.filter((option): option is IProductPickerOption => option !== null);
 }
 
 const tagSelect = { id: true, type: true, name: true } as const;

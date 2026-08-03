@@ -75,6 +75,7 @@ model Category {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   products  Product[]
+  homeCarousels HomeCarousel[]
 
   // A node is either a real page (banner/title/description required, body/
   // youtubeUrl optional) or stays a plain breadcrumb (all fields null) — see
@@ -153,6 +154,46 @@ model Product {
   @@index([type, categoryId])
 }
 
+// A single homepage carousel section (see ADR-066). Two mutually exclusive
+// authoring modes, discriminated by `mode`:
+// - "category": a leaf `Category` node (no children) drives everything —
+//   title, product list, and the "See More" link are all resolved live from
+//   the category at render time, never snapshotted. `title`/`seeMoreUrl`/
+//   `items` are unused (null/default) in this mode.
+// - "custom": the admin fills every field by hand. `items` is an ordered
+//   array of `{ id, title, img, href }` (see `ICarouselItem`,
+//   src/interfaces/general.ts) — JSON over a join table for the same reason
+//   as Gallery.images/Product.segments (ADR-011/ADR-020): a small ordered
+//   list with no independent query need of its own.
+// `categoryId` is nullable + `onDelete: SetNull` rather than `Cascade` — a
+// deleted category leaves the carousel row in place (surfaced in the admin
+// as "category missing," matching the document-picker precedent in ADR-051)
+// instead of silently deleting a homepage section out from under the admin.
+model HomeCarousel {
+  id          String    @id @default(cuid())
+  mode        String
+  order       Int       @default(0)
+  size        String    @default("md")
+  showSeeMore Boolean   @default(true)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title       String?
+  seeMoreUrl  String?
+  items       Json      @default("[]")
+  // "text" | "image" — independent of `mode` (see ADR-066). "image" swaps the
+  // visible heading for `titleImage` (e.g. a brand logo) while the text title
+  // (`title` here, or the category's own `name` in "category" mode) still
+  // renders as a screen-reader-only heading — `ProductHomeSection` already
+  // does this unconditionally, so no public component change was needed to
+  // support it.
+  titleDisplayMode String  @default("text")
+  titleImage       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([categoryId])
+}
+
 // Reuse is enforced in code, not just the DB constraint (`createTag` in
 // tag-actions.ts does a case-insensitive lookup, scoped to `type`, before
 // creating) — see ADR-041 for why a case-sensitive `@@unique` alone isn't
@@ -165,4 +206,24 @@ model Tag {
   products  Product[]
 
   @@unique([type, name])
+}
+
+// One row per static support page (Registration & Documentation, Warranty &
+// Service, Career — Marcom & Promotion keeps its own SocialAccount-driven
+// content instead). `slug` is a fixed key (one of SUPPORT_PAGE_SLUGS,
+// src/lib/support-pages.ts), not a public catalogue slug like
+// Category/Product — there is never a list or an add/delete flow, only
+// upsert-by-slug from the admin form. Banner fields are nullable (a row
+// might not exist yet before the first save) even though bannerXlUrl is
+// required in practice — that's enforced by the save Server Action's Zod
+// schema, not the DB, same reasoning as Category's isPage-gated fields.
+model SupportPage {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  bannerXlUrl String? // 2560x1107 — required
+  bannerMdUrl String? // 1363x1107 — optional
+  bannerSmUrl String? // 1107x1107 — optional
+  body        String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
