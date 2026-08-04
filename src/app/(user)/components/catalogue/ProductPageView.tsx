@@ -7,7 +7,7 @@ import { BeforeAfterDevice } from './BeforeAfter'
 import { DocumentDevice } from './Document'
 import { DropdownDevice } from './Dropdown'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
-import { BasicCarousel } from '@/app/(user)/components/Carousels'
+import { BasicCarousel, CardGrid } from '@/app/(user)/components/Carousels'
 import { VideoTextSection } from '@/app/(user)/components/VideoTextSection'
 import Viewer360 from '@/app/(user)/components/Viewer360'
 import { Button } from '@/components/ui/button'
@@ -158,6 +158,20 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
         <BodyWrapper className='my-14'>
           <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
           <BasicCarousel list={items} />
+        </BodyWrapper>
+      )
+    }
+
+    case 'cardGrid': {
+      const items = segment.items.filter(
+        (item): item is typeof item & { imageUrl: string } => Boolean(item.imageUrl)
+      )
+      if (items.length === 0) return null
+
+      return (
+        <BodyWrapper className='my-14'>
+          <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
+          <CardGrid list={items} />
         </BodyWrapper>
       )
     }

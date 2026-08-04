@@ -1,7 +1,7 @@
-import { LinkedinOutlinedRounded, TiktokOutlinedRounded } from '@lineiconshq/react-lineicons'
-import { Facebook, Instagram, Linkedin, Mail, Map, MapPin, MapPinned, Phone } from 'lucide-react'
+import { Mail, MapPinned, Phone } from 'lucide-react'
 import Image from 'next/image'
 import React from 'react'
+import { SOCIAL_MEDIA_LINKS } from './social-media-links'
 
 const companyInfoList = [
   {
@@ -13,30 +13,6 @@ const companyInfoList = [
     icon: <Phone />,
     href: 'tel:+622145850088',
     text: '+62 21-4585-0088'
-  }
-]
-
-// WARNING! CHANGE PACKAGE
-const socialMediaList = [
-  {
-    icon: <Instagram />,
-    href: 'https://www.instagram.com/radian.elok.distriversa/',
-    text: '@radian.elok.distriversa'
-  },
-  {
-    icon: <Facebook />,
-    href: 'https://www.facebook.com/radianelok/',
-    text: 'PT. Radian Elok Distriversa'
-  },
-  {
-    icon: <Linkedin />,
-    href: 'https://www.instagram.com/radian.elok.distriversa/',
-    text: 'PT. Radian Elok Distriversa'
-  },
-  {
-    icon: <TiktokOutlinedRounded />,
-    href: 'https://www.facebook.com/radianelok/',
-    text: '@radianelok'
   }
 ]
 
@@ -141,7 +117,7 @@ export const Footer = () => {
             <FooterH2>Social Media</FooterH2>
             
             <div>
-              {socialMediaList.map((item, index) => {
+              {SOCIAL_MEDIA_LINKS.map((item, index) => {
                 return (
                   <MenuLink
                     key={index}

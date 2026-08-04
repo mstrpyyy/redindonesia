@@ -60,6 +60,7 @@ import {
   uploadCategoryVideoThumbnail,
 } from "./actions";
 import { UploadField } from "@/components/upload-field";
+import { CharLimitWarning, isAtCharLimit } from "@/components/char-limit-warning";
 import {
   MAX_CATEGORY_BANNER_LABEL,
   MAX_CATEGORY_DEPTH,
@@ -219,6 +220,9 @@ function CategoryForm({
             maxLength={MAX_CATEGORY_NAME_LENGTH}
             autoFocus
           />
+          {isAtCharLimit(name, MAX_CATEGORY_NAME_LENGTH) && (
+            <CharLimitWarning maxLength={MAX_CATEGORY_NAME_LENGTH} />
+          )}
         </div>
 
         <hr className="border-t" />
@@ -256,6 +260,9 @@ function CategoryForm({
                   maxLength={MAX_CATEGORY_TITLE_LENGTH}
                   placeholder="Shown as this page's main heading"
                 />
+                {isAtCharLimit(title, MAX_CATEGORY_TITLE_LENGTH) && (
+                  <CharLimitWarning maxLength={MAX_CATEGORY_TITLE_LENGTH} />
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
@@ -271,6 +278,9 @@ function CategoryForm({
                   rows={3}
                   placeholder="Shown under the title"
                 />
+                {isAtCharLimit(description, MAX_CATEGORY_DESCRIPTION_LENGTH) && (
+                  <CharLimitWarning maxLength={MAX_CATEGORY_DESCRIPTION_LENGTH} />
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">

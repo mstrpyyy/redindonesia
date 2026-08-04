@@ -29,7 +29,7 @@ export async function getHomeCarousels(): Promise<IHomeCarouselListItem[]> {
         items: parseItems(row.items),
         titleDisplayMode: row.titleDisplayMode as "text" | "image",
         titleImage: row.titleImage,
-        categoryLabel: ancestry ? ancestry.names.join(" > ") : null,
+        categoryLabel: ancestry ? ancestry.names[ancestry.names.length - 1] : null,
       };
     })
   );

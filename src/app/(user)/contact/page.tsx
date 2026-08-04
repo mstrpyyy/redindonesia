@@ -1,5 +1,6 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
+import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { ContactForm } from './contact-form'
 import { getContactPage } from '@/lib/contact-pages'
 import { hasRichTextContent } from '@/lib/utils'
@@ -37,6 +38,10 @@ export default async function Contact() {
         <div className='mx-auto mt-10 w-full max-w-2xl'>
           <ContactForm />
         </div>
+      </BodyWrapper>
+
+      <BodyWrapper className='pb-20'>
+        <TrustSection />
       </BodyWrapper>
     </main>
   )

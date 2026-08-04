@@ -167,6 +167,80 @@ interface IBasicCarousel {
   href?: string
 }
 
+// The image + title + subtitle + description card both `BasicCarousel` and
+// `CardGrid` render. `BasicCarousel`'s card is a fixed height (a carousel
+// track needs every slide the same size) with the description clamped to 3
+// lines, shown in full on hover. `CardGrid`'s card (`transparent`) instead
+// grows to fit its own content — no card background/shadow, no clamp/hover,
+// the description just renders in full and the card expands around it.
+function FeatureCard({
+  item,
+  index,
+  fullText,
+  showFullText,
+  transparent,
+}: {
+  item: IBasicCarousel
+  index: number
+  fullText?: number | null
+  showFullText?: (index: number | null) => void
+  transparent?: boolean
+}) {
+  return (
+    <div
+      className={`flex flex-col rounded-4xl p-6 group ${
+        transparent ? 'bg-transparent' : 'h-96 shadow-[0_4px_8px_rgba(0,0,0,0.25)] bg-linear-to-b from-brand-peach/20 to-white'
+      }`}
+    >
+
+      {/* Image Section — fixed aspect box when the card grows to fit its
+          content (`transparent`), since `fill` needs a sized ancestor and
+          this one no longer has a fixed height to lean on. The carousel's
+          fixed-height card instead stretches the image to fill whatever
+          space is left (`flex-1 min-h-0`) once the rest of the card's
+          content has taken its share. `transparent`'s box also steps down
+          gradually from lg (full width) to below sm (smallest) — text stays
+          fixed size, only the image shrinks. */}
+      <div
+        className={
+          transparent
+            ? 'relative mx-auto aspect-square w-3/5 sm:w-3/4 md:w-5/6 lg:w-full'
+            : 'relative w-full flex-1 min-h-0'
+        }
+      >
+        <Image
+          src={item.imageUrl}
+          alt={item.title}
+          fill
+          className="object-contain object-center"
+        />
+      </div>
+
+      {/* Titles */}
+      <div className="mt-4 text-center">
+        <h3 className="text-lg font-semibold">
+          {item.title}
+        </h3>
+        <h4 className="text-base font-medium mb-3">
+          {item.subTitle}
+        </h4>
+      </div>
+
+      {transparent ? (
+        <p className="text-sm text-neutral-500 text-justify">{item.text}</p>
+      ) : (
+        <p
+          onPointerEnter={() => showFullText?.(index)} onPointerLeave={() => showFullText?.(null)}
+          className={`text-sm text-neutral-500 text-justify ${fullText === index ? '' : 'line-clamp-3 mt-auto'}`}
+        >
+          {item.text}
+        </p>
+      )}
+
+    </div>
+  )
+}
+
 export const BasicCarousel = ({list}:{list:IBasicCarousel[]}) => {
   const [fullText, showFullText] = useState<number | null>(null)
   return (
@@ -182,46 +256,35 @@ export const BasicCarousel = ({list}:{list:IBasicCarousel[]}) => {
         {list.map((item, index) => (
           <CarouselItem key={index} className="sm:basis-1/2 pl-6 lg:basis-1/3 2xl:basis-1/4">
             <div className="p-1">
-              <div className="flex flex-col h-96 rounded-4xl shadow-[0_4px_8px_rgba(0,0,0,0.25)] p-6 group bg-linear-to-b from-brand-peach/20 to-white">
-
-                {/* Image Section - flexible */}
-                <div className={`relative w-full flex-1 min-h-0`}>
-                  <Image
-                    src={item.imageUrl}
-                    alt={item.title}
-                    fill
-                    className="object-contain object-center"
-                  />
-                </div>
-
-                {/* Titles */}
-                <div className="mt-4 text-center">
-                  <h3 className="text-lg font-semibold">
-                    {item.title}
-                  </h3>
-                  <h4 className="text-base font-medium mb-3">
-                    {item.subTitle}
-                  </h4>
-                </div>
-
-                {/* Paragraph pinned bottom */}
-                <p
-                  onPointerEnter={() => showFullText(index)} onPointerLeave={() => showFullText(null)} 
-                  className={`text-sm text-neutral-500 text-justify ${fullText === index ? '' : 'line-clamp-3 mt-auto'}`}
-                >
-                  {item.text}
-                </p>
-
-              </div>
+              <FeatureCard item={item} index={index} fullText={fullText} showFullText={showFullText} />
             </div>
           </CarouselItem>
-
-
-
         ))}
       </CarouselContent>
       <CarouselPrevious />
       <CarouselNext />
     </Carousel>
+  )
+}
+
+// Same card as `BasicCarousel`, laid out as a wrapping flex grid instead of a
+// horizontal slider — up to 4 per row, `justify-center` + `items-start` so a
+// trailing partial row centers instead of hugging the left edge (the way a
+// CSS grid's last row would) and cards of different description lengths
+// don't stretch to match their row's tallest neighbor. The `-ml-6`/`pl-6` and
+// `-mt-6`/`pt-6` pairs are the same negative-margin gutter trick
+// `BasicCarousel` uses horizontally, just added vertically too since rows
+// wrap here.
+export const CardGrid = ({ list }: { list: IBasicCarousel[] }) => {
+  return (
+    <div className="flex flex-wrap justify-center items-start -mt-6 -ml-6 py-2">
+      {list.map((item, index) => (
+        <div key={index} className="basis-full pt-6 pl-6 sm:basis-1/2 lg:basis-1/3 2xl:basis-1/4">
+          <div className="p-1">
+            <FeatureCard item={item} index={index} transparent />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

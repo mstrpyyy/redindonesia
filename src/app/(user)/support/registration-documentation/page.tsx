@@ -1,5 +1,6 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
+import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
 import { hasRichTextContent } from '@/lib/utils'
 
@@ -27,6 +28,10 @@ export default async function SupportRegistrationDocumentation() {
           <div className='tiptap-content' dangerouslySetInnerHTML={{ __html: bodyHtml }} />
         </BodyWrapper>
       )}
+
+      <BodyWrapper className='pb-20'>
+        <TrustSection />
+      </BodyWrapper>
     </main>
   )
 }

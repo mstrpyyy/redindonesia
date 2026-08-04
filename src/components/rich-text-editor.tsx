@@ -35,6 +35,7 @@ import {
   Redo2,
   Strikethrough,
   Table as TableIcon,
+  TableProperties,
   Trash2,
   Underline as UnderlineIcon,
   Undo2,
@@ -80,13 +81,19 @@ const TEXT_COLORS = [
 
 // "default" is a sentinel for "no fontSize mark" (Radix Select can't use an
 // empty string as an item value) — mapped back to `unsetFontSize()` below.
+// Values are `em`, not `px` — this mark can land on a paragraph/heading in
+// any of the site's type scales (the compact article default, or the much
+// larger `tiptap-content-category`/`tiptap-content-product` scale), so a
+// fixed px size that reads as "small" in one context can dwarf or vanish
+// against another. `em` keeps each step proportional to whatever font-size
+// it's nested in.
 const FONT_SIZES = [
-  { label: "Small", value: "12px" },
+  { label: "Small", value: "0.75em" },
   { label: "Normal", value: "default" },
-  { label: "Medium", value: "18px" },
-  { label: "Large", value: "24px" },
-  { label: "X-Large", value: "32px" },
-  { label: "XX-Large", value: "48px" },
+  { label: "Medium", value: "1.125em" },
+  { label: "Large", value: "1.5em" },
+  { label: "X-Large", value: "2em" },
+  { label: "XX-Large", value: "3em" },
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -380,6 +387,9 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
         <ToolbarButton label="Link" active={editor.isActive("link")} onClick={setLink}>
           <LinkIcon className="size-4" />
         </ToolbarButton>
+
+        <span className="bg-border mx-1 h-5 w-px" />
+
         <ToolbarButton
           label="Insert image"
           disabled={isUploadingImage}
@@ -387,9 +397,6 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
         >
           <ImagePlus className="size-4" />
         </ToolbarButton>
-
-        <span className="bg-border mx-1 h-5 w-px" />
-
         {/* Deliberately a different icon shape from the text-align group
             above (block-justify glyphs, not line-based) — same left/center/
             right meaning, but for the image as a block rather than text,
@@ -421,83 +428,78 @@ export function RichTextEditor({ value, onChange, onUploadImage, placeholder, co
 
         <span className="bg-border mx-1 h-5 w-px" />
 
+        <ToolbarButton
+          label="Insert table"
+          onClick={() =>
+            editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+          }
+        >
+          <TableIcon className="size-4" />
+        </ToolbarButton>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Table"
-              aria-pressed={editor.isActive("table")}
-              className={cn(editor.isActive("table") && "bg-accent text-accent-foreground")}
+              aria-label="Table adjustment"
+              disabled={!editor.isActive("table")}
             >
-              <TableIcon className="size-4" />
+              <TableProperties className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            {!editor.isActive("table") ? (
-              <DropdownMenuItem
-                onClick={() =>
-                  editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-                }
-              >
-                Insert table
-              </DropdownMenuItem>
-            ) : (
-              <>
-                <DropdownMenuItem
-                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "left" }).run()}
-                >
-                  <AlignHorizontalJustifyStart />
-                  Align left
-                  {(editor.getAttributes("table").align ?? "left") === "left" && (
-                    <Check className="ml-auto" />
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "center" }).run()}
-                >
-                  <AlignHorizontalJustifyCenter />
-                  Align center
-                  {editor.getAttributes("table").align === "center" && <Check className="ml-auto" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => editor.chain().focus().updateAttributes("table", { align: "right" }).run()}
-                >
-                  <AlignHorizontalJustifyEnd />
-                  Align right
-                  {editor.getAttributes("table").align === "right" && <Check className="ml-auto" />}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => editor.chain().focus().addColumnBefore().run()}>
-                  Add column before
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => editor.chain().focus().addColumnAfter().run()}>
-                  Add column after
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => editor.chain().focus().deleteColumn().run()}>
-                  Delete column
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => editor.chain().focus().addRowBefore().run()}>
-                  Add row before
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => editor.chain().focus().addRowAfter().run()}>
-                  Add row after
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => editor.chain().focus().deleteRow().run()}>
-                  Delete row
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => editor.chain().focus().deleteTable().run()}
-                >
-                  <Trash2 />
-                  Delete table
-                </DropdownMenuItem>
-              </>
-            )}
+            <DropdownMenuItem
+              onClick={() => editor.chain().focus().updateAttributes("table", { align: "left" }).run()}
+            >
+              <AlignHorizontalJustifyStart />
+              Align left
+              {(editor.getAttributes("table").align ?? "left") === "left" && (
+                <Check className="ml-auto" />
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => editor.chain().focus().updateAttributes("table", { align: "center" }).run()}
+            >
+              <AlignHorizontalJustifyCenter />
+              Align center
+              {editor.getAttributes("table").align === "center" && <Check className="ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => editor.chain().focus().updateAttributes("table", { align: "right" }).run()}
+            >
+              <AlignHorizontalJustifyEnd />
+              Align right
+              {editor.getAttributes("table").align === "right" && <Check className="ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => editor.chain().focus().addColumnBefore().run()}>
+              Add column before
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => editor.chain().focus().addColumnAfter().run()}>
+              Add column after
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => editor.chain().focus().deleteColumn().run()}>
+              Delete column
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => editor.chain().focus().addRowBefore().run()}>
+              Add row before
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => editor.chain().focus().addRowAfter().run()}>
+              Add row after
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => editor.chain().focus().deleteRow().run()}>
+              Delete row
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => editor.chain().focus().deleteTable().run()}
+            >
+              <Trash2 />
+              Delete table
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 

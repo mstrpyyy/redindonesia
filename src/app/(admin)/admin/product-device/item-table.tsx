@@ -50,12 +50,16 @@ function categoryBreadcrumb(category: IProductListItem["category"]): string {
 interface ISortableRowProps {
   item: IProductListItem;
   editorBasePath: string;
+  // Drag-disable only — reordering needs the unfiltered first page (ADR-083),
+  // but changing a row's status is unrelated to that and should still work
+  // while filtered.
   disabled: boolean;
+  statusDisabled: boolean;
   onStatusChange: (item: IProductListItem, status: "hidden" | "public") => void;
   onDelete: (item: IProductListItem) => void;
 }
 
-function SortableRow({ item, editorBasePath, disabled, onStatusChange, onDelete }: ISortableRowProps) {
+function SortableRow({ item, editorBasePath, disabled, statusDisabled, onStatusChange, onDelete }: ISortableRowProps) {
   const displayName = item.name || "Untitled";
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.id,
@@ -66,7 +70,7 @@ function SortableRow({ item, editorBasePath, disabled, onStatusChange, onDelete 
     <TableRow
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("bg-background", isDragging && "relative z-10 shadow-lg", disabled && "opacity-70")}
+      className={cn("bg-background", isDragging && "relative z-10 shadow-lg")}
     >
       <TableCell>
         <button
@@ -74,7 +78,10 @@ function SortableRow({ item, editorBasePath, disabled, onStatusChange, onDelete 
           {...attributes}
           {...listeners}
           aria-label={`Reorder ${displayName}`}
-          className="text-muted-foreground hover:text-foreground cursor-grab touch-none rounded-md p-1 active:cursor-grabbing"
+          className={cn(
+            "text-muted-foreground hover:text-foreground cursor-grab touch-none rounded-md p-1 active:cursor-grabbing",
+            disabled && "cursor-not-allowed opacity-40 hover:text-muted-foreground"
+          )}
         >
           <GripVertical className="size-4" />
         </button>
@@ -91,7 +98,7 @@ function SortableRow({ item, editorBasePath, disabled, onStatusChange, onDelete 
         <span className="text-muted-foreground block max-w-64 truncate text-xs">{categoryBreadcrumb(item.category)}</span>
       </TableCell>
       <TableCell>
-        <Select value={item.status} onValueChange={(value) => onStatusChange(item, value as "hidden" | "public")} disabled={disabled}>
+        <Select value={item.status} onValueChange={(value) => onStatusChange(item, value as "hidden" | "public")} disabled={statusDisabled}>
           <SelectTrigger
             size="sm"
             className="h-auto w-fit gap-1 rounded-full border-none bg-transparent p-0 whitespace-nowrap shadow-none hover:bg-transparent [&>svg]:hidden"
@@ -330,6 +337,7 @@ export function ItemTable({
                     item={item}
                     editorBasePath={editorBasePath}
                     disabled={isPending || !canReorder}
+                    statusDisabled={isPending}
                     onStatusChange={handleStatusChange}
                     onDelete={setDeleting}
                   />

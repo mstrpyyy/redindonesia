@@ -69,7 +69,7 @@ export const BrandHomeSection = () => {
         direction="right"
         pauseOnHover
       >
-        {brandList.reverse().map((item, index) => (
+        {[...brandList].reverse().map((item, index) => (
           <MarqueeComponent
             key={index}
             item={item}

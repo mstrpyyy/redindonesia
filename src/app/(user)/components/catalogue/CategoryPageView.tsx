@@ -48,6 +48,15 @@ export const CategoryPageView = ({
   // content" and render a visibly empty rich text block.
   const bodyHtml = category.body && hasRichTextContent(category.body) ? category.body : null
 
+  // A leaf category with zero products still renders the catalogue grid
+  // (with its own "No products available yet." message) when it's the only
+  // content on the page — but if the hero body/video section above already
+  // has something to show, an empty grid below it just reads as broken, so
+  // it's dropped entirely in that case. Doesn't apply to the sub-category
+  // browse grid (`hasChildren`), which always renders regardless.
+  const hasProductCatalogue =
+    hasChildren || productCards.length > 0 || !(bodyHtml || videoId)
+
   // Callers (`[category]/page.tsx`, `[category]/[brand]/page.tsx`) already
   // redirect home for a non-page category (ADR-033) before rendering this —
   // by the time we get here, `isPage` is always true.
@@ -81,7 +90,7 @@ export const CategoryPageView = ({
           )}
           {videoId && (
             <VideoTextSection
-              className="min-h-[90vh] portrait:my-0 portrait:mt-14"
+              className="portrait:my-0 portrait:mt-14 mb-0"
               videoId={videoId}
               videoTitle={category.youtubeCaption ?? 'YouTube video'}
               thumbnailUrl={category.youtubeThumbnailUrl ?? undefined}
@@ -92,19 +101,21 @@ export const CategoryPageView = ({
         </BodyWrapper>
       )}
 
-      <BodyWrapper className="bg-secondary">
-        {hasChildren ? (
-          <DeviceFilterList deviceList={childCards} heading="Browse Categories" emptyMessage="No sub-categories yet." cardVariant="category" />
-        ) : (
-          <CatalogueProductGrid
-            type={category.type}
-            initialItems={productCards}
-            initialHasMore={productCardsHasMore}
-            defaultCategoryId={category.id}
-            tags={tags}
-          />
-        )}
-      </BodyWrapper>
+      {hasProductCatalogue && (
+        <BodyWrapper className="bg-secondary">
+          {hasChildren ? (
+            <DeviceFilterList deviceList={childCards} heading="Browse Categories" emptyMessage="No sub-categories yet." cardVariant="category" />
+          ) : (
+            <CatalogueProductGrid
+              type={category.type}
+              initialItems={productCards}
+              initialHasMore={productCardsHasMore}
+              defaultCategoryId={category.id}
+              tags={tags}
+            />
+          )}
+        </BodyWrapper>
+      )}
     </main>
   )
 }

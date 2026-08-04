@@ -209,10 +209,10 @@ export interface IHomeCarousel {
   titleImage: string | null
 }
 
-// Admin list view — `categoryLabel` is the linked category's breadcrumb name
-// (only set for `mode: 'category'`), or null when that category has since
-// been deleted (`categoryId` is nulled via `onDelete: SetNull`) so the table
-// can surface a "category missing" warning without a second query per row.
+// Admin list view — `categoryLabel` is the linked category's own name (only
+// set for `mode: 'category'`), or null when that category has since been
+// deleted (`categoryId` is nulled via `onDelete: SetNull`) so the table can
+// surface a "category missing" warning without a second query per row.
 export interface IHomeCarouselListItem extends IHomeCarousel {
   categoryLabel: string | null
 }

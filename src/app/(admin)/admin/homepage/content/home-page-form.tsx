@@ -111,16 +111,15 @@ export function HomePageForm({
         </div>
       </div>
 
-      {message && (
-        <p className={message.type === "error" ? "text-destructive text-sm" : "text-emerald-600 text-sm"}>
-          {message.text}
-        </p>
-      )}
-
-      <div>
-        <Button type="button" onClick={handleSave} disabled={isPending || !canSubmit}>
+      <div className="flex items-center justify-start gap-3">
+        <Button type="button" onClick={handleSave} disabled={isPending || !canSubmit} className="w-32">
           {isPending ? "Saving..." : "Save"}
         </Button>
+        {message && (
+          <p className={message.type === "error" ? "text-destructive text-sm" : "text-emerald-600 text-sm"}>
+            {message.text}
+          </p>
+        )}
       </div>
     </div>
   );

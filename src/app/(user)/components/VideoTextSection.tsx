@@ -26,11 +26,11 @@ export const VideoTextSection = ({
   const hasText = Boolean(heading || description)
 
   return (
-    <div className={cn('flex flex-col-reverse lg:flex-row items-center gap-8 lg:gap-10 justify-between', className)}>
+    <div className={cn('flex flex-col-reverse lg:flex-row items-center gap-8 lg:gap-10 justify-between my-10', className)}>
       <div
         data-aos="fade-up"
         data-aos-duration="1000"
-        className="rounded-4xl overflow-hidden w-full lg:flex-1 aspect-video"
+        className={`rounded-4xl overflow-hidden w-full lg:flex-1 lg:max-w-222 aspect-video ${heading ? '' : 'mx-auto'}`}
       >
         <YoutubeEmbed id={videoId} title={videoTitle} thumbnail={thumbnailUrl} />
       </div>

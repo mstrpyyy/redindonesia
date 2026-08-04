@@ -161,6 +161,19 @@ export interface IApplicatorsSegment extends ISegmentBase {
   items: IApplicatorItem[]
 }
 
+export interface ICardGridItem {
+  title: string
+  subTitle?: string
+  imageUrl?: string
+  text?: string
+}
+
+export interface ICardGridSegment extends ISegmentBase {
+  type: 'cardGrid'
+  header: string
+  items: ICardGridItem[]
+}
+
 export interface IBeforeAfterItem {
   title: string
   beforeImageUrl: string
@@ -216,6 +229,7 @@ export type IProductSegment =
   | IViewer360Segment
   | ITechSpecsSegment
   | IApplicatorsSegment
+  | ICardGridSegment
   | IBeforeAfterSegment
   | IDocumentSegment
   | IRichTextSegment

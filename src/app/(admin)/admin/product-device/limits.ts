@@ -1,9 +1,9 @@
 export const MAX_CATEGORY_DEPTH = 3;
-export const MAX_CATEGORY_NAME_LENGTH = 150;
+export const MAX_CATEGORY_NAME_LENGTH = 50;
 
 // A category node that opts into being a real page (see ADR-033) — its own
 // title/description/banner, separate from the tree's compact `name`.
-export const MAX_CATEGORY_TITLE_LENGTH = 30;
+export const MAX_CATEGORY_TITLE_LENGTH = 50;
 export const MAX_CATEGORY_DESCRIPTION_LENGTH = 200;
 export const MAX_CATEGORY_BANNER_SIZE = 2 * 1000 * 1024;
 export const MAX_CATEGORY_BANNER_LABEL = "2MB";

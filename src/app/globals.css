@@ -193,7 +193,7 @@ html {
 }
 
 .h1-format {
-  @apply text-3xl sm:text-4xl md:text-6xl xl:text-7xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
+  @apply text-4xl md:text-6xl xl:text-7xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
 }
 
 .h2-format {
@@ -210,6 +210,10 @@ html {
 
 .h3-format {
   @apply text-xl sm:text-2xl xl:text-3xl font-semibold leading-10 sm:leading-12;
+}
+
+.h3-card-format {
+  @apply text-xl sm:text-2xl xl:text-2xl font-semibold leading-8 sm:leading-9;
 }
 
 .h3-sm-format {
@@ -281,7 +285,7 @@ html {
 /* Minimal readable defaults for Tiptap's contenteditable output — the admin
    article editor and any page rendering `Article.content` as raw HTML. */
 .tiptap-content {
-  line-height: 2;
+  @apply leading-relaxed;
 }
 .tiptap-content p,
 .tiptap-content h2,
@@ -499,20 +503,17 @@ html {
 .tiptap-content-product h3:first-child {
   margin-top: 0;
 }
-.tiptap-content-product p {
-  @apply lg:text-lg 2xl:text-xl font-light text-justify leading-8 2xl:leading-10;
-  margin-bottom: 1rem;
-}
-/* Both paragraph classes above are `font-light` (300) — the browser's
+/* No `.tiptap-content-product p` override — the Rich Text segment's
+   paragraphs read as plain body copy, same as the other `.tiptap-content`-
+   only pages (support pages, articles), not the Highlight/category scale. */
+/* `.tiptap-content-category p` is `font-light` (300) — the browser's
    default `<strong>`/`<b>` weight is the *relative* keyword `bolder`, which
    the CSS spec resolves against an inherited 300 down to 400 (normal), not
-   700. Bold text typed in these paragraphs was barely distinguishable from
+   700. Bold text typed in that paragraph was barely distinguishable from
    the surrounding light text as a result. Setting an explicit weight here
    fixes that and makes it read clearly heavier than plain bold. */
 .tiptap-content-category p strong,
-.tiptap-content-category p b,
-.tiptap-content-product p strong,
-.tiptap-content-product p b {
+.tiptap-content-category p b {
   font-weight: 500;
 }
 
@@ -548,7 +549,6 @@ html {
   font-size: 1.125rem;
   line-height: 1.3;
 }
-.tiptap-content-product-compact p {
-  font-size: 1rem;
-  line-height: normal;
-}
+/* No `.tiptap-content-product-compact p` override — the public side no
+   longer has a special product `p` size to mirror, so this falls back to
+   the same plain `.tiptap-content p` the support pages use. */

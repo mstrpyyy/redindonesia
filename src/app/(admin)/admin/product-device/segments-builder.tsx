@@ -36,6 +36,7 @@ import {
   type IFieldDef,
 } from "./segment-types";
 import { UploadField } from "@/components/upload-field";
+import { CharLimitWarning, isAtCharLimit } from "@/components/char-limit-warning";
 import { SEGMENT_BACKGROUND_COLORS, getSegmentBackgroundColor } from "@/lib/segment-colors";
 import { uploadViewer360Frames } from "./viewer360-upload-actions";
 import { uploadSegmentContentImage } from "./segment-upload-actions";
@@ -234,16 +235,6 @@ function Viewer360FramesInput({
       )}
     </div>
   );
-}
-
-// True once a maxLength-bearing field's value has reached that length —
-// `maxLength` on the input already blocks typing past it, this just says so.
-function isAtCharLimit(value: unknown, maxLength: number | undefined): boolean {
-  return typeof value === "string" && maxLength !== undefined && value.length >= maxLength;
-}
-
-function CharLimitWarning({ maxLength }: { maxLength: number }) {
-  return <p className="text-destructive text-xs">Character limit reached ({maxLength}).</p>;
 }
 
 // Marks a required field's label instead of every optional one saying so —

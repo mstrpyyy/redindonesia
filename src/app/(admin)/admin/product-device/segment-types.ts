@@ -266,7 +266,7 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
             label: "Description",
             type: "textarea",
             required: true,
-            maxLength: 350,
+            maxLength: 1000,
             placeholder: "Describe this item.",
           },
         ],
@@ -276,6 +276,61 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
   {
     type: "applicators",
     label: "Carousel",
+    fields: [
+      {
+        key: "header",
+        label: "Header",
+        type: "text",
+        required: true,
+        maxLength: 50,
+        placeholder: "e.g. Applicators",
+      },
+      {
+        key: "items",
+        label: "Items",
+        type: "list",
+        itemLabel: "item",
+        itemFieldLayout: "grid",
+        // Same "always at least one row, and that row can't be removed"
+        // behavior as List/Accordion — see the minItems-driven Remove-button
+        // disable in segments-builder.tsx's ListField (both layout branches).
+        minItems: 1,
+        itemFields: [
+          {
+            key: "title",
+            label: "Title",
+            type: "text",
+            required: true,
+            maxLength: 20,
+            placeholder: "e.g. Feature name",
+          },
+          {
+            key: "subTitle",
+            label: "Subtitle",
+            type: "text",
+            maxLength: 50,
+            placeholder: "Optional subtitle",
+          },
+          {
+            key: "imageUrl",
+            label: "Image",
+            type: "carouselImage",
+            helpText: `Up to ${MAX_CAROUSEL_IMAGE_LABEL}. JPEG, PNG, or WEBP.`,
+          },
+          {
+            key: "text",
+            label: "Description",
+            type: "textarea",
+            maxLength: 250,
+            placeholder: "Optional description.",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    type: "cardGrid",
+    label: "Card Grid",
     fields: [
       {
         key: "header",

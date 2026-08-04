@@ -45,7 +45,7 @@ export const CategoryCard = ({ item, className, ...props }: ICategoryCardProps) 
       <div className="relative z-10 flex h-full flex-col items-center justify-between gap-3 text-white">
         <div className="flex flex-col items-center gap-3">
           <h3 className="h3-format font-semibold text-balance">{item.name}</h3>
-          {item.desc && <p className="p-card-format max-w-md text-balance">{item.desc}</p>}
+          {item.desc && <p className="p-card-format max-w-md text-center! text-balance">{item.desc}</p>}
         </div>
         <Button asChild variant="glass" size="lg" className="rounded-full">
           <Link href={item.url}>
