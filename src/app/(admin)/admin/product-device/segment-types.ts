@@ -341,6 +341,13 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
         placeholder: "e.g. Applicators",
       },
       {
+        key: "backgroundColor",
+        label: "Background Color",
+        type: "colorSwatch",
+        required: true,
+        defaultValue: DEFAULT_SEGMENT_BACKGROUND_COLOR,
+      },
+      {
         key: "items",
         label: "Items",
         type: "list",
@@ -498,7 +505,9 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
 // optional, admin-picked sections, so it's excluded from the "Add a segment"
 // menu and instead auto-created/pinned to the top of the segments list (see
 // SegmentsBuilder).
-export const ADDABLE_SEGMENT_TYPES = SEGMENT_TYPES.filter((def) => def.type !== "hero");
+export const ADDABLE_SEGMENT_TYPES = SEGMENT_TYPES.filter((def) => def.type !== "hero").sort((a, b) =>
+  a.label.localeCompare(b.label)
+);
 
 export function getSegmentTypeDef(type: string): ISegmentTypeDef | undefined {
   return SEGMENT_TYPES.find((def) => def.type === type);

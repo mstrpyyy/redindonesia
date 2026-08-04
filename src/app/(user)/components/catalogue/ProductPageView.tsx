@@ -15,6 +15,7 @@ import { cn, getYoutubeVideoId } from '@/lib/utils'
 import { IProduct } from '@/interfaces/general'
 import { ICertification, IHeroDoc, IHeroSegment, IProductSegment } from '@/interfaces/segments'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
+import { getSegmentBackgroundColor } from '@/lib/segment-colors'
 import { getCertificationHref, getCertificationLogo, getCertificationSubLabel } from '@/lib/certification-logos'
 
 interface IProductPageViewProps {
@@ -168,10 +169,14 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
       )
       if (items.length === 0) return null
 
+      const { bgClassName, textClassName } = getSegmentBackgroundColor(segment.backgroundColor)
+
       return (
-        <BodyWrapper className='my-14'>
-          <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
-          <CardGrid list={items} />
+        <BodyWrapper className={cn('py-10 md:py-20', bgClassName)}>
+          <section className={textClassName}>
+            <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
+            <CardGrid list={items} />
+          </section>
         </BodyWrapper>
       )
     }

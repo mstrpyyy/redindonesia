@@ -8,7 +8,7 @@ import {
   YoutubeOutlinedRounded,
 } from '@lineiconshq/react-lineicons'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
-import { CertificationList } from '@/app/(user)/components/TrustLists'
+import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSocialAccounts } from '@/lib/social-accounts'
 import { getSupportPage } from '@/lib/support-pages'
 import { hasRichTextContent } from '@/lib/utils'
@@ -47,10 +47,6 @@ export default async function SupportMarcomPromotion() {
           <div className='tiptap-content' dangerouslySetInnerHTML={{ __html: bodyHtml }} />
         </BodyWrapper>
       )}
-
-      <BodyWrapper className='pb-20'>
-        <CertificationList />
-      </BodyWrapper>
 
       <BodyWrapper className="py-20 radial-gradient3">
         <h2 className='h2-format text-center'>
@@ -91,6 +87,10 @@ export default async function SupportMarcomPromotion() {
             </a>
           ))}
         </div>
+      </BodyWrapper>
+
+      <BodyWrapper className='pb-20'>
+        <TrustSection />
       </BodyWrapper>
     </main>
   )

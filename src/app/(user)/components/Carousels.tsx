@@ -227,7 +227,7 @@ function FeatureCard({
       </div>
 
       {transparent ? (
-        <p className="text-sm text-neutral-500 text-justify">{item.text}</p>
+        <p className="text-sm text-current text-justify">{item.text}</p>
       ) : (
         <p
           onPointerEnter={() => showFullText?.(index)} onPointerLeave={() => showFullText?.(null)}

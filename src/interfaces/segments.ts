@@ -171,6 +171,8 @@ export interface ICardGridItem {
 export interface ICardGridSegment extends ISegmentBase {
   type: 'cardGrid'
   header: string
+  // One of SEGMENT_BACKGROUND_COLOR_VALUES (src/lib/segment-colors.ts).
+  backgroundColor: string
   items: ICardGridItem[]
 }
 
