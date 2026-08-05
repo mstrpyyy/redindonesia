@@ -173,14 +173,30 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
               </NavMenuLink>
 
               {child.menu?.map((grandchild) => (
-                <NavMenuLink
-                  key={grandchild.slug}
-                  href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}`}
-                  isPage={grandchild.isPage}
-                  className={`font-extralight pl-6 my-2 block w-fit ${grandchild.isPage === false ? '' : 'hover:underline'}`}
-                >
-                  {grandchild.name}
-                </NavMenuLink>
+                <Fragment key={grandchild.slug}>
+                  <NavMenuLink
+                    href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}`}
+                    isPage={grandchild.isPage}
+                    className={`font-extralight pl-6 my-2 block w-fit ${grandchild.isPage === false ? '' : 'hover:underline'}`}
+                  >
+                    {grandchild.name}
+                  </NavMenuLink>
+
+                  {/* A category caps at depth 3 (MAX_CATEGORY_DEPTH), so this
+                      can only ever be menu-flagged products attached directly
+                      to that deepest category (ADR-086) — never a 4th
+                      category level. */}
+                  {grandchild.menu?.map((greatGrandchild) => (
+                    <NavMenuLink
+                      key={greatGrandchild.slug}
+                      href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}/${greatGrandchild.slug}`}
+                      isPage={greatGrandchild.isPage}
+                      className={`font-extralight pl-10 my-2 block w-fit ${greatGrandchild.isPage === false ? '' : 'hover:underline'}`}
+                    >
+                      {greatGrandchild.name}
+                    </NavMenuLink>
+                  ))}
+                </Fragment>
               ))}
             </div>
           ))}

@@ -7,15 +7,15 @@ import { Input } from "@/components/ui/input";
 import { ICategory, ITag } from "@/interfaces/general";
 import { IMultiSelectOption, MultiSelectFilter } from "./multi-select-filter";
 
-// Mirrors CategoryPicker's own `buildGroups`/`flattenDescendants` (same
-// "root categories aren't directly assignable, only their descendants are"
-// convention) but without the per-root header grouping — a flat, indented
-// list is enough for a filter popover.
+// Mirrors CategoryPicker's own `buildGroups`/`flattenDescendants` (the root
+// category is assignable too, same as any other depth) but without the
+// per-root header grouping — a flat, indented list is enough for a filter
+// popover.
 function flattenCategoryOptions(categories: ICategory[]): IMultiSelectOption[] {
   const flattenDescendants = (nodes: ICategory[], indent: number): IMultiSelectOption[] =>
     nodes.flatMap((node) => [{ id: node.id, name: node.name, indent }, ...flattenDescendants(node.children, indent + 1)]);
 
-  return categories.flatMap((root) => flattenDescendants(root.children, 0));
+  return categories.flatMap((root) => flattenDescendants([root], 0));
 }
 
 const SEARCH_DEBOUNCE_MS = 400;

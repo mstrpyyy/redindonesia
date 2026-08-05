@@ -24,14 +24,17 @@ interface ICategoryGroup {
 }
 
 // One group per depth-1 category (its name shown as a non-selectable
-// header), with every descendant listed underneath, indented by how many
-// levels below the root it sits — e.g.:
+// header), with the root itself and every descendant listed underneath,
+// indented by how many levels below the root it sits — e.g.:
 //   Medical Aesthetic Devices   <- header, not selectable
-//       Alma Beauty             <- selectable, indent 0
-//           Alma Harmony        <- selectable, indent 1
-// A plain grouped Select rather than a search-as-you-type combobox, since
-// this project has no cmdk/Command component installed yet and the category
-// trees are small enough that scanning a list is fine.
+//       Medical Aesthetic Devices  <- selectable, indent 0 (the root itself)
+//       Alma Beauty             <- selectable, indent 1
+//           Alma Harmony        <- selectable, indent 2
+// The root is selectable too (not just a header) so a product can be filed
+// directly at the highest level, same as any other depth. A plain grouped
+// Select rather than a search-as-you-type combobox, since this project has
+// no cmdk/Command component installed yet and the category trees are small
+// enough that scanning a list is fine.
 function buildGroups(categories: ICategory[]): ICategoryGroup[] {
   const flattenDescendants = (nodes: ICategory[], indent: number): IFlatCategoryOption[] =>
     nodes.flatMap((node) => [
@@ -42,7 +45,7 @@ function buildGroups(categories: ICategory[]): ICategoryGroup[] {
   return categories.map((root) => ({
     rootId: root.id,
     rootName: root.name,
-    options: flattenDescendants(root.children, 0),
+    options: [{ id: root.id, name: root.name, indent: 0 }, ...flattenDescendants(root.children, 1)],
   }));
 }
 

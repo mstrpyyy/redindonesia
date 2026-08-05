@@ -14,7 +14,7 @@ interface IDeviceFilterList {
   emptyMessage?: string
   // "category" renders `CategoryCard` (full-bleed banner, centered title/
   // description/CTA) instead of the default product `DeviceCard` — used for
-  // the "Browse Categories" sub-category grid (CategoryPageView.tsx).
+  // the "Browse Category" sub-category grid (CategoryPageView.tsx).
   cardVariant?: 'product' | 'category'
 }
 

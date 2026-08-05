@@ -4017,3 +4017,85 @@ primary-category-scoped for now.
   no-cascade-to-content precedent as deleting a `Tag` (ADR-065).
 - A product with zero secondary categories behaves exactly as before this
   ADR — no behavior change for the existing single-category catalogue.
+
+## ADR-086: Per-product `showInMenu` splices individual products into the navbar dropdown
+
+**Date:** 2026-08-05
+**Status:** Accepted
+
+**Context:** The navbar mega-menu (`LargeDropdown`/`SidebarDropdown`) is built entirely
+from the `Category` tree (`mapCategoriesToNavMenu`) — a `Product` never appears in it. To
+get an individual product's name into the dropdown today, an admin has to create a
+`Category` node for it, then file the product under that node — awkward when the goal is
+just "list these actual products by name," not build out more category structure.
+**Options considered:**
+1. A `Category.showProductsInMenu` toggle — when on, all of that category's public
+   products are spliced into its dropdown entry. Simpler to reason about (one flag per
+   branch) but all-or-nothing: every product under that category shows, with no way to
+   pick and choose.
+2. A per-product `Product.showInMenu` toggle, set in the product editor itself. Slightly
+   more clicks for an admin who wants every product shown, but lets each product opt in
+   individually — matches how `status` (hidden/public) already works per-product, and
+   avoids a second "is this visible" flag living on a different model than the content
+   it's cataloging.
+**Decision:** Option 2. `Product.showInMenu` (migration
+`20260805042633_add_product_show_in_menu`, additive, default `false`). A product only shows in the menu when both `status: "public"`
+and `showInMenu: true`. `mapCategoriesToNavMenu` (`src/lib/categories.ts`) is now async: it
+fetches every menu-flagged public product for the type in one query
+(`getPublicNavProductsByCategory`), groups by `categoryId`, and appends each category's own
+matches after its sub-categories in that category's `menu` array. Each product becomes a
+leaf entry (`isPage: true`) at `/<...ancestorSlugs>/<product.slug>` — a path
+`resolveDevicesRoute` (`src/lib/devices-route.ts`) already resolves without any category
+node of its own, since it already falls back to "parent category + product slug" when the
+full path doesn't match a category. `src/app/(user)/layout.tsx` now awaits
+`mapCategoriesToNavMenu(tree, type)` for both the device and product trees.
+
+The product-fetch query is deliberately uncached (unlike `getCategoryTree`, cached via
+`getPublicDeviceCategoryTree`/`getPublicProductCategoryTree`) — it's cheap, and this way a
+product's own `revalidateProductPages` (product-actions.ts) doesn't need a new cache tag
+just to keep the nav in sync; the next request just re-queries.
+
+ADR-043's "drop branches with no page anywhere in them" rule needed extending: a plain
+breadcrumb category (`isPage: false`) with only menu-flagged products underneath is now
+real nav content, not a dead branch. This couldn't reuse the shared `hasPageInBranch`
+(`src/lib/category-visibility.ts`) as-is, since that helper is also called by the admin
+tree's "hidden from navbar" indicator (`category-tree.tsx`), which has no product data on
+hand — so a local `branchHasNavContent` (categories.ts only) checks `isPage` OR a
+menu-flagged product OR any child branch recursively, and `hasPageInBranch` itself is
+unchanged.
+**Consequences:**
+- `IProduct.showInMenu: boolean` — always populated; the product editor's Identity tab
+  gets a "Show in navbar menu" switch next to Status.
+- The admin's "hidden from navbar" category-tree indicator doesn't account for
+  menu-flagged products underneath a breadcrumb category — it can show the icon on a
+  branch that's actually visible via this route. Accepted: fixing it would mean plumbing
+  product counts into the admin tree fetch for a cosmetic indicator only; the live site is
+  the source of truth.
+- No depth restriction: a product's `categoryId` can point to a category at any depth
+  (1-3, ADR-020). `SidebarDropdown` already recursed on `item.menu` with no fixed level
+  cap, but `LargeDropdown`'s `MenuList` hardcoded exactly three nesting levels
+  (menu/child/grandchild) — a product attached to a depth-3 category would have been
+  present in the data but never rendered on desktop. `MenuList` gained one more
+  (non-recursive, since a product leaf never has its own `.menu`) level to close that gap.
+
+**Follow-up (same date):** Three refinements once the toggle was in front of the admin:
+- The "Show in navbar" switch moved from its own bordered row (below Status) to sit
+  directly beside the Category picker — one field, since which category a product is
+  filed under and whether it shows in that category's menu are the same decision from an
+  admin's point of view.
+- `CategoryPicker` (and the two other pickers that mirror its `flattenDescendants` logic —
+  `flattenSecondaryCategoryOptions` in `product-form.tsx`, `flattenCategoryOptions` in
+  `item-filter-bar.tsx`) previously only listed a root (depth-1) category as a
+  non-selectable group header, forcing every product onto depth 2+. All three now include
+  the root itself as a selectable option (indent 0), descendants shifted one indent level
+  deeper — a product (or a list filter) can target the highest level directly, same as any
+  other depth.
+- `CategoryPageView` previously showed *either* the sub-category grid ("Browse Category")
+  *or* the product catalogue grid ("Browse Catalogue"), based solely on whether the
+  category had children — so a non-leaf category's own directly-filed products (ADR-020)
+  never had anywhere to render. Both page.tsx callers (`devices/[...slug]`,
+  `products/[...slug]`) now always fetch `productCards` regardless of `children.length`;
+  `CategoryPageView` renders the catalogue grid whenever the category actually has
+  products of its own, in addition to the sub-category grid when it also has children. A
+  non-leaf category with zero products of its own is unaffected — still just the
+  sub-category grid, no empty catalogue section.

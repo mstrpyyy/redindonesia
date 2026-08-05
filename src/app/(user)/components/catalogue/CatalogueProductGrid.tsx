@@ -13,9 +13,10 @@ const SEARCH_DEBOUNCE_MS = 400;
 
 // Live, filterable, infinite-scrolling replacement for a leaf category's
 // static product grid — see ADR-084. Renders where `DeviceFilterList` used
-// to render `productCards` in `CategoryPageView`; the "Browse Categories"
-// sub-category grid still uses `DeviceFilterList` unchanged. Scoped to
-// `defaultCategoryId` only — no category multiselect (removed per feedback,
+// to render `productCards` in `CategoryPageView`; the "Browse Category"
+// sub-category grid still uses `DeviceFilterList` unchanged, and now can
+// render alongside this grid for a category that has both (ADR-086). Scoped
+// to `defaultCategoryId` only — no category multiselect (removed per feedback,
 // see TASKS.md), so `categoryIds` is always this one fixed category.
 export function CatalogueProductGrid({
   type,

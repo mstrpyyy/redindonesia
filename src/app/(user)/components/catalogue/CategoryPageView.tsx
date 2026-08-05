@@ -12,9 +12,10 @@ interface ICategoryPageViewProps {
   // The current page's own path, e.g. "/devices/medical-aesthetic-devices" —
   // child-category cards link to `${urlPrefix}/${slug}`.
   urlPrefix: string
-  // First batch of public products directly assigned to this category (see
-  // ADR-084) — only fetched when the category has no sub-categories of its
-  // own (the page.tsx callers only fetch these for a leaf node).
+  // First batch of public products directly assigned to this exact category
+  // (see ADR-084) — the page.tsx callers now always fetch these, leaf or
+  // not, since a category can have both sub-categories and its own directly
+  // filed products (ADR-020, ADR-086).
   productCards: IDeviceCardItem[]
   productCardsHasMore: boolean
   // Tag list for `category.type` — filter options for `CatalogueProductGrid`'s
@@ -52,10 +53,13 @@ export const CategoryPageView = ({
   // (with its own "No products available yet." message) when it's the only
   // content on the page — but if the hero body/video section above already
   // has something to show, an empty grid below it just reads as broken, so
-  // it's dropped entirely in that case. Doesn't apply to the sub-category
-  // browse grid (`hasChildren`), which always renders regardless.
-  const hasProductCatalogue =
-    hasChildren || productCards.length > 0 || !(bodyHtml || videoId)
+  // it's dropped entirely in that case. A non-leaf category only gets the
+  // catalogue grid alongside its sub-category grid when it actually has
+  // products of its own — an empty one there would just look broken next to
+  // a populated "Browse Category" grid, unlike the leaf case above where
+  // it's the page's only content either way.
+  const showProductCatalogue = productCards.length > 0 || (!hasChildren && !(bodyHtml || videoId))
+  const showCatalogueSection = hasChildren || showProductCatalogue
 
   // Callers (`[category]/page.tsx`, `[category]/[brand]/page.tsx`) already
   // redirect home for a non-page category (ADR-033) before rendering this —
@@ -101,17 +105,23 @@ export const CategoryPageView = ({
         </BodyWrapper>
       )}
 
-      {hasProductCatalogue && (
+      {showCatalogueSection && (
         <BodyWrapper className="bg-secondary">
-          {hasChildren ? (
-            <DeviceFilterList deviceList={childCards} heading="Browse Categories" emptyMessage="No sub-categories yet." cardVariant="category" />
-          ) : (
+          {hasChildren && (
+            <DeviceFilterList deviceList={childCards} heading="Browse Category" emptyMessage="No sub-categories yet." cardVariant="category" />
+          )}
+
+          {/* Shown in addition to the grid above when this category also has
+              products filed directly on it (ADR-020, ADR-086) — not just for
+              a leaf category, which only ever reaches this branch. */}
+          {showProductCatalogue && (
             <CatalogueProductGrid
               type={category.type}
               initialItems={productCards}
               initialHasMore={productCardsHasMore}
               defaultCategoryId={category.id}
               tags={tags}
+              heading="Browse Catalogue"
             />
           )}
         </BodyWrapper>

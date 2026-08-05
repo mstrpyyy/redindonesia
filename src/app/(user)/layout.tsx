@@ -34,9 +34,13 @@ export default async function userLayout({
     getPublicDeviceCategoryTree().catch(() => null),
     getPublicProductCategoryTree().catch(() => null),
   ]);
+  const [deviceMenu, productMenu] = await Promise.all([
+    mapCategoriesToNavMenu(deviceCategories ?? [], "device"),
+    mapCategoriesToNavMenu(productCategories ?? [], "product"),
+  ]);
   const menus = buildNavMenus(
-    { fetchSucceeded: deviceCategories !== null, menu: mapCategoriesToNavMenu(deviceCategories ?? []) },
-    { fetchSucceeded: productCategories !== null, menu: mapCategoriesToNavMenu(productCategories ?? []) }
+    { fetchSucceeded: deviceCategories !== null, menu: deviceMenu },
+    { fetchSucceeded: productCategories !== null, menu: productMenu }
   );
 
   return (

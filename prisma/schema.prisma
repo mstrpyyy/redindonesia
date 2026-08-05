@@ -141,6 +141,12 @@ model Product {
   // "hidden" | "public" — renamed from draft/published (ADR-040); a hidden
   // item is a work in progress, only enforced complete once made public.
   status      String   @default("hidden")
+  // When true (and `status` is "public"), this product is spliced into its
+  // category's navbar dropdown as its own named menu item (ADR-086) — an
+  // alternative to modeling every product as its own `Category` node just to
+  // get a name in the menu. Per-product rather than a category-wide switch so
+  // an admin can pick which products actually warrant a menu entry.
+  showInMenu  Boolean  @default(false)
   order       Int      @default(0)
   categoryId  String
   category    Category @relation(fields: [categoryId], references: [id])

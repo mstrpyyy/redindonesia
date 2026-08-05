@@ -2446,3 +2446,58 @@ either primary or secondary; leave the one path that shares a single `urlPrefix`
   category page cross-listing).
 **Do not:** Make `categoryId` itself many-to-many, or let a product resolve at more than
 one public URL.
+
+## [x] Task: Per-product "Show in navbar menu" toggle
+
+**Context:** The navbar mega-menu only ever lists `Category` nodes — a product never
+appears in it by name. Ask: let specific products show up as named items in their
+category's dropdown, without having to model each one as its own `Category` node just to
+get a menu entry. See ADR-086.
+**Approach:** Add `Product.showInMenu` (per-product, not category-wide, so an admin picks
+which products actually warrant a menu entry). `mapCategoriesToNavMenu` becomes async,
+fetches every public + menu-flagged product for the type in one query, and appends each
+category's matches after its sub-categories in that category's `menu` array — each product
+becomes a leaf entry at `/<...ancestorSlugs>/<product.slug>`, a path `resolveDevicesRoute`
+already resolves. `LargeDropdown`'s `MenuList` gained a 4th (non-recursive) nesting level
+so a product filed under a depth-3 category still renders on desktop, matching
+`SidebarDropdown`'s already-uncapped recursion.
+**Files to create or modify:**
+- `prisma/schema.prisma` — `Product.showInMenu Boolean @default(false)`
+- `prisma/migrations/20260805042633_add_product_show_in_menu/` — new, additive
+- `src/interfaces/general.ts` — `IProduct.showInMenu: boolean`
+- `src/lib/products.ts` — `mapProductRow` includes `showInMenu`
+- `src/lib/categories.ts` — `getPublicNavProductsByCategory`, `branchHasNavContent`,
+  `mapCategoriesToNavMenu` is now `async` and takes `type`
+- `src/app/(user)/layout.tsx` — awaits `mapCategoriesToNavMenu` for both trees
+- `src/app/(user)/components/navbar/LargeDropdown.tsx` — `MenuList` renders a 4th level
+- `src/app/(admin)/admin/product-device/product-actions.ts` — `showInMenu` in
+  `productFieldsSchema`, persisted on create/update
+- `src/app/(admin)/admin/product-device/product-form.tsx` — "Show in navbar menu" switch
+  in the Identity tab
+- `DECISIONS.md` (ADR-086)
+**Acceptance criteria:**
+- [x] Migration is additive only — no existing column altered or dropped.
+- [x] Toggling the switch and publishing a product shows it by name in the navbar dropdown
+  under its category, alongside any sub-categories.
+- [x] A `hidden` product with the switch on does not appear in the menu.
+- [x] A plain breadcrumb category (`isPage: false`) with only menu-flagged products under
+  it is no longer pruned from the nav (ADR-043's rule extended, not bypassed).
+- [x] Works at every category depth (1-3), including a product filed under the deepest
+  (depth-3) category, on both `LargeDropdown` (desktop) and `SidebarDropdown` (mobile).
+- [x] `tsc --noEmit` passes.
+- [ ] Manually verified in the browser.
+**Do not:** Make this a category-wide switch, or let it show a `hidden` product in the
+menu.
+
+**Follow-up refinements (same day, see ADR-086's addendum):**
+- [x] "Show in navbar" switch moved next to the Category picker in `product-form.tsx`
+  (was its own bordered row below Status).
+- [x] `CategoryPicker`, `flattenSecondaryCategoryOptions`, and `item-filter-bar.tsx`'s
+  `flattenCategoryOptions` all now let a root (depth-1) category be selected directly,
+  not just its descendants.
+- [x] `CategoryPageView` renders both "Browse Category" (sub-categories) and "Browse
+  Catalogue" (this category's own products) when a category has both — previously only
+  one or the other, based on `children.length` alone. Both `devices/[...slug]/page.tsx`
+  and `products/[...slug]/page.tsx` now always fetch `productCards`.
+- [x] `tsc --noEmit` passes.
+- [ ] Manually verified in the browser.

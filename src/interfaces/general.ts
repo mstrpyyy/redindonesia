@@ -155,6 +155,9 @@ export interface IProduct {
   thumbnail: string | null
   cardBackground: ICardBackgroundValue | null
   status: 'hidden' | 'public'
+  // See ADR-086 — splices this product into its category's navbar dropdown
+  // as its own menu item, when also `status: 'public'`.
+  showInMenu: boolean
   order: number
   categoryId: string
   // Cross-listing only — `categoryId` above always stays the one that drives

@@ -68,12 +68,13 @@ export default async function ProductsCatchAllPage({ params }: IPageProps) {
     if (!category.isPage) redirect('/')
 
     const urlPrefix = `/products/${slug.join('/')}`
-    const isLeaf = category.children.length === 0
 
+    // Fetched regardless of whether this category has sub-categories — a
+    // non-leaf category can still have products filed directly on it
+    // (ADR-020), in which case `CategoryPageView` renders both a "Browse
+    // Category" grid and a "Browse Catalogue" grid.
     const [{ items: productCards, hasMore: productCardsHasMore }, tags] = await Promise.all([
-      isLeaf
-        ? getPublicCatalogueCards('product', { categoryIds: [category.id], limit: CATALOGUE_PAGE_SIZE })
-        : Promise.resolve({ items: [], hasMore: false }),
+      getPublicCatalogueCards('product', { categoryIds: [category.id], limit: CATALOGUE_PAGE_SIZE }),
       getTags('product'),
     ])
 

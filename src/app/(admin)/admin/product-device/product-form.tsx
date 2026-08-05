@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -108,11 +109,11 @@ function sameIds(a: string[], b: string[]): boolean {
   return b.every((id) => ids.has(id));
 }
 
-// Mirrors CategoryPicker's own `buildGroups`/`flattenDescendants` (root
-// categories aren't directly assignable, only their descendants are) but
-// without the per-root header grouping, same as item-filter-bar's own copy —
-// this one also excludes the product's current primary category, which can't
-// also be picked as a secondary cross-listing (ADR-085).
+// Mirrors CategoryPicker's own `buildGroups`/`flattenDescendants` (the root
+// category is assignable too, same as any other depth) but without the
+// per-root header grouping, same as item-filter-bar's own copy — this one
+// also excludes the product's current primary category, which can't also be
+// picked as a secondary cross-listing (ADR-085).
 function flattenSecondaryCategoryOptions(categories: ICategory[], excludeId: string): IMultiSelectOption[] {
   const flattenDescendants = (nodes: ICategory[], indent: number): IMultiSelectOption[] =>
     nodes.flatMap((node) => [
@@ -120,7 +121,7 @@ function flattenSecondaryCategoryOptions(categories: ICategory[], excludeId: str
       ...flattenDescendants(node.children, indent + 1),
     ]);
 
-  return categories.flatMap((root) => flattenDescendants(root.children, 0));
+  return categories.flatMap((root) => flattenDescendants([root], 0));
 }
 
 type IEditorTab = "identity" | "thumbnail" | "files" | "segments";
@@ -165,6 +166,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
   const [secondaryCategoryIds, setSecondaryCategoryIds] = useState<string[]>(product?.secondaryCategoryIds ?? []);
   const [status, setStatus] = useState<"hidden" | "public">(product?.status ?? "hidden");
+  const [showInMenu, setShowInMenu] = useState(product?.showInMenu ?? false);
   // Computed once and reused as both the initial value and the dirty-check
   // baseline — calling withHeroSegment twice would inject two different
   // random ids for the auto-created hero, falsely marking the form dirty.
@@ -229,6 +231,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
     tagline !== (product?.tagline ?? "") ||
     categoryId !== (product?.categoryId ?? "") ||
     status !== (product?.status ?? "hidden") ||
+    showInMenu !== (product?.showInMenu ?? false) ||
     cardBackground !== (product?.cardBackground ?? DEFAULT_CARD_BACKGROUND) ||
     JSON.stringify(segments) !== JSON.stringify(initialSegments) ||
     !sameTagIds(selectedTags, product?.tags ?? []) ||
@@ -320,6 +323,7 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
     formData.set("categoryId", categoryId);
     formData.set("cardBackground", cardBackground);
     formData.set("status", nextStatus);
+    formData.set("showInMenu", showInMenu ? "true" : "false");
     formData.set("segments", JSON.stringify(segments));
     formData.set("tagIds", JSON.stringify(selectedTags.map((tag) => tag.id)));
     formData.set("secondaryCategoryIds", JSON.stringify(secondaryCategoryIds));
@@ -373,7 +377,17 @@ export function ProductForm({ type, categories, tags, product }: IProductFormPro
               <Label>
                 Category<span className="text-destructive"> *</span>
               </Label>
-              <CategoryPicker categories={categories} value={categoryId} onChange={handleCategoryChange} />
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <CategoryPicker categories={categories} value={categoryId} onChange={handleCategoryChange} />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Switch id="show-in-menu" checked={showInMenu} onCheckedChange={setShowInMenu} />
+                  <Label htmlFor="show-in-menu" className="text-sm font-normal whitespace-nowrap">
+                    Show in navbar
+                  </Label>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">

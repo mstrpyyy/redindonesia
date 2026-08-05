@@ -82,6 +82,10 @@ const productFieldsSchema = z.object({
   // Optional so a form that never touched the picker still saves; the card
   // falls back to the default tint when it's null.
   cardBackground: z.enum(CARD_BACKGROUND_VALUES).optional(),
+  // FormData booleans arrive as strings — defaults to "false" so a payload
+  // that never touched the switch still parses instead of failing outright.
+  // See ADR-086.
+  showInMenu: z.preprocess((value) => value ?? "false", z.enum(["true", "false"])).transform((value) => value === "true"),
 });
 
 const thumbnailSchema = z
@@ -251,6 +255,7 @@ export async function createProduct(
     categoryId: formData.get("categoryId"),
     status: formData.get("status"),
     cardBackground: formData.get("cardBackground") || undefined,
+    showInMenu: formData.get("showInMenu"),
   });
   if (!parsedFields.success) {
     return {
@@ -312,6 +317,7 @@ export async function createProduct(
         cardBackground: parsedFields.data.cardBackground ?? null,
         categoryId: parsedFields.data.categoryId,
         status: parsedFields.data.status,
+        showInMenu: parsedFields.data.showInMenu,
         thumbnail,
         segments: parsedSegments.segments as Prisma.InputJsonValue,
         order: siblingCount,
@@ -348,6 +354,7 @@ export async function updateProduct(
     categoryId: formData.get("categoryId"),
     status: formData.get("status"),
     cardBackground: formData.get("cardBackground") || undefined,
+    showInMenu: formData.get("showInMenu"),
   });
   if (!parsedFields.success) {
     return {
@@ -410,6 +417,7 @@ export async function updateProduct(
         cardBackground: parsedFields.data.cardBackground ?? null,
         categoryId: parsedFields.data.categoryId,
         status: parsedFields.data.status,
+        showInMenu: parsedFields.data.showInMenu,
         thumbnail,
         segments: parsedSegments.segments as Prisma.InputJsonValue,
         // `set` replaces the full relation with exactly this selection —

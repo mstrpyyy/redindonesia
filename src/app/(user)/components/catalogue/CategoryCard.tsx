@@ -14,7 +14,7 @@ interface ICategoryCardProps extends React.ComponentProps<'div'> {
 // full-bleed background photo (the sub-category's own largest hero banner,
 // `bannerXlUrl`) with a dark overlay and the title/description/CTA centered
 // on top, instead of DeviceCard's side-by-side image+text layout. Only used
-// for the "Browse Categories" sub-category grid (CategoryPageView.tsx) —
+// for the "Browse Category" sub-category grid (CategoryPageView.tsx) —
 // products/devices still render through DeviceCard.
 export const CategoryCard = ({ item, className, ...props }: ICategoryCardProps) => {
   return (

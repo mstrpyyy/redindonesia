@@ -1,7 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ICategory, INavbarMenu } from "@/interfaces/general";
-import { hasPageInBranch } from "@/lib/category-visibility";
 
 // Builds the nested tree for one root ("device" | "product") from a flat,
 // order-sorted row list — one query instead of a recursive per-level walk.
@@ -133,20 +132,94 @@ export const getPublicProductCategoryTree = unstable_cache(
   { revalidate: 3600, tags: ["product-nav-categories"] }
 );
 
+// Every category's public, menu-flagged products, grouped by `categoryId` —
+// only fetched for nav purposes (ADR-086). Separate from `getCategoryTree`
+// (used by routing and the admin tree too) so those paths don't pay for a
+// products query they don't need.
+async function getPublicNavProductsByCategory(
+  type: "device" | "product"
+): Promise<Map<string, { name: string; slug: string }[]>> {
+  const products = await prisma.product.findMany({
+    where: { type, status: "public", showInMenu: true },
+    select: { name: true, slug: true, categoryId: true },
+    orderBy: { order: "asc" },
+  });
+
+  const byCategory = new Map<string, { name: string; slug: string }[]>();
+  for (const product of products) {
+    const list = byCategory.get(product.categoryId) ?? [];
+    list.push({ name: product.name, slug: product.slug });
+    byCategory.set(product.categoryId, list);
+  }
+  return byCategory;
+}
+
 // `Category` → the navbar's `INavbarMenu` shape (name/slug/menu), for splicing
 // live data into the static `deviceProductMenu` structure (see `buildNavMenus`
-// in `src/lib/data.ts`). Branches with no page anywhere in them are dropped
-// entirely (ADR-043) — recursively, so this both hides a fully dead root and
-// prunes dead leaves out of an otherwise-kept branch. A leaf's `menu` is
-// omitted entirely, not `[]` — the static data's own leaves do the same, and
+// in `src/lib/data.ts`). A branch with no page and no menu-flagged product
+// anywhere in it is dropped entirely (ADR-043, extended by ADR-086) —
+// recursively, so this both hides a fully dead root and prunes dead leaves
+// out of an otherwise-kept branch. A leaf's `menu` is omitted entirely, not
+// `[]` — the static data's own leaves do the same, and
 // `LargeDropdown`/`SidebarDropdown` check `if (menu.menu)` truthiness, so an
 // empty array would render an empty (but still open-able) dropdown instead
 // of no dropdown at all.
-export function mapCategoriesToNavMenu(categories: ICategory[]): INavbarMenu[] {
-  return categories.filter(hasPageInBranch).map((category) => ({
-    name: category.name,
-    slug: category.slug,
-    isPage: category.isPage,
-    menu: category.children.length > 0 ? mapCategoriesToNavMenu(category.children) : undefined,
-  }));
+//
+// Each category's own `Product.showInMenu` products (see ADR-086) are
+// appended after its sub-categories (if any) in that same `menu` array — a
+// per-product opt-in rather than a category-wide switch, so an admin picks
+// which products actually warrant a menu entry instead of all-or-nothing.
+// Each becomes a leaf entry (`isPage: true`, since a public product always
+// has a real page) at `/<...ancestorSlugs>/<product.slug>`, which
+// `resolveDevicesRoute` already resolves without needing a category node of
+// its own. Async because it needs one products query per call (see
+// `getPublicNavProductsByCategory`) — `type` is threaded through the
+// recursion for that query, not read off `categories` (an empty array at the
+// top of a branch would otherwise lose it).
+export async function mapCategoriesToNavMenu(
+  categories: ICategory[],
+  type: "device" | "product"
+): Promise<INavbarMenu[]> {
+  const productsByCategory = await getPublicNavProductsByCategory(type);
+  return buildCategoryNavMenu(categories, productsByCategory);
+}
+
+// Same rule as `hasPageInBranch` (ADR-043) — kept local rather than folded
+// into that shared helper, since the admin tree's "hidden from navbar"
+// indicator (category-tree.tsx) reuses `hasPageInBranch` without any product
+// data on hand to check.
+function branchHasNavContent(
+  category: ICategory,
+  productsByCategory: Map<string, { name: string; slug: string }[]>
+): boolean {
+  return (
+    category.isPage ||
+    (productsByCategory.get(category.id)?.length ?? 0) > 0 ||
+    category.children.some((child) => branchHasNavContent(child, productsByCategory))
+  );
+}
+
+function buildCategoryNavMenu(
+  categories: ICategory[],
+  productsByCategory: Map<string, { name: string; slug: string }[]>
+): INavbarMenu[] {
+  return categories
+    .filter((category) => branchHasNavContent(category, productsByCategory))
+    .map((category) => {
+      const subCategoryMenu =
+        category.children.length > 0 ? buildCategoryNavMenu(category.children, productsByCategory) : [];
+      const productMenu = (productsByCategory.get(category.id) ?? []).map((product) => ({
+        name: product.name,
+        slug: product.slug,
+        isPage: true,
+      }));
+      const menu = [...subCategoryMenu, ...productMenu];
+
+      return {
+        name: category.name,
+        slug: category.slug,
+        isPage: category.isPage,
+        menu: menu.length > 0 ? menu : undefined,
+      };
+    });
 }

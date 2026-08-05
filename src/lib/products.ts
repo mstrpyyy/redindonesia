@@ -259,6 +259,7 @@ function mapProductRow(row: {
   thumbnail: string | null;
   cardBackground: string | null;
   status: string;
+  showInMenu: boolean;
   order: number;
   categoryId: string;
   segments: unknown;
@@ -274,6 +275,7 @@ function mapProductRow(row: {
     thumbnail: row.thumbnail,
     cardBackground: row.cardBackground as ICardBackgroundValue | null,
     status: row.status as "hidden" | "public",
+    showInMenu: row.showInMenu,
     order: row.order,
     categoryId: row.categoryId,
     secondaryCategoryIds: row.secondaryCategories.map((category) => category.id),
