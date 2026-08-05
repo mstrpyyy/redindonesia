@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { ChevronRight, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -46,7 +46,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { cn } from "@/lib/utils";
-import { hasPageInBranch } from "@/lib/category-visibility";
 import { DEFAULT_HERO_TEXT_COLOR } from "@/lib/hero-text-colors";
 import { HeroTextColorPicker } from "./hero-text-color-picker";
 import { ICategory } from "@/interfaces/general";
@@ -469,10 +468,6 @@ function CategoryNode({
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
   const canAddChild = node.depth < MAX_CATEGORY_DEPTH;
-  // Mirrors the exact rule the public nav itself filters on (ADR-043) — so
-  // an admin building this branch out can tell, without checking the live
-  // site, that nothing under it will show up in the navbar yet.
-  const hiddenFromNavbar = !hasPageInBranch(node);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
@@ -518,17 +513,17 @@ function CategoryNode({
         <div className="flex flex-1 flex-col">
           <span className="flex items-center gap-2 text-sm font-medium">
             {node.name}
-            {hiddenFromNavbar && (
+            {node.isPage && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
-                    aria-label="Hidden from navbar: no level of this branch is a page yet"
-                    className="text-muted-foreground/50 hover:text-muted-foreground inline-flex"
+                    aria-label="This category has its own page"
+                    className="text-muted-foreground hover:text-foreground inline-flex"
                   >
-                    <EyeOff className="size-3" />
+                    <FileText className="size-3" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Hidden from navbar: no level of this branch is a page yet</TooltipContent>
+                <TooltipContent>This category has its own page</TooltipContent>
               </Tooltip>
             )}
           </span>

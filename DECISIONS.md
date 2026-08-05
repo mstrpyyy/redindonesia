@@ -2077,7 +2077,7 @@ route would just recreate ADR-034's exact concern:
 ## ADR-043: A category branch with no page anywhere in it is dropped from the navbar
 
 **Date:** 2026-07-31
-**Status:** Accepted
+**Status:** Superseded by ADR-087
 
 **Context:** `isPage: false` (ADR-033) already made a plain-breadcrumb
 category render inert in the nav (`NavMenuLink`: plain text, no `href`,
@@ -4099,3 +4099,34 @@ unchanged.
   products of its own, in addition to the sub-category grid when it also has children. A
   non-leaf category with zero products of its own is unaffected — still just the
   sub-category grid, no empty catalogue section.
+
+## ADR-087: Every category shows in the navbar, regardless of page content
+
+**Date:** 2026-08-05
+**Status:** Accepted (supersedes ADR-043)
+
+**Context:** ADR-043 dropped a category branch from the nav entirely when nothing in it
+(itself or any descendant) was a real page (`isPage`) — meant to avoid a dead, unclickable
+label taking up space in the dropdown. In practice this made building out a category tree
+confusing: a branch an admin just created (not yet marked as a page, or not yet given
+products) simply didn't appear in the live nav at all, with no on-site feedback about why.
+Between `isPage: false` already rendering a breadcrumb node as inert text (ADR-033,
+`NavMenuLink`) and the per-product `showInMenu` toggle (ADR-086) now giving admins direct,
+explicit control over what shows, the extra branch-level pruning was doing more to hide
+in-progress work than to protect against genuinely dead links.
+**Decision:** Removed the filter entirely — `buildCategoryNavMenu` (`src/lib/categories.ts`)
+now maps every category into the nav unconditionally, dropping `branchHasNavContent` (its
+ADR-086 extension of ADR-043's rule) along with it. A breadcrumb-only node (`isPage: false`)
+still renders as inert text rather than a link (ADR-033's rule, unchanged) — it's just no
+longer removed from the tree above it.
+**Consequences:**
+- `src/lib/category-visibility.ts` (`hasPageInBranch`, ADR-043's original helper) is now
+  unused anywhere and was deleted rather than left dead.
+- The admin category-tree's "hidden from navbar" `EyeOff` indicator no longer has a rule to
+  reflect, so it's gone too — replaced with a plain "this category has its own page"
+  indicator (`FileText` icon, shown whenever `node.isPage`) that states a fact about the
+  node itself instead of predicting nav visibility.
+- A freshly created, not-yet-configured category branch now shows up in the live nav
+  immediately as inert breadcrumb text, rather than being invisible until something under
+  it becomes a page — matches building the tree in the admin more directly, at the cost of
+  a visitor being able to see an unfinished branch's name before it's ready.

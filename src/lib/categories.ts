@@ -156,14 +156,13 @@ async function getPublicNavProductsByCategory(
 
 // `Category` → the navbar's `INavbarMenu` shape (name/slug/menu), for splicing
 // live data into the static `deviceProductMenu` structure (see `buildNavMenus`
-// in `src/lib/data.ts`). A branch with no page and no menu-flagged product
-// anywhere in it is dropped entirely (ADR-043, extended by ADR-086) —
-// recursively, so this both hides a fully dead root and prunes dead leaves
-// out of an otherwise-kept branch. A leaf's `menu` is omitted entirely, not
-// `[]` — the static data's own leaves do the same, and
-// `LargeDropdown`/`SidebarDropdown` check `if (menu.menu)` truthiness, so an
-// empty array would render an empty (but still open-able) dropdown instead
-// of no dropdown at all.
+// in `src/lib/data.ts`). Every category is shown regardless of `isPage` or
+// whether it (or anything beneath it) has content yet (ADR-043's "drop
+// branches with no page anywhere in them" rule was removed — see ADR-086's
+// follow-up). A leaf's `menu` is omitted entirely, not `[]` — the static
+// data's own leaves do the same, and `LargeDropdown`/`SidebarDropdown` check
+// `if (menu.menu)` truthiness, so an empty array would render an empty (but
+// still open-able) dropdown instead of no dropdown at all.
 //
 // Each category's own `Product.showInMenu` products (see ADR-086) are
 // appended after its sub-categories (if any) in that same `menu` array — a
@@ -184,42 +183,25 @@ export async function mapCategoriesToNavMenu(
   return buildCategoryNavMenu(categories, productsByCategory);
 }
 
-// Same rule as `hasPageInBranch` (ADR-043) — kept local rather than folded
-// into that shared helper, since the admin tree's "hidden from navbar"
-// indicator (category-tree.tsx) reuses `hasPageInBranch` without any product
-// data on hand to check.
-function branchHasNavContent(
-  category: ICategory,
-  productsByCategory: Map<string, { name: string; slug: string }[]>
-): boolean {
-  return (
-    category.isPage ||
-    (productsByCategory.get(category.id)?.length ?? 0) > 0 ||
-    category.children.some((child) => branchHasNavContent(child, productsByCategory))
-  );
-}
-
 function buildCategoryNavMenu(
   categories: ICategory[],
   productsByCategory: Map<string, { name: string; slug: string }[]>
 ): INavbarMenu[] {
-  return categories
-    .filter((category) => branchHasNavContent(category, productsByCategory))
-    .map((category) => {
-      const subCategoryMenu =
-        category.children.length > 0 ? buildCategoryNavMenu(category.children, productsByCategory) : [];
-      const productMenu = (productsByCategory.get(category.id) ?? []).map((product) => ({
-        name: product.name,
-        slug: product.slug,
-        isPage: true,
-      }));
-      const menu = [...subCategoryMenu, ...productMenu];
+  return categories.map((category) => {
+    const subCategoryMenu =
+      category.children.length > 0 ? buildCategoryNavMenu(category.children, productsByCategory) : [];
+    const productMenu = (productsByCategory.get(category.id) ?? []).map((product) => ({
+      name: product.name,
+      slug: product.slug,
+      isPage: true,
+    }));
+    const menu = [...subCategoryMenu, ...productMenu];
 
-      return {
-        name: category.name,
-        slug: category.slug,
-        isPage: category.isPage,
-        menu: menu.length > 0 ? menu : undefined,
-      };
-    });
+    return {
+      name: category.name,
+      slug: category.slug,
+      isPage: category.isPage,
+      menu: menu.length > 0 ? menu : undefined,
+    };
+  });
 }

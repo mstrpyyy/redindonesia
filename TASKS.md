@@ -2501,3 +2501,29 @@ menu.
   and `products/[...slug]/page.tsx` now always fetch `productCards`.
 - [x] `tsc --noEmit` passes.
 - [ ] Manually verified in the browser.
+
+## [x] Task: Stop hiding no-page category branches from the navbar
+
+**Context:** ADR-043 dropped any category branch with no page anywhere in it from the live
+nav, which made a freshly-created or in-progress branch invisible with no feedback. See
+ADR-087 (supersedes ADR-043).
+**Approach:** Remove the filter in `buildCategoryNavMenu` entirely; delete the now-dead
+`hasPageInBranch`/`branchHasNavContent` helpers; replace the admin tree's "hidden from
+navbar" `EyeOff` warning icon with a plain "this category has its own page" `FileText`
+indicator driven by `node.isPage` directly (a fact about the node, not a nav-visibility
+prediction).
+**Files to create or modify:**
+- `src/lib/categories.ts` — `buildCategoryNavMenu` drops the `branchHasNavContent` filter
+- `src/lib/category-visibility.ts` — deleted (only caller removed)
+- `src/app/(admin)/admin/product-device/category-tree.tsx` — `EyeOff`/`hiddenFromNavbar`
+  replaced with `FileText`/`node.isPage`
+- `DECISIONS.md` (ADR-087, ADR-043 marked superseded)
+**Acceptance criteria:**
+- [x] A category with `isPage: false` and no children/products still shows in the nav as
+  inert breadcrumb text (ADR-033's rule is unaffected).
+- [x] Admin tree shows a page icon next to every node with `isPage: true`, regardless of
+  its branch's nav visibility.
+- [x] `tsc --noEmit` passes.
+- [ ] Manually verified in the browser.
+**Do not:** Reintroduce branch-level pruning, or change `isPage: false`'s existing
+"inert text, not a link" rendering (ADR-033).
