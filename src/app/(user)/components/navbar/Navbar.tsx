@@ -1,12 +1,12 @@
 'use client'
 
 
-import { Input } from "@/components/ui/input"
-import {  Search } from "lucide-react"
+import { Search, X } from "lucide-react"
 import { usePathname } from "next/navigation"
-import { useEffect, useEffectEvent, useState } from "react"
+import { useEffect, useEffectEvent, useRef, useState } from "react"
 import { NavButton } from "./NavButton"
 import { LargeDropdown } from "./LargeDropdown"
+import { SearchBar } from "@/app/(user)/components/SearchBar"
 import { SmallDropdown } from "./SmallDropdown"
 import { SidebarMenu } from "./Sidebar"
 import Image from "next/image"
@@ -19,6 +19,8 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
   const [darkenBg, setDarkenBg] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [hideSearch, setHideSearch] = useState(true)
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+  const mobileSearchRef = useRef<HTMLDivElement>(null)
 
   // Determine if navbar should be white
   // const isWhiteNav = scrolled || pathname !== '/'
@@ -49,8 +51,18 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
       setHideSearch(val)
 
     }
-    handleHideSearch(!scrolled && pathname === '/')    
+    handleHideSearch(!scrolled && pathname === '/')
   }, [scrolled, pathname])
+
+  useEffect(() => {
+    if (!mobileSearchOpen) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!mobileSearchRef.current?.contains(event.target as Node)) setMobileSearchOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [mobileSearchOpen])
 
   // ${darkenBg && !isWhiteNav ? 'bg-black/70' : isWhiteNav ? 'bg-white shadow-md' : 'bg-linear-to-b from-black to-transparent'}
   return (
@@ -62,7 +74,7 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
         
       `}
     >
-      <Link href={'/'} className="flex-1 max-w-64 lg:max-w-52">
+      <Link href={'/'} className="flex-1 max-w-64 lg:max-w-52 mr-5">
        <Image 
          src={isWhiteNav ? "/image/logo-red-black.png" : "/image/logo-red-white.png"} 
          alt="logo" 
@@ -83,8 +95,8 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
                       name={menu.name}
                       NAVBAR_HEIGHT={NAVBAR_HEIGHT}
                       TOP_HEIGHT={TOP_HEIGHT}
-                      setDarkenBg={setDarkenBg} 
-                      isWhiteNav={isWhiteNav} 
+                      setDarkenBg={setDarkenBg}
+                      isWhiteNav={isWhiteNav}
                       menu={menu.menu}
                     />
                   </li>
@@ -96,7 +108,7 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
                     <SmallDropdown
                       name={menu.name}
                       NAVBAR_HEIGHT={NAVBAR_HEIGHT}
-                      isWhiteNav={isWhiteNav} 
+                      isWhiteNav={isWhiteNav}
                       menu={menu.menu}
                     />
                   </li>
@@ -107,9 +119,9 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
                   <NavButton
                     NAVBAR_HEIGHT={NAVBAR_HEIGHT}
                     string={menu.name}
-                    href={menu.slug ?? ''} 
+                    href={menu.slug ?? ''}
                     isActive={pathSegment === menu.slug}
-                    isWhiteNav={isWhiteNav} 
+                    isWhiteNav={isWhiteNav}
                   />
                 </li>
               )
@@ -119,24 +131,54 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
       </nav>
 
       {!hideSearch &&
-        <div className="max-lg:hidden flex-1 lg:max-w-52 xl:max-w-64 flex items-center justify-end relative">
-            <Input 
-              className={`
-                max-lg:hidden w-28 xl:w-50 focus:w-full rounded-full pr-12 focus:pr-9 xl:pr-9 border transition-all duration-150 backdrop-blur-md
-                ${isWhiteNav ? 
-                  'border-neutral-500 placeholder:text-black focus:placeholder:text-neutral-500' 
-                  : 'border-white placeholder:text-neutral-300'
-                }
-              `} 
-              placeholder="Browse Our Products" 
-            />
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2" size={20} />
+        <div className="max-lg:hidden flex-1 lg:max-w-52 xl:max-w-64 flex items-center justify-end">
+          <SearchBar
+            inputClassName={`
+              max-lg:hidden w-28 xl:w-50 focus:w-full rounded-full pr-12 focus:pr-9 xl:pr-9 border transition-all duration-150 backdrop-blur-md
+              ${isWhiteNav
+                ? 'border-neutral-500 placeholder:text-black focus:placeholder:text-neutral-500'
+                : 'border-white placeholder:text-neutral-300'
+              }
+            `}
+            dropdownClassName="right-0 w-80 max-w-[calc(100vw-2rem)]"
+            placeholder="Search..."
+          />
         </div>
       }
 
-      <button aria-label="Open Search" className="max-md:hidden lg:hidden">
-        <Search aria-hidden className="" size={20} strokeWidth={3} />
-      </button>
+      <div ref={mobileSearchRef} className="max-md:hidden lg:hidden relative">
+        <button
+          aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+          onClick={() => setMobileSearchOpen((current) => !current)}
+        >
+          {mobileSearchOpen ? (
+            <X aria-hidden size={20} strokeWidth={3} />
+          ) : (
+            <Search aria-hidden size={20} strokeWidth={3} />
+          )}
+        </button>
+
+        {mobileSearchOpen && (
+          <div
+            className={`
+              absolute top-full right-0 z-40 mt-3 w-80 max-w-[calc(100vw-2rem)] rounded-md border p-3 shadow-md
+              ${isWhiteNav ? 'bg-white' : 'bg-black/90 backdrop-blur-md'}
+            `}
+          >
+            <SearchBar
+              inputClassName={`
+                w-full rounded-full pr-10 border transition-all duration-150
+                ${isWhiteNav
+                  ? 'border-neutral-500 placeholder:text-black focus:placeholder:text-neutral-500'
+                  : 'border-white placeholder:text-neutral-300'
+                }
+              `}
+              dropdownClassName="left-0 w-full"
+              placeholder="Search..."
+            />
+          </div>
+        )}
+      </div>
 
       <SidebarMenu
         menu={menus}

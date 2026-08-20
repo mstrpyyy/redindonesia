@@ -72,6 +72,11 @@ export const LargeDropdown = ({ name, NAVBAR_HEIGHT, TOP_HEIGHT, isWhiteNav, set
     setDarkenBg(!open)
   }
 
+  const handleNavigate = () => {
+    setOpen(false)
+    setDarkenBg(false)
+  }
+
   return (
     <div
       ref={dropdownRef}
@@ -118,6 +123,7 @@ export const LargeDropdown = ({ name, NAVBAR_HEIGHT, TOP_HEIGHT, isWhiteNav, set
             </div>
             <MenuList
               activeMenu={activeMenu!}
+              onNavigate={handleNavigate}
             />
           </div>
         </div>
@@ -149,7 +155,7 @@ const ParentButton = ({name, slug, activeParentSlug, setActiveParentSlug}:IParen
 }
 
 
-const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
+const MenuList = ({activeMenu, onNavigate}: {activeMenu: INavbarMenu, onNavigate: () => void}) => {
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 px-12 py-8 flex-1 overflow-y-auto scrollbar-thumb-only">
       {activeMenu?.menu?.map((menu) => (
@@ -157,6 +163,7 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
           <NavMenuLink
             href={`/${activeMenu.slug}/${menu.slug}`}
             isPage={menu.isPage}
+            onClick={onNavigate}
             className={`font-bold text-red-500 text-lg my-4 block w-fit ${menu.isPage === false ? '' : 'hover:underline'}`}
           >
             {menu.name}
@@ -167,6 +174,7 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
               <NavMenuLink
                 href={`/${activeMenu.slug}/${menu.slug}/${child.slug}`}
                 isPage={child.isPage}
+                onClick={onNavigate}
                 className={`mt-4 mb-2 block w-fit font-normal ${child.isPage === false ? '' : 'hover:underline'}`}
               >
                 {child.name}
@@ -177,6 +185,7 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
                   <NavMenuLink
                     href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}`}
                     isPage={grandchild.isPage}
+                    onClick={onNavigate}
                     className={`font-extralight pl-6 my-2 block w-fit ${grandchild.isPage === false ? '' : 'hover:underline'}`}
                   >
                     {grandchild.name}
@@ -191,6 +200,7 @@ const MenuList = ({activeMenu}: {activeMenu: INavbarMenu}) => {
                       key={greatGrandchild.slug}
                       href={`/${activeMenu.slug}/${menu.slug}/${child.slug}/${grandchild.slug}/${greatGrandchild.slug}`}
                       isPage={greatGrandchild.isPage}
+                      onClick={onNavigate}
                       className={`font-extralight pl-10 my-2 block w-fit ${greatGrandchild.isPage === false ? '' : 'hover:underline'}`}
                     >
                       {greatGrandchild.name}

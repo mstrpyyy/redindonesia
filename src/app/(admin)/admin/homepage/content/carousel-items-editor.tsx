@@ -22,7 +22,7 @@ import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ICarouselItem, IProductPickerOption } from "@/interfaces/general";
+import { ICarouselItem, ICategoryPickerOption, IProductPickerOption } from "@/interfaces/general";
 import { UploadField } from "@/components/upload-field";
 import { ProductPickerField } from "./product-picker-field";
 import { uploadHomeCarouselItemImage } from "./upload-actions";
@@ -31,11 +31,13 @@ import { MAX_CAROUSEL_ITEMS } from "./limits";
 function SortableItemRow({
   item,
   productOptions,
+  categoryOptions,
   onChange,
   onRemove,
 }: {
   item: ICarouselItem;
   productOptions: IProductPickerOption[];
+  categoryOptions: ICategoryPickerOption[];
   onChange: (next: ICarouselItem) => void;
   onRemove: () => void;
 }) {
@@ -67,6 +69,7 @@ function SortableItemRow({
           <ProductPickerField
             value={item.title}
             options={productOptions}
+            categoryOptions={categoryOptions}
             onChange={(title) => onChange({ ...item, title })}
             onPick={(option) =>
               onChange({
@@ -77,6 +80,7 @@ function SortableItemRow({
                 productId: option.id,
               })
             }
+            onPickCategory={(option) => onChange({ ...item, title: option.name, href: option.url })}
           />
         </div>
         <Button
@@ -127,10 +131,12 @@ function SortableItemRow({
 export function CarouselItemsEditor({
   items,
   productOptions,
+  categoryOptions,
   onChange,
 }: {
   items: ICarouselItem[];
   productOptions: IProductPickerOption[];
+  categoryOptions: ICategoryPickerOption[];
   onChange: (items: ICarouselItem[]) => void;
 }) {
   const sensors = useSensors(
@@ -168,14 +174,12 @@ export function CarouselItemsEditor({
       >
         <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-2">
-            {items.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-xs">No items yet.</p>
-            )}
             {items.map((item, index) => (
               <SortableItemRow
                 key={item.id}
                 item={item}
                 productOptions={productOptions}
+                categoryOptions={categoryOptions}
                 onChange={(next) => onChange(items.map((current, i) => (i === index ? next : current)))}
                 onRemove={() => onChange(items.filter((_, i) => i !== index))}
               />
@@ -188,7 +192,7 @@ export function CarouselItemsEditor({
         type="button"
         variant="outline"
         size="sm"
-        className="w-fit"
+        className="w-full"
         disabled={items.length >= MAX_CAROUSEL_ITEMS}
         onClick={() =>
           onChange([...items, { id: crypto.randomUUID(), title: "", img: "", href: "", productId: null }])

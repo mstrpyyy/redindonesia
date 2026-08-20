@@ -1,7 +1,8 @@
-import { MenuIcon, Search } from 'lucide-react'
+import { MenuIcon } from 'lucide-react'
 import { useState } from 'react'
 import Link from 'next/link'
 import { DropdownNavButton } from './SidebarDropdown'
+import { SearchBar } from '@/app/(user)/components/SearchBar'
 import type { INavbarMenu } from '@/interfaces/general'
 
 interface ISidebar {
@@ -44,14 +45,13 @@ export const SidebarMenu = ({ menu: navMenus, pathname, DROPDOWNSIZE, TOP_HEIGHT
           <div className="h-full bg-black/80 backdrop-blur-md border-t border-t-neutral-400 flex justify-center overflow-y-auto">
             <div className='flex-1 max-w-96 px-4'>
               {/* SEARCH */}
-              <div className="relative w-full border-b border-b-neutral-400 py-4">
-                <input 
-                  className="w-full placeholder:text-neutral-300 transition-all duration-150 border-0 focus:outline-0 pr-6 bg-transparent text-white" 
-                  placeholder="Search" 
-                />
-                <Search 
-                  className="absolute right-0 top-1/2 -translate-y-1/2 text-neutral-300" 
-                  size={20} 
+              <div className="w-full border-b border-b-neutral-400 py-4">
+                <SearchBar
+                  inputClassName="w-full placeholder:text-neutral-300 transition-all duration-150 border-0 focus:outline-0 pr-6 bg-transparent text-white"
+                  iconClassName="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-neutral-300"
+                  dropdownClassName="left-0 w-full"
+                  placeholder="Search..."
+                  onNavigate={handleClose}
                 />
               </div>
 

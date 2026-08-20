@@ -18,6 +18,10 @@ export default async function MediaPodcasts() {
         defImage={page.bannerXlUrl ?? '/image/media/podcasts/dummy.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) podcast'
       >
         <span className='text-brand-red2'>RED</span>

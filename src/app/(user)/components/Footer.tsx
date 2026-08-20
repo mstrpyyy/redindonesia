@@ -18,19 +18,19 @@ const companyInfoList = [
 
 const supportList = [
   {
-    href: '/',
+    href: '/support/registration-documentation',
     text: 'Registration & Documentation'
   },
   {
-    href: '/',
+    href: '/support/warranty-service',
     text: 'Warranty & Service'
   },
   {
-    href: '/',
-    text: 'Marcom Inquiry'
+    href: '/support/marcom-promotion',
+    text: 'Marcom & Promotion'
   },
   {
-    href: '/',
+    href: '/support/career',
     text: 'Career '
   },
 ]
@@ -41,31 +41,26 @@ const menuList = [
     text: 'Home'
   },
   {
-    href: '/',
+    href: '/about',
     text: 'About'
   },
   {
-    href: '/',
-    text: 'Devices'
-  },
-  {
-    href: '/',
+    href: '/media',
     text: 'Media'
   },
   {
-    href: '/',
+    href: '/support/registration-documentation',
     text: 'Support'
   },
   {
-    href: '/',
+    href: '/contact',
     text: 'Contact'
   },
-  
 ]
 
 export const Footer = () => {
   return (
-    <footer className='bg-black text-white flex max-md:flex-col gap-5 xl:gap-10 2xl:gap-16 px-10 2xl:px-20 py-10 text-xs xl:text-base font-light'>
+    <footer className='bg-black text-white flex max-md:flex-col gap-5 md:gap-14 lg:gap-10 2xl:gap-16 px-10 2xl:px-20 py-10 text-xs xl:text-base font-light'>
       {/* COMPANY INFO */}
       <div className='space-y-6 mr-auto w-full md:w-60 2xl:w-72'>
         <Image alt='logo red' src={'/image/logo-red-white.png'} width={362} height={91} className='w-full max-w-60 2xl:max-w-72' />
@@ -93,23 +88,41 @@ export const Footer = () => {
         </div>        
       </div>
 
-      <div className='grid xs:grid-cols-2 lg:grid-flow-col auto-cols-max gap-5 xl:gap-10'>
-        {/* CONTACT */}
-        <div>
-          <FooterH2>Contact</FooterH2>
-          <div>
-            {companyInfoList.map((item, index) => {
+      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-flow-col lg:auto-cols-max gap-5 xl:gap-14 max-lg:flex-1'>
+         {/* MENU */}
+        <div className=''>
+          <FooterH2>Menu</FooterH2>
+          
+          <nav>
+            {menuList.map((item, index) => {
               return (
                 <MenuLink
                   key={index}
-                  icon={item.icon}
                   href={item.href}
                   text={item.text}
                 />
               )
             })
             }
-          </div>
+          </nav>
+        </div>
+        
+          {/* HELP */}
+        <div className=''>
+          <FooterH2>Support</FooterH2>
+          
+          <nav>
+            {supportList.map((item, index) => {
+              return (
+                <MenuLink
+                  key={index}
+                  href={item.href}
+                  text={item.text}
+                />
+              )
+            })
+            }
+          </nav>
         </div>
 
         {/* SOCIAL MEDIA */}
@@ -131,44 +144,26 @@ export const Footer = () => {
             </div>
         </div>
 
-        {/* HELP */}
+        {/* CONTACT */}
         <div className=''>
-          <FooterH2>Support</FooterH2>
-          
-          <nav>
-            {supportList.map((item, index) => {
+          <FooterH2>Contact</FooterH2>
+          <div>
+            {companyInfoList.map((item, index) => {
               return (
                 <MenuLink
                   key={index}
+                  icon={item.icon}
                   href={item.href}
                   text={item.text}
                 />
               )
             })
             }
-          </nav>
+          </div>
         </div>
 
 
-        {/* MENU */}
-        <div className=''>
-          <FooterH2>Menu</FooterH2>
-          
-          <nav>
-            {menuList.map((item, index) => {
-              return (
-                <MenuLink
-                  key={index}
-                  href={item.href}
-                  text={item.text}
-                />
-              )
-            })
-            }
-          </nav>
-        </div>
       </div>
-
     </footer>
   )
 }

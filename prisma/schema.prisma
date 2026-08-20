@@ -21,9 +21,9 @@ model AdminAccount {
 
 model SocialAccount {
   id         String   @id @default(cuid())
-  platform   String   // "instagram" | "tiktok" | "facebook" | etc.
-  label      String   // display name, e.g. "Radian Elok Distriversa"
-  profileImg String   // relative path under /uploads/social-accounts, e.g. "/uploads/social-accounts/abc123.jpg"
+  platform   String // "instagram" | "tiktok" | "facebook" | etc.
+  label      String // display name, e.g. "Radian Elok Distriversa"
+  profileImg String // relative path under /uploads/social-accounts, e.g. "/uploads/social-accounts/abc123.jpg"
   url        String
   order      Int      @default(0)
   createdAt  DateTime @default(now())
@@ -63,21 +63,21 @@ model Article {
 // treats NULL as equal to NULL, so it wouldn't catch duplicate depth-1 slugs
 // (which all share parentId = null).
 model Category {
-  id        String     @id @default(cuid())
-  type      String
-  name      String
-  slug      String
-  depth     Int
-  order     Int        @default(0)
-  parentId  String?
-  parent    Category?  @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children  Category[] @relation("CategoryChildren")
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  products  Product[]
-  homeCarousels HomeCarousel[]
+  id                String         @id @default(cuid())
+  type              String
+  name              String
+  slug              String
+  depth             Int
+  order             Int            @default(0)
+  parentId          String?
+  parent            Category?      @relation("CategoryChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children          Category[]     @relation("CategoryChildren")
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  products          Product[]
+  homeCarousels     HomeCarousel[]
   // Cross-listing only — see `Product.secondaryCategories` (ADR-085).
-  secondaryProducts Product[] @relation("ProductSecondaryCategories")
+  secondaryProducts Product[]      @relation("ProductSecondaryCategories")
 
   // A node is either a real page (banner/title/description required, body/
   // youtubeUrl optional) or stays a plain breadcrumb (all fields null) — see
@@ -89,15 +89,22 @@ model Category {
   // hardcoded sm/md/lg/xl banner images the homepage/about hero sections
   // already use (see ADR-035): bannerXlUrl (2560x1440, desktop landscape) is
   // the only one required — the others fall back to it on the public side.
-  isPage       Boolean @default(false)
-  bannerSmUrl  String? // 1440x2560 — mobile portrait
-  bannerMdUrl  String? // 1536x2048 — tablet portrait
-  bannerLgUrl  String? // 2048x1536 — tablet/small-desktop landscape
-  bannerXlUrl  String? // 2560x1440 — desktop landscape, required when isPage
-  title        String?
-  description  String?
-  body         String? @db.Text
-  youtubeUrl   String?
+  isPage              Boolean @default(false)
+  bannerSmUrl         String? // 1440x2560 — mobile portrait
+  bannerSmVideoUrl    String? // optional MP4 paired with bannerSmUrl — see ADR-093
+  bannerMdUrl         String? // 1536x2048 — tablet portrait
+  bannerMdVideoUrl    String?
+  bannerLgUrl         String? // 2048x1536 — tablet/small-desktop landscape
+  bannerLgVideoUrl    String?
+  bannerXlUrl         String? // 2560x1440 — desktop landscape, required when isPage
+  bannerXlVideoUrl    String?
+  // One global switch, not per-size — same cascade pattern as HomePage's own
+  // banner video (ADR-091), reused here rather than re-invented — see ADR-093.
+  bannerVideoUseForSmaller Boolean @default(false)
+  title               String?
+  description         String?
+  body                String? @db.Text
+  youtubeUrl          String?
   // All optional regardless of `isPage` — a page can have a YouTube URL with
   // no extra media dressing. `youtubeThumbnailUrl` is a custom poster shown
   // with a click-to-play overlay instead of the iframe loading immediately;
@@ -128,28 +135,28 @@ model Category {
 // "JSON over exploding into join tables" precedent as Gallery.images
 // (ADR-011), just one level richer.
 model Product {
-  id          String   @id @default(cuid())
-  type        String
-  name        String
-  slug        String
-  tagline     String?
-  thumbnail   String?
+  id                  String     @id @default(cuid())
+  type                String
+  name                String
+  slug                String
+  tagline             String?
+  thumbnail           String?
   // One of CARD_BACKGROUND_VALUES (src/lib/card-backgrounds.ts). Nullable so
   // rows created before this column fall back to the default tint.
-  cardBackground String?
-  segments    Json     @default("[]")
+  cardBackground      String?
+  segments            Json       @default("[]")
   // "hidden" | "public" — renamed from draft/published (ADR-040); a hidden
   // item is a work in progress, only enforced complete once made public.
-  status      String   @default("hidden")
+  status              String     @default("hidden")
   // When true (and `status` is "public"), this product is spliced into its
   // category's navbar dropdown as its own named menu item (ADR-086) — an
   // alternative to modeling every product as its own `Category` node just to
   // get a name in the menu. Per-product rather than a category-wide switch so
   // an admin can pick which products actually warrant a menu entry.
-  showInMenu  Boolean  @default(false)
-  order       Int      @default(0)
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id])
+  showInMenu          Boolean    @default(false)
+  order               Int        @default(0)
+  categoryId          String
+  category            Category   @relation(fields: [categoryId], references: [id])
   // Cross-listing only, never the routing/canonical category — `categoryId`
   // above is always the one that drives this product's own URL/breadcrumb
   // (see ADR-038). A product can additionally show up on other category
@@ -160,9 +167,9 @@ model Product {
   // filtering/discovery. Scoped to `type` the same way `Category` is: a
   // "Dermatology" product tag and a "Dermatology" device tag are two
   // distinct rows, never shared. See ADR-041.
-  tags        Tag[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tags                Tag[]
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   @@index([type, categoryId])
 }
@@ -183,26 +190,26 @@ model Product {
 // as "category missing," matching the document-picker precedent in ADR-051)
 // instead of silently deleting a homepage section out from under the admin.
 model HomeCarousel {
-  id          String    @id @default(cuid())
-  mode        String
-  order       Int       @default(0)
-  size        String    @default("md")
-  showSeeMore Boolean   @default(true)
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  title       String?
-  seeMoreUrl  String?
-  items       Json      @default("[]")
+  id               String    @id @default(cuid())
+  mode             String
+  order            Int       @default(0)
+  size             String    @default("md")
+  showSeeMore      Boolean   @default(true)
+  categoryId       String?
+  category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title            String?
+  seeMoreUrl       String?
+  items            Json      @default("[]")
   // "text" | "image" — independent of `mode` (see ADR-066). "image" swaps the
   // visible heading for `titleImage` (e.g. a brand logo) while the text title
   // (`title` here, or the category's own `name` in "category" mode) still
   // renders as a screen-reader-only heading — `ProductHomeSection` already
   // does this unconditionally, so no public component change was needed to
   // support it.
-  titleDisplayMode String  @default("text")
+  titleDisplayMode String    @default("text")
   titleImage       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([categoryId])
 }
@@ -231,14 +238,18 @@ model Tag {
 // required in practice — that's enforced by the save Server Action's Zod
 // schema, not the DB, same reasoning as Category's isPage-gated fields.
 model SupportPage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerXlUrl String? // 2560x1107 — required
-  bannerMdUrl String? // 1363x1107 — optional
-  bannerSmUrl String? // 1107x1107 — optional
-  body        String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  body                     String?  @db.Text
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // Same shape as SupportPage (ADR-070) for the admin Contact dashboard's
@@ -246,14 +257,18 @@ model SupportPage {
 // CONTACT_PAGE_SLUGS in src/lib/contact-pages.ts), upserted, no add/delete
 // flow. "Form Response" is a separate submenu with no model yet.
 model ContactPage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerXlUrl String? // 2560x1107 — required
-  bannerMdUrl String? // 1363x1107 — optional
-  bannerSmUrl String? // 1107x1107 — optional
-  body        String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  body                     String?  @db.Text
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // One row per public /contact form submission (see ADR-073). Append-only —
@@ -276,38 +291,50 @@ model ContactSubmission {
 // ContactPage/SupportPage (ADR-070/072): one row, no add/delete flow. See
 // ADR-076.
 model PodcastPage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerXlUrl String? // 2560x1107 — required
-  bannerMdUrl String? // 1363x1107 — optional
-  bannerSmUrl String? // 1107x1107 — optional
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // Public /media/articles page banner — same upsert-by-fixed-slug pattern as
 // PodcastPage/ContactPage/SupportPage (ADR-070/072/076): one row, no
 // add/delete flow. See ADR-081.
 model ArticlesPage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerXlUrl String? // 2560x1107 — required
-  bannerMdUrl String? // 1363x1107 — optional
-  bannerSmUrl String? // 1107x1107 — optional
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // Public /media/galleries page banner — same shape as ArticlesPage. See
 // ADR-081.
 model GalleriesPage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerXlUrl String? // 2560x1107 — required
-  bannerMdUrl String? // 1363x1107 — optional
-  bannerSmUrl String? // 1107x1107 — optional
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // Homepage hero banner, admin-managed under Homepage → Content (see
@@ -315,15 +342,33 @@ model GalleriesPage {
 // upsert-by-slug pattern as ContactPage/SupportPage. Four banner sizes, one
 // per orientation/breakpoint, reusing the exact set Category already
 // established (ADR-035): only bannerXlUrl is required.
+// Each size can optionally be an mp4 video instead of a still image (see
+// ADR-089) — bannerXxxVideoUrl holds the video; bannerXxxUrl becomes that
+// size's required poster/fallback image when a video is set (still image-only
+// otherwise). Not a type discriminator column — presence of the video URL is
+// the signal.
+// The four sizes form one waterfall, largest to smallest: Xl, Lg, Md, Sm — see
+// ADR-091. One global `bannerVideoUseForSmaller` flag (not per-size): when
+// true, each size's own video is also carried down through every smaller
+// size that has none of its own, UNTIL a smaller size with its own video is
+// reached — that size's own video always wins there and continues the
+// cascade from itself. When false, every size shows only its own video (or
+// none). Only meaningful, and only enabled in the admin UI, once at least one
+// size actually has a video.
 model HomePage {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  bannerSmUrl String? // 1440x2560 — mobile portrait
-  bannerMdUrl String? // 1536x2048 — tablet portrait
-  bannerLgUrl String? // 2048x1536 — tablet/small-desktop landscape
-  bannerXlUrl String? // 2560x1440 — desktop landscape, required
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerSmUrl              String? // 1440x2560 — mobile portrait, smallest, nothing to cascade to
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerMdUrl              String? // 1536x2048 — tablet portrait
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerLgUrl              String? // 2048x1536 — tablet/small-desktop landscape
+  bannerLgVideoUrl         String? // optional mp4, falls back to bannerLgUrl as poster/no-video image
+  bannerXlUrl              String? // 2560x1440 — desktop landscape, required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 }
 
 // One podcast episode shown on /media/podcasts — admin-managed add/edit/

@@ -6,6 +6,7 @@ import { BodyWrapper } from '../BodyWrapper'
 import { ICategory, IDeviceCardItem, ITag } from '@/interfaces/general'
 import { getYoutubeVideoId, hasRichTextContent } from '@/lib/utils'
 import { getHeroTextColor } from '@/lib/hero-text-colors'
+import { resolveCategoryBannerVideoUrls } from '@/lib/categories'
 
 interface ICategoryPageViewProps {
   category: ICategory
@@ -43,6 +44,8 @@ export const CategoryPageView = ({
     imgUrl: child.bannerXlUrl ?? '',
   }))
 
+  const bannerVideoUrls = resolveCategoryBannerVideoUrls(category)
+
   const videoId = category.youtubeUrl ? getYoutubeVideoId(category.youtubeUrl) : null
   // A Tiptap editor left untouched still saves as `<p></p>`, not `""` — a
   // raw truthiness check on `category.body` would count that as "has
@@ -74,9 +77,13 @@ export const CategoryPageView = ({
         textColorClassName={getHeroTextColor(category.heroTextColor).className}
         bannerUrls={category.bannerXlUrl ? {
           sm: category.bannerSmUrl,
+          smVideo: bannerVideoUrls.Sm,
           md: category.bannerMdUrl,
+          mdVideo: bannerVideoUrls.Md,
           lg: category.bannerLgUrl,
+          lgVideo: bannerVideoUrls.Lg,
           xl: category.bannerXlUrl,
+          xlVideo: bannerVideoUrls.Xl,
         } : undefined}
       />
 
@@ -108,7 +115,7 @@ export const CategoryPageView = ({
       {showCatalogueSection && (
         <BodyWrapper className="bg-secondary">
           {hasChildren && (
-            <DeviceFilterList deviceList={childCards} heading="Browse Category" emptyMessage="No sub-categories yet." cardVariant="category" />
+            <DeviceFilterList deviceList={childCards} heading={<>Browse <span className='text-brand-red'>Category</span></>} emptyMessage="No sub-categories yet." cardVariant="category" />
           )}
 
           {/* Shown in addition to the grid above when this category also has
@@ -121,7 +128,7 @@ export const CategoryPageView = ({
               initialHasMore={productCardsHasMore}
               defaultCategoryId={category.id}
               tags={tags}
-              heading="Browse Catalogue"
+              heading={<>Browse <span className='text-brand-red'>Catalogue</span></>}
             />
           )}
         </BodyWrapper>

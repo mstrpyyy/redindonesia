@@ -35,6 +35,10 @@ export default async function SupportMarcomPromotion() {
         defImage={page.bannerXlUrl ?? '/image/support/marcom/dummy.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
           <span className='text-brand-red2'>Marcom</span>

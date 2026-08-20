@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import { ChevronRight, FileText, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, FileText, GripVertical, Monitor, Pencil, Plus, Smartphone, Tablet, Trash2 } from "lucide-react";
 import {
   DndContext,
   KeyboardSensor,
@@ -42,6 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/rich-text-editor";
@@ -55,13 +56,16 @@ import {
   reorderCategories,
   updateCategory,
   uploadCategoryBanner,
+  uploadCategoryBannerVideo,
   uploadCategoryContentImage,
   uploadCategoryVideoThumbnail,
 } from "./actions";
 import { UploadField } from "@/components/upload-field";
 import { CharLimitWarning, isAtCharLimit } from "@/components/char-limit-warning";
+import { findMissingBannerVideoFallback } from "@/lib/banner-video";
 import {
   MAX_CATEGORY_BANNER_LABEL,
+  MAX_CATEGORY_BANNER_VIDEO_LABEL,
   MAX_CATEGORY_DEPTH,
   MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_NAME_LENGTH,
@@ -126,9 +130,15 @@ export interface ICategoryFormValues {
   name: string;
   isPage: boolean;
   bannerSmUrl: string;
+  bannerSmVideoUrl: string;
   bannerMdUrl: string;
+  bannerMdVideoUrl: string;
   bannerLgUrl: string;
+  bannerLgVideoUrl: string;
   bannerXlUrl: string;
+  bannerXlVideoUrl: string;
+  // One global switch, not per-size — mirrors HomePage's own ADR-091.
+  bannerVideoUseForSmaller: boolean;
   title: string;
   description: string;
   body: string;
@@ -142,6 +152,30 @@ export interface ICategoryFormValues {
 function RequiredMark() {
   return <span className="text-destructive"> *</span>;
 }
+
+type CategoryBannerSizeKey = "Xl" | "Lg" | "Md" | "Sm";
+
+// Same Table-of-icons/Image+Video/global-cascade-switch pattern as the
+// homepage banner (home-page-form.tsx, ADR-089/091), extended to categories
+// (ADR-093) — each column cropped to that size's own real aspect ratio
+// instead of the generic square the category banner previously used. Video
+// sits stacked *under* its Image within the same column rather than beside it
+// (the homepage table's own layout): the category dialog is a fixed
+// `sm:max-w-2xl`, too narrow for four Image+Video pairs side by side.
+const CATEGORY_BANNER_SIZES: {
+  key: CategoryBannerSizeKey;
+  label: string;
+  required: boolean;
+  aspect: "video" | "4:3" | "3:4" | "9:16";
+  boxSizeClassName: string;
+  Icon: typeof Monitor;
+  iconClassName?: string;
+}[] = [
+  { key: "Xl", label: "2560x1440", required: true, aspect: "video", boxSizeClassName: "w-36 h-24", Icon: Monitor },
+  { key: "Lg", label: "2048x1536", required: false, aspect: "4:3", boxSizeClassName: "w-28 h-24", Icon: Tablet, iconClassName: "rotate-90" },
+  { key: "Md", label: "1536x2048", required: false, aspect: "3:4", boxSizeClassName: "w-24 h-32", Icon: Tablet },
+  { key: "Sm", label: "1440x2560", required: false, aspect: "9:16", boxSizeClassName: "w-20 h-32", Icon: Smartphone },
+];
 
 // Shared by both dialogs — a plain breadcrumb only ever has a name; switching
 // "This category has its own page" on reveals the content fields (banner,
@@ -160,9 +194,17 @@ function CategoryForm({
   const [name, setName] = useState(initialValues?.name ?? "");
   const [isPage, setIsPage] = useState(initialValues?.isPage ?? false);
   const [bannerSmUrl, setBannerSmUrl] = useState(initialValues?.bannerSmUrl ?? "");
+  const [bannerSmVideoUrl, setBannerSmVideoUrl] = useState(initialValues?.bannerSmVideoUrl ?? "");
   const [bannerMdUrl, setBannerMdUrl] = useState(initialValues?.bannerMdUrl ?? "");
+  const [bannerMdVideoUrl, setBannerMdVideoUrl] = useState(initialValues?.bannerMdVideoUrl ?? "");
   const [bannerLgUrl, setBannerLgUrl] = useState(initialValues?.bannerLgUrl ?? "");
+  const [bannerLgVideoUrl, setBannerLgVideoUrl] = useState(initialValues?.bannerLgVideoUrl ?? "");
   const [bannerXlUrl, setBannerXlUrl] = useState(initialValues?.bannerXlUrl ?? "");
+  const [bannerXlVideoUrl, setBannerXlVideoUrl] = useState(initialValues?.bannerXlVideoUrl ?? "");
+  // One global switch, not per-size — mirrors HomePage's own ADR-091.
+  const [bannerVideoUseForSmaller, setBannerVideoUseForSmaller] = useState(
+    initialValues?.bannerVideoUseForSmaller ?? false
+  );
   const [title, setTitle] = useState(initialValues?.title ?? "");
   const [description, setDescription] = useState(initialValues?.description ?? "");
   const [body, setBody] = useState(initialValues?.body ?? "");
@@ -174,20 +216,50 @@ function CategoryForm({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const categoryBannerFields: Record<
+    CategoryBannerSizeKey,
+    { imageUrl: string; videoUrl: string; setImageUrl: (value: string) => void; setVideoUrl: (value: string) => void }
+  > = {
+    Xl: { imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl, setImageUrl: setBannerXlUrl, setVideoUrl: setBannerXlVideoUrl },
+    Lg: { imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl, setImageUrl: setBannerLgUrl, setVideoUrl: setBannerLgVideoUrl },
+    Md: { imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl, setImageUrl: setBannerMdUrl, setVideoUrl: setBannerMdVideoUrl },
+    Sm: { imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl, setImageUrl: setBannerSmUrl, setVideoUrl: setBannerSmVideoUrl },
+  };
+  const hasAnyBannerVideo = Boolean(bannerXlVideoUrl || bannerLgVideoUrl || bannerMdVideoUrl || bannerSmVideoUrl);
+
   const canSubmit =
     name.trim().length > 0 &&
     (!isPage || (bannerXlUrl.length > 0 && title.trim().length > 0 && description.trim().length > 0));
 
   const handleSubmit = () => {
     setError(null);
+
+    if (isPage) {
+      const fallbackError = findMissingBannerVideoFallback([
+        { label: "2560x1440", imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
+        { label: "2048x1536", imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl },
+        { label: "1536x2048", imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
+        { label: "1440x2560", imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
+      ]);
+      if (fallbackError) {
+        setError(fallbackError);
+        return;
+      }
+    }
+
     startTransition(async () => {
       const result = await onSubmit({
         name,
         isPage,
         bannerSmUrl,
+        bannerSmVideoUrl,
         bannerMdUrl,
+        bannerMdVideoUrl,
         bannerLgUrl,
+        bannerLgVideoUrl,
         bannerXlUrl,
+        bannerXlVideoUrl,
+        bannerVideoUseForSmaller,
         title,
         description,
         body,
@@ -294,61 +366,89 @@ function CategoryForm({
                   <RequiredMark />
                 </p>
                 <p className="text-muted-foreground -mt-2 text-xs">
-                  Up to {MAX_CATEGORY_BANNER_LABEL} each. JPEG, PNG, or WEBP.
+                  Image: up to {MAX_CATEGORY_BANNER_LABEL}, JPEG/PNG/WEBP. Video: up to{" "}
+                  {MAX_CATEGORY_BANNER_VIDEO_LABEL}, MP4, optional per size — image will be used as fallback.
                 </p>
 
-                <div className="flex flex-row flex-wrap justify-start gap-4">
-                  <div className="flex w-40 flex-col gap-1.5">
-                    <Label className="text-xxs">
-                      2560x1440
-                      <RequiredMark />
-                    </Label>
-                    <UploadField
-                      kind="image"
-                      aspect="square"
-                      fit="cover"
-                      uploadAction={uploadCategoryBanner}
-                      value={bannerXlUrl}
-                      onChange={(value) => setBannerXlUrl((value as string) ?? "")}
-                    />
-                  </div>
-
-                  <div className="flex w-40 flex-col gap-1.5">
-                    <Label className="text-xxs">2048x1536</Label>
-                    <UploadField
-                      kind="image"
-                      aspect="square"
-                      fit="cover"
-                      uploadAction={uploadCategoryBanner}
-                      value={bannerLgUrl}
-                      onChange={(value) => setBannerLgUrl((value as string) ?? "")}
-                    />
-                  </div>
-
-                  <div className="flex w-40 flex-col gap-1.5">
-                    <Label className="text-xxs">1536x2048</Label>
-                    <UploadField
-                      kind="image"
-                      aspect="square"
-                      fit="cover"
-                      uploadAction={uploadCategoryBanner}
-                      value={bannerMdUrl}
-                      onChange={(value) => setBannerMdUrl((value as string) ?? "")}
-                    />
-                  </div>
-
-                  <div className="flex w-40 flex-col gap-1.5">
-                    <Label className="text-xxs">1440x2560</Label>
-                    <UploadField
-                      kind="image"
-                      aspect="square"
-                      fit="cover"
-                      uploadAction={uploadCategoryBanner}
-                      value={bannerSmUrl}
-                      onChange={(value) => setBannerSmUrl((value as string) ?? "")}
-                    />
-                  </div>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent divide-x">
+                        {CATEGORY_BANNER_SIZES.map((size) => (
+                          <TableHead key={size.key} className="text-center">
+                            <div className="flex flex-col items-center gap-1.5 py-2">
+                              <size.Icon className={cn("text-muted-foreground size-6", size.iconClassName)} />
+                              <span className="text-xs font-semibold whitespace-nowrap">
+                                {size.label}
+                                {size.required && <RequiredMark />}
+                              </span>
+                            </div>
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow className="hover:bg-transparent divide-x">
+                        {CATEGORY_BANNER_SIZES.map((size) => {
+                          const field = categoryBannerFields[size.key];
+                          return (
+                            <TableCell key={size.key} className="align-top">
+                              {/* Video stacked under Image (not side by side
+                                  like the homepage table) — this dialog is a
+                                  fixed sm:max-w-2xl, too narrow for four
+                                  Image+Video pairs side by side. */}
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="flex flex-col items-center gap-1.5">
+                                  <Label className="text-xs font-medium text-foreground">
+                                    Image
+                                    {size.required && <RequiredMark />}
+                                  </Label>
+                                  <UploadField
+                                    kind="image"
+                                    aspect={size.aspect}
+                                    fit="cover"
+                                    boxSizeClassName={size.boxSizeClassName}
+                                    uploadAction={uploadCategoryBanner}
+                                    value={field.imageUrl}
+                                    onChange={(value) => field.setImageUrl((value as string) ?? "")}
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1.5">
+                                  <Label className="text-xs font-medium text-foreground">Video</Label>
+                                  <UploadField
+                                    kind="video"
+                                    aspect={size.aspect}
+                                    fit="cover"
+                                    boxSizeClassName={size.boxSizeClassName}
+                                    uploadAction={uploadCategoryBannerVideo}
+                                    value={field.videoUrl}
+                                    onChange={(value) => field.setVideoUrl((value as string) ?? "")}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </div>
+
+                {hasAnyBannerVideo && (
+                  <label className="flex items-start gap-2.5 pt-1">
+                    <Switch
+                      checked={bannerVideoUseForSmaller}
+                      onCheckedChange={setBannerVideoUseForSmaller}
+                      className="mt-0.5 shrink-0"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium text-foreground">Use existing video for empty screen sizes</span>
+                      <span className="text-muted-foreground text-xs">
+                        Screen size with no video will use the larger size&apos;s video if it exists.
+                      </span>
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
 
@@ -709,9 +809,14 @@ export function CategoryTree({
     formData.set("isPage", values.isPage ? "true" : "false");
     if (values.isPage) {
       if (values.bannerSmUrl) formData.set("bannerSmUrl", values.bannerSmUrl);
+      if (values.bannerSmVideoUrl) formData.set("bannerSmVideoUrl", values.bannerSmVideoUrl);
       if (values.bannerMdUrl) formData.set("bannerMdUrl", values.bannerMdUrl);
+      if (values.bannerMdVideoUrl) formData.set("bannerMdVideoUrl", values.bannerMdVideoUrl);
       if (values.bannerLgUrl) formData.set("bannerLgUrl", values.bannerLgUrl);
+      if (values.bannerLgVideoUrl) formData.set("bannerLgVideoUrl", values.bannerLgVideoUrl);
       formData.set("bannerXlUrl", values.bannerXlUrl);
+      if (values.bannerXlVideoUrl) formData.set("bannerXlVideoUrl", values.bannerXlVideoUrl);
+      formData.set("bannerVideoUseForSmaller", values.bannerVideoUseForSmaller ? "true" : "false");
       formData.set("title", values.title);
       formData.set("description", values.description);
       formData.set("body", values.body);
@@ -729,9 +834,14 @@ export function CategoryTree({
     const contentFields = {
       isPage: result.data.isPage,
       bannerSmUrl: result.data.bannerSmUrl,
+      bannerSmVideoUrl: result.data.bannerSmVideoUrl,
       bannerMdUrl: result.data.bannerMdUrl,
+      bannerMdVideoUrl: result.data.bannerMdVideoUrl,
       bannerLgUrl: result.data.bannerLgUrl,
+      bannerLgVideoUrl: result.data.bannerLgVideoUrl,
       bannerXlUrl: result.data.bannerXlUrl,
+      bannerXlVideoUrl: result.data.bannerXlVideoUrl,
+      bannerVideoUseForSmaller: result.data.bannerVideoUseForSmaller,
       title: result.data.title,
       description: result.data.description,
       body: result.data.body,
@@ -786,9 +896,14 @@ export function CategoryTree({
     formData.set("isPage", values.isPage ? "true" : "false");
     if (values.isPage) {
       if (values.bannerSmUrl) formData.set("bannerSmUrl", values.bannerSmUrl);
+      if (values.bannerSmVideoUrl) formData.set("bannerSmVideoUrl", values.bannerSmVideoUrl);
       if (values.bannerMdUrl) formData.set("bannerMdUrl", values.bannerMdUrl);
+      if (values.bannerMdVideoUrl) formData.set("bannerMdVideoUrl", values.bannerMdVideoUrl);
       if (values.bannerLgUrl) formData.set("bannerLgUrl", values.bannerLgUrl);
+      if (values.bannerLgVideoUrl) formData.set("bannerLgVideoUrl", values.bannerLgVideoUrl);
       formData.set("bannerXlUrl", values.bannerXlUrl);
+      if (values.bannerXlVideoUrl) formData.set("bannerXlVideoUrl", values.bannerXlVideoUrl);
+      formData.set("bannerVideoUseForSmaller", values.bannerVideoUseForSmaller ? "true" : "false");
       formData.set("title", values.title);
       formData.set("description", values.description);
       formData.set("body", values.body);
@@ -809,9 +924,14 @@ export function CategoryTree({
         slug: result.data.slug,
         isPage: result.data.isPage,
         bannerSmUrl: result.data.bannerSmUrl,
+        bannerSmVideoUrl: result.data.bannerSmVideoUrl,
         bannerMdUrl: result.data.bannerMdUrl,
+        bannerMdVideoUrl: result.data.bannerMdVideoUrl,
         bannerLgUrl: result.data.bannerLgUrl,
+        bannerLgVideoUrl: result.data.bannerLgVideoUrl,
         bannerXlUrl: result.data.bannerXlUrl,
+        bannerXlVideoUrl: result.data.bannerXlVideoUrl,
+        bannerVideoUseForSmaller: result.data.bannerVideoUseForSmaller,
         title: result.data.title,
         description: result.data.description,
         body: result.data.body,
@@ -901,9 +1021,14 @@ export function CategoryTree({
                 name: editTarget.name,
                 isPage: editTarget.isPage,
                 bannerSmUrl: editTarget.bannerSmUrl ?? "",
+                bannerSmVideoUrl: editTarget.bannerSmVideoUrl ?? "",
                 bannerMdUrl: editTarget.bannerMdUrl ?? "",
+                bannerMdVideoUrl: editTarget.bannerMdVideoUrl ?? "",
                 bannerLgUrl: editTarget.bannerLgUrl ?? "",
+                bannerLgVideoUrl: editTarget.bannerLgVideoUrl ?? "",
                 bannerXlUrl: editTarget.bannerXlUrl ?? "",
+                bannerXlVideoUrl: editTarget.bannerXlVideoUrl ?? "",
+                bannerVideoUseForSmaller: editTarget.bannerVideoUseForSmaller,
                 title: editTarget.title ?? "",
                 description: editTarget.description ?? "",
                 body: editTarget.body ?? "",

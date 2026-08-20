@@ -1,19 +1,42 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ICarouselItem, ICategory, IHomeCarouselListItem, IProductPickerOption } from "@/interfaces/general";
+import {
+  ICarouselItem,
+  ICategory,
+  ICategoryPickerOption,
+  IHomeCarouselListItem,
+  IProductPickerOption,
+} from "@/interfaces/general";
 import { UploadField } from "@/components/upload-field";
 import { createHomeCarousel, updateHomeCarousel } from "./actions";
 import { CarouselCategoryPicker } from "./carousel-category-picker";
 import { CarouselItemsEditor } from "./carousel-items-editor";
 import { MAX_CAROUSEL_TITLE_LENGTH } from "./limits";
 import { uploadHomeCarouselTitleImage } from "./upload-actions";
+
+// Only `isPage` categories qualify (a category without a page has nowhere
+// for `url` to point) — same "does this node actually resolve to a page"
+// check `resolveDevicesRoute` relies on, just walked client-side here since
+// the full tree is already on hand as a prop.
+function collectPageCategoryOptions(
+  nodes: ICategory[],
+  type: "device" | "product",
+  ancestorSlugs: string[]
+): ICategoryPickerOption[] {
+  return nodes.flatMap((node) => {
+    const slugPath = [...ancestorSlugs, node.slug];
+    const self: ICategoryPickerOption[] = node.isPage
+      ? [{ id: node.id, type, name: node.name, url: `/${type === "device" ? "devices" : "products"}/${slugPath.join("/")}` }]
+      : [];
+    return [...self, ...collectPageCategoryOptions(node.children, type, slugPath)];
+  });
+}
 
 interface ICarouselFormProps {
   carousel?: IHomeCarouselListItem;
@@ -23,6 +46,7 @@ interface ICarouselFormProps {
   onSuccess?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
   onPendingChange?: (pending: boolean) => void;
+  onModeChange?: (mode: "category" | "custom" | null) => void;
 }
 
 export function CarouselForm({
@@ -33,9 +57,19 @@ export function CarouselForm({
   onSuccess,
   onDirtyChange,
   onPendingChange,
+  onModeChange,
 }: ICarouselFormProps) {
   const isEdit = carousel !== undefined;
-  const initialMode = carousel?.mode ?? "category";
+
+  const categoryOptions = useMemo(
+    () => [
+      ...collectPageCategoryOptions(deviceCategories, "device", []),
+      ...collectPageCategoryOptions(productCategories, "product", []),
+    ],
+    [deviceCategories, productCategories]
+  );
+
+  const initialMode = carousel?.mode ?? null;
   const initialCategoryId = carousel?.categoryId ?? "";
   const initialTitle = carousel?.title ?? "";
   const initialItems = carousel?.items ?? [];
@@ -45,7 +79,7 @@ export function CarouselForm({
   const initialTitleDisplayMode = carousel?.titleDisplayMode ?? "text";
   const initialTitleImage = carousel?.titleImage ?? "";
 
-  const [mode, setMode] = useState<"category" | "custom">(initialMode);
+  const [mode, setMode] = useState<"category" | "custom" | null>(initialMode);
   const [categoryId, setCategoryId] = useState(initialCategoryId);
   const [title, setTitle] = useState(initialTitle);
   const [items, setItems] = useState<ICarouselItem[]>(initialItems);
@@ -76,8 +110,14 @@ export function CarouselForm({
     onPendingChange?.(isPending);
   }, [isPending, onPendingChange]);
 
+  useEffect(() => {
+    onModeChange?.(mode);
+  }, [mode, onModeChange]);
+
   const handleSubmit = () => {
     setError(null);
+
+    if (!mode) return;
 
     if (mode === "category" && !categoryId) {
       setError("Select a category.");
@@ -124,7 +164,7 @@ export function CarouselForm({
           return;
         }
         if (!isEdit) {
-          setMode("category");
+          setMode(null);
           setCategoryId("");
           setTitle("");
           setItems([]);
@@ -142,6 +182,93 @@ export function CarouselForm({
     });
   };
 
+  const titleDisplayField = (
+    <div className="flex flex-col gap-2">
+      <Label>Carousel Title Display</Label>
+      <Select
+        value={titleDisplayMode}
+        onValueChange={(value) => setTitleDisplayMode(value as "text" | "image")}
+        disabled={isPending}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="text">Text</SelectItem>
+          <SelectItem value="image">Image</SelectItem>
+        </SelectContent>
+      </Select>
+      {titleDisplayMode === "image" && (
+        <>
+          <p className="text-muted-foreground text-xs">
+            {mode === "category"
+              ? "Shown instead of the category's name. The category's name is still used as the accessible title."
+              : "Shown instead of the title above. The title is still required for accessibility."}
+          </p>
+          <div className="w-56">
+            <UploadField
+              kind="image"
+              aspect="4:3"
+              uploadAction={uploadHomeCarouselTitleImage}
+              value={titleImage}
+              onChange={(value) => setTitleImage((value as string) ?? "")}
+              disabled={isPending}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const cardStyleField = (
+    <div className="flex flex-col gap-2">
+      <Label>Card Style</Label>
+      <Select value={size} onValueChange={(value) => setSize(value as "sm" | "md")} disabled={isPending}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="sm">Square</SelectItem>
+          <SelectItem value="md">Transparent</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  if (mode === null) {
+    return (
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("category");
+            setShowSeeMore(true);
+          }}
+          className="hover:border-destructive hover:bg-destructive/5 flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-colors"
+        >
+          <span className="text-foreground font-semibold">Product / Device</span>
+          <span className="text-muted-foreground text-xs font-normal">
+            Pull products or devices straight from a catalogue category.
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("custom");
+            setShowSeeMore(false);
+          }}
+          className="hover:border-destructive hover:bg-destructive/5 flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-colors"
+        >
+          <span className="text-foreground font-semibold">Custom</span>
+          <span className="text-muted-foreground text-xs font-normal">
+            Build your own set of cards — mix in existing products/devices or add
+            shortcuts to any page.
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Only this middle section scrolls — the Save button (and error
@@ -149,30 +276,36 @@ export function CarouselForm({
           add/edit modal (category-tree.tsx), rather than the whole dialog
           (header included) scrolling. */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 py-1">
-      <Tabs value={mode} onValueChange={(value) => setMode(value as "category" | "custom")}>
-        <TabsList className="w-full">
-          <TabsTrigger value="category">By Category</TabsTrigger>
-          <TabsTrigger value="custom">Custom</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="category" className="flex flex-col gap-2">
-          <Label>Category</Label>
-          <p className="text-muted-foreground text-xs">
-            Pick a category with no sub-categories of its own. Its title, products, and
-            &quot;See More&quot; link are kept in sync automatically.
-          </p>
-          <CarouselCategoryPicker
-            deviceCategories={deviceCategories}
-            productCategories={productCategories}
-            value={categoryId}
-            onChange={setCategoryId}
-            disabled={isPending}
-          />
-        </TabsContent>
-
-        <TabsContent value="custom" className="flex flex-col gap-4">
+      {mode === "category" && (
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="carousel-title">Title</Label>
+            <Label>
+              Category <span className="text-destructive">*</span>
+            </Label>
+            <p className="text-muted-foreground text-xs">
+              Pick a category with no sub-categories of its own. Its title, products, and
+              &quot;See More&quot; link are kept in sync automatically.
+            </p>
+            <CarouselCategoryPicker
+              deviceCategories={deviceCategories}
+              productCategories={productCategories}
+              value={categoryId}
+              onChange={setCategoryId}
+              disabled={isPending}
+            />
+          </div>
+
+          {titleDisplayField}
+          {cardStyleField}
+        </div>
+      )}
+
+      {mode === "custom" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="carousel-title">
+              Title <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="carousel-title"
               value={title}
@@ -189,62 +322,26 @@ export function CarouselForm({
             )}
           </div>
 
-          <CarouselItemsEditor items={items} productOptions={productOptions} onChange={setItems} />
-        </TabsContent>
-      </Tabs>
+          {titleDisplayField}
 
-      <div className="flex flex-col gap-2">
-        <Label>Carousel Title Display</Label>
-        <Select
-          value={titleDisplayMode}
-          onValueChange={(value) => setTitleDisplayMode(value as "text" | "image")}
-          disabled={isPending}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="text">Text</SelectItem>
-            <SelectItem value="image">Image</SelectItem>
-          </SelectContent>
-        </Select>
-        {titleDisplayMode === "image" && (
-          <>
-            <p className="text-muted-foreground text-xs">
-              {mode === "category"
-                ? "Shown instead of the category's name. The category's name is still used as the accessible title."
-                : "Shown instead of the title above. The title is still required for accessibility."}
-            </p>
-            <div className="w-56">
-              <UploadField
-                kind="image"
-                aspect="4:3"
-                uploadAction={uploadHomeCarouselTitleImage}
-                value={titleImage}
-                onChange={(value) => setTitleImage((value as string) ?? "")}
-                disabled={isPending}
-              />
-            </div>
-          </>
-        )}
-      </div>
+          <div className="border-t" />
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <Label>Card Style</Label>
-          <Select value={size} onValueChange={(value) => setSize(value as "sm" | "md")} disabled={isPending}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="sm">Square</SelectItem>
-              <SelectItem value="md">Transparent</SelectItem>
-            </SelectContent>
-          </Select>
+          <CarouselItemsEditor
+            items={items}
+            productOptions={productOptions}
+            categoryOptions={categoryOptions}
+            onChange={setItems}
+          />
+
+          {cardStyleField}
         </div>
+      )}
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="carousel-show-see-more">Show &quot;See More&quot; button</Label>
+      <div className="border-t" />
+
+      <div className="flex items-end gap-4">
+        <div className="flex shrink-0 flex-col gap-2">
+          <Label htmlFor="carousel-show-see-more">See More CTA</Label>
           <div className="flex h-9 items-center">
             <Switch
               id="carousel-show-see-more"
@@ -254,20 +351,22 @@ export function CarouselForm({
             />
           </div>
         </div>
-      </div>
 
-      {mode === "custom" && showSeeMore && (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="carousel-see-more-url">See More URL</Label>
-          <Input
-            id="carousel-see-more-url"
-            value={seeMoreUrl}
-            onChange={(event) => setSeeMoreUrl(event.target.value)}
-            placeholder="/devices/medical-aesthetic-devices/alma-laser"
-            disabled={isPending}
-          />
-        </div>
-      )}
+        {mode === "custom" && showSeeMore && (
+          <div className="flex flex-1 flex-col gap-2">
+            <Label htmlFor="carousel-see-more-url">
+              See More URL <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="carousel-see-more-url"
+              value={seeMoreUrl}
+              onChange={(event) => setSeeMoreUrl(event.target.value)}
+              placeholder="/devices/medical-aesthetic-devices/alma-laser"
+              disabled={isPending}
+            />
+          </div>
+        )}
+      </div>
       </div>
 
       {error && <p className="text-destructive text-sm">{error}</p>}

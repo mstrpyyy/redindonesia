@@ -22,6 +22,10 @@ export default async function MediaGalleries() {
         defImage={page.bannerXlUrl ?? '/image/media/galleries/dummy.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) galleries'
       >
         <span className='text-brand-red2'>RED</span>

@@ -15,6 +15,10 @@ export default async function Contact() {
         defImage={page.bannerXlUrl ?? '/image/contact/dummy2.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Contact Us'
       >
           <span className='text-brand-red2'>Contact</span>

@@ -15,6 +15,10 @@ export default async function SupportRegistrationDocumentation() {
         defImage={page.bannerXlUrl ?? '/image/support/registration/dummy2.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
         <div className='flex flex-col items-center'>

@@ -131,6 +131,7 @@ export function CarouselTable({
 }) {
   const [items, setItems] = useState(carousels);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"category" | "custom" | null>(null);
   const [editing, setEditing] = useState<IHomeCarouselListItem | null>(null);
   const [deleting, setDeleting] = useState<IHomeCarouselListItem | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
@@ -237,10 +238,10 @@ export function CarouselTable({
           <DialogContent
             showCloseButton={!isAddSaving}
             onOpenAutoFocus={(event) => event.preventDefault()}
-            className="flex max-h-[85vh] flex-col sm:max-w-3xl"
+            className={cn("flex max-h-[85vh] flex-col", addMode === null ? "sm:max-w-md" : "sm:max-w-3xl")}
           >
             <DialogHeader>
-              <DialogTitle>Add Carousel</DialogTitle>
+              <DialogTitle>Choose Carousel Type</DialogTitle>
             </DialogHeader>
             <CarouselForm
               deviceCategories={deviceCategories}
@@ -252,6 +253,7 @@ export function CarouselTable({
               }}
               onDirtyChange={setIsAddFormDirty}
               onPendingChange={setIsAddSaving}
+              onModeChange={setAddMode}
             />
           </DialogContent>
         </Dialog>

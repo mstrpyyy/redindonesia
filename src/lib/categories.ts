@@ -1,6 +1,29 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ICategory, INavbarMenu } from "@/interfaces/general";
+import { resolveCascadingVideoUrls } from "@/lib/banner-video";
+
+// The four category banner sizes form one waterfall, largest to smallest —
+// same shape/order as HomePage's own (ADR-091), reused for the category
+// banner's video cascade (ADR-093).
+export const CATEGORY_BANNER_SIZE_ORDER = ["Xl", "Lg", "Md", "Sm"] as const;
+export type CategoryBannerSizeKey = (typeof CATEGORY_BANNER_SIZE_ORDER)[number];
+
+export function resolveCategoryBannerVideoUrls(
+  category: Pick<
+    ICategory,
+    "bannerXlVideoUrl" | "bannerLgVideoUrl" | "bannerMdVideoUrl" | "bannerSmVideoUrl" | "bannerVideoUseForSmaller"
+  >
+): Record<CategoryBannerSizeKey, string | null> {
+  const ownVideo: Record<CategoryBannerSizeKey, string | null> = {
+    Xl: category.bannerXlVideoUrl,
+    Lg: category.bannerLgVideoUrl,
+    Md: category.bannerMdVideoUrl,
+    Sm: category.bannerSmVideoUrl,
+  };
+
+  return resolveCascadingVideoUrls(CATEGORY_BANNER_SIZE_ORDER, ownVideo, category.bannerVideoUseForSmaller);
+}
 
 // Builds the nested tree for one root ("device" | "product") from a flat,
 // order-sorted row list — one query instead of a recursive per-level walk.
@@ -25,9 +48,14 @@ export async function getCategoryTree(type: "device" | "product"): Promise<ICate
         parentId: row.parentId,
         isPage: row.isPage,
         bannerSmUrl: row.bannerSmUrl,
+        bannerSmVideoUrl: row.bannerSmVideoUrl,
         bannerMdUrl: row.bannerMdUrl,
+        bannerMdVideoUrl: row.bannerMdVideoUrl,
         bannerLgUrl: row.bannerLgUrl,
+        bannerLgVideoUrl: row.bannerLgVideoUrl,
         bannerXlUrl: row.bannerXlUrl,
+        bannerXlVideoUrl: row.bannerXlVideoUrl,
+        bannerVideoUseForSmaller: row.bannerVideoUseForSmaller,
         title: row.title,
         description: row.description,
         body: row.body,

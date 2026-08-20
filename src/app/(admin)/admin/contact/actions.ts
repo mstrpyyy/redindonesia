@@ -4,11 +4,15 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { saveUpload } from "@/lib/uploads";
+import { findMissingBannerVideoFallback, PAGE_BANNER_SIZE_LABELS } from "@/lib/banner-video";
 import { isContactPageSlug, type ContactPageSlug } from "@/lib/contact-pages";
 import {
   ACCEPTED_CONTACT_IMAGE_TYPES,
+  ACCEPTED_CONTACT_VIDEO_TYPES,
   MAX_CONTACT_BANNER_LABEL,
   MAX_CONTACT_BANNER_SIZE,
+  MAX_CONTACT_BANNER_VIDEO_LABEL,
+  MAX_CONTACT_BANNER_VIDEO_SIZE,
 } from "./limits";
 
 type ActionResult<T> =
@@ -44,6 +48,29 @@ export async function uploadContactPageBanner(formData: FormData): Promise<Actio
   }
 }
 
+const contactVideoSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Video is required")
+  .refine((file) => file.size <= MAX_CONTACT_BANNER_VIDEO_SIZE, `Video must be smaller than ${MAX_CONTACT_BANNER_VIDEO_LABEL}`)
+  .refine((file) => ACCEPTED_CONTACT_VIDEO_TYPES.includes(file.type), "Video must be an MP4");
+
+export async function uploadContactPageBannerVideo(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const parsed = contactVideoSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid video" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, CONTACT_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner video." } };
+  }
+}
+
 // Called directly from the body's rich text toolbar the moment an image is
 // picked, same pattern as the support/article/category editors.
 export async function uploadContactPageContentImage(formData: FormData): Promise<ActionResult<{ url: string }>> {
@@ -63,10 +90,20 @@ export async function uploadContactPageContentImage(formData: FormData): Promise
   }
 }
 
+// Same "true"/"false" string convention as HomeCarousel's `showSeeMore` and
+// the homepage banner's own cascade flag (homepage/content/actions.ts).
+const booleanFlagSchema = z
+  .preprocess((value) => value ?? "false", z.enum(["true", "false"]))
+  .transform((value) => value === "true");
+
 const saveContactPageSchema = z.object({
   bannerXlUrl: z.string().trim().min(1, "The 2560x1107 banner is required."),
+  bannerXlVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
+  bannerMdVideoUrl: z.string().trim().optional(),
   bannerSmUrl: z.string().trim().optional(),
+  bannerSmVideoUrl: z.string().trim().optional(),
+  bannerVideoUseForSmaller: booleanFlagSchema,
   body: z.string().optional(),
 });
 
@@ -85,8 +122,12 @@ export async function saveContactPage(
 
   const parsed = saveContactPageSchema.safeParse({
     bannerXlUrl: formData.get("bannerXlUrl"),
+    bannerXlVideoUrl: formData.get("bannerXlVideoUrl") ?? undefined,
     bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
+    bannerMdVideoUrl: formData.get("bannerMdVideoUrl") ?? undefined,
     bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
+    bannerSmVideoUrl: formData.get("bannerSmVideoUrl") ?? undefined,
+    bannerVideoUseForSmaller: formData.get("bannerVideoUseForSmaller"),
     body: formData.get("body") ?? undefined,
   });
 
@@ -97,7 +138,31 @@ export async function saveContactPage(
     };
   }
 
-  const { bannerXlUrl, bannerMdUrl, bannerSmUrl, body } = parsed.data;
+  const {
+    bannerXlUrl,
+    bannerXlVideoUrl,
+    bannerMdUrl,
+    bannerMdVideoUrl,
+    bannerSmUrl,
+    bannerSmVideoUrl,
+    bannerVideoUseForSmaller,
+    body,
+  } = parsed.data;
+
+  const fallbackError = findMissingBannerVideoFallback([
+    { label: PAGE_BANNER_SIZE_LABELS.Xl, imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl ?? "" },
+    { label: PAGE_BANNER_SIZE_LABELS.Md, imageUrl: bannerMdUrl ?? "", videoUrl: bannerMdVideoUrl ?? "" },
+    { label: PAGE_BANNER_SIZE_LABELS.Sm, imageUrl: bannerSmUrl ?? "", videoUrl: bannerSmVideoUrl ?? "" },
+  ]);
+  if (fallbackError) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: fallbackError } };
+  }
+
+  // The flag is only meaningful once at least one size has a video — force it
+  // back off server-side so a stale "true" can't linger with nothing to
+  // cascade.
+  const videoUseForSmaller =
+    Boolean(bannerXlVideoUrl || bannerMdVideoUrl || bannerSmVideoUrl) && bannerVideoUseForSmaller;
 
   try {
     await prisma.contactPage.upsert({
@@ -105,14 +170,22 @@ export async function saveContactPage(
       create: {
         slug,
         bannerXlUrl,
+        bannerXlVideoUrl: bannerXlVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,
+        bannerMdVideoUrl: bannerMdVideoUrl || null,
         bannerSmUrl: bannerSmUrl || null,
+        bannerSmVideoUrl: bannerSmVideoUrl || null,
+        bannerVideoUseForSmaller: videoUseForSmaller,
         body: body || null,
       },
       update: {
         bannerXlUrl,
+        bannerXlVideoUrl: bannerXlVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,
+        bannerMdVideoUrl: bannerMdVideoUrl || null,
         bannerSmUrl: bannerSmUrl || null,
+        bannerSmVideoUrl: bannerSmVideoUrl || null,
+        bannerVideoUseForSmaller: videoUseForSmaller,
         body: body || null,
       },
     });

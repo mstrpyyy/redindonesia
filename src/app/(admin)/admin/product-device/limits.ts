@@ -8,6 +8,13 @@ export const MAX_CATEGORY_DESCRIPTION_LENGTH = 200;
 export const MAX_CATEGORY_BANNER_SIZE = 2 * 1000 * 1024;
 export const MAX_CATEGORY_BANNER_LABEL = "2MB";
 
+// Category banner video (ADR-093) — same optional-MP4-per-size/cascade
+// pattern as the homepage hero banner (ADR-089/091); same size/type budget
+// as HomePage's own (see homepage/content/limits.ts).
+export const MAX_CATEGORY_BANNER_VIDEO_SIZE = 10 * 1000 * 1024;
+export const MAX_CATEGORY_BANNER_VIDEO_LABEL = "10MB";
+export const ACCEPTED_CATEGORY_VIDEO_TYPES = ["video/mp4"];
+
 // The YouTube embed's optional caption/description — same length budget as
 // the page's own title/description, since they render at the same h3/p scale.
 export const MAX_CATEGORY_YOUTUBE_CAPTION_LENGTH = MAX_CATEGORY_TITLE_LENGTH;

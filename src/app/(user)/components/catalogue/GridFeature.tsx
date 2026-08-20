@@ -45,14 +45,19 @@ const TreatmentGrid = ({list, columns}:{list:ITreatmentList[], columns: '1' | '2
       data-aos-duration="500"
       data-aos-anchor-placement="bottom"
     >
-      {/* 1 column: the grid stays `w-fit` (sized to its own content) at every
-          breakpoint so `mx-auto` actually centers the whole block within the
-          section — each item's own text stays `text-left!` below, only the
-          block as a whole is centered. 2 columns still needs the full width
-          at md+ for the 2-up grid to lay out, so it keeps the old behavior. */}
+      {/* `w-fit` at every breakpoint (both column counts) so the grid only
+          ever takes up as much room as its content needs — `mx-auto` then
+          centers that block within the section. With `grid-cols-2` on a
+          shrink-to-fit container, the two equal `1fr` tracks both resolve to
+          the width of whichever column's content is widest, so the columns
+          stay the same width and evenly balanced around a fixed `gap-10`
+          instead of stretching to the full section width (which used to
+          leave column 2 sitting wherever the halfway point happened to
+          fall, not evenly spaced from column 1). Each item's own text stays
+          `text-left!` below, only the block as a whole is centered. */}
       <div className={cn(
-        'grid grid-cols-1 items-center justify-items-start gap-10 mx-auto',
-        columns === '2' ? 'w-fit md:w-full md:grid-cols-2' : 'w-fit'
+        'grid grid-cols-1 items-center justify-items-start gap-10 mx-auto w-fit',
+        columns === '2' && 'md:grid-cols-2'
       )}>
         {list.map((item, index) => {
           return (

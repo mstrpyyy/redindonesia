@@ -4130,3 +4130,451 @@ longer removed from the tree above it.
   immediately as inert breadcrumb text, rather than being invisible until something under
   it becomes a page — matches building the tree in the admin more directly, at the cost of
   a visitor being able to see an unfinished branch's name before it's ready.
+
+## ADR-088: Product/category mutations now revalidate the public homepage and catch-all routes
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** ADR-066 states that a "category" mode carousel needs zero maintenance when
+products under it change — "publish a new product, and it appears in the homepage carousel
+on the next render, no admin action needed." That held for the data layer
+(`getPublicHomeCarousels`/`getPublishedProductCards` always query current `Product` rows)
+but not in practice: the public homepage (`/`) and the `/devices/[...slug]`/
+`/products/[...slug]` catch-alls call Prisma directly with no dynamic API (no `cookies()`/
+`headers()`, no `revalidate` export), so Next's Full Route Cache serves the statically
+rendered HTML from the last build or on-demand revalidation indefinitely. `revalidateProductPages`
+(`product-actions.ts`) and `revalidateCategoryPages` (`actions.ts`) only ever revalidated
+admin-side routes (`/admin/product-device/.../items`, `/admin/homepage/content`) plus the
+nav category tag (ADR-058) — never the public pages that actually render the data. Result:
+adding, editing, deleting, or drafting a product (or renaming/deleting a category) left the
+homepage carousels and public catalogue pages showing stale content until something
+unrelated happened to revalidate `/` (e.g. editing a carousel's own config, which already
+called `revalidatePath("/")`) or the app redeployed.
+
+**Options considered:**
+1. **Add `export const revalidate = <seconds>` (time-based ISR) to the homepage and
+   catch-all pages** — simplest to write, but reintroduces a staleness window ADR-066
+   explicitly rejected ("no admin action needed" implies immediate, not eventual).
+2. **On-demand `revalidatePath` from the product/category actions (chosen)** — matches
+   every other mutation in this codebase (articles, galleries, contact, support, carousel
+   config itself already do this); freshness is exact, tied to the actual write.
+3. **Revalidate only literal, precisely-affected URLs** (e.g. resolve every ancestry path a
+   changed product could appear under, given cross-listing via secondary categories,
+   ADR-085) — most surgical, but the catch-all's ancestry resolution makes "every URL this
+   product/category could affect" expensive and easy to under-cover (a product's secondary
+   categories, a carousel's category-mode breadcrumb, the homepage's carousel list itself
+   all read from the same rows). Rejected as more code for a marginal cache-hit-rate gain
+   the site's traffic doesn't need yet.
+
+**Decision:** Option 2. Both `revalidateProductPages` and `revalidateCategoryPages` now also
+call `revalidatePath("/")` and `revalidatePath("/devices/[...slug]" | "/products/[...slug]", "page")`
+(the dynamic-segment-placeholder form, which busts every generated page under that catch-all,
+not just one literal URL) alongside their existing admin-route calls.
+
+**Consequences:**
+- A product create/update/delete/status-change or a category create/update/delete now
+  always invalidates the entire `/devices/...` or `/products/...` tree for that `type`, not
+  just the one page it actually changed — broader than strictly necessary, same trade-off
+  ADR-058 already accepted for the nav category tag.
+- Custom-mode carousel items remain deliberately snapshotted (ADR-069) and are unaffected by
+  this change — only "category" mode carousels and the public catalogue pages were reading
+  live data that the cache was hiding.
+- No new caching primitive introduced; this is a gap-fill on the existing
+  `revalidatePath`-per-mutation convention, not a new pattern.
+
+## ADR-089: Homepage hero banner accepts an optional MP4 per size; the still image becomes its required fallback
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** The client asked for the `HomePage` hero banner (ADR-082, four sizes —
+`bannerSmUrl`/`bannerMdUrl`/`bannerLgUrl`/`bannerXlUrl`) to optionally play a video
+instead of a static image, scoped to this one banner first (more banners — Category,
+Support, etc. — reuse the same four/three-size pattern and are likely candidates
+later, but out of scope here). Constraints given: MP4 only, 8MB max, and a fallback
+image is required whenever a video is used.
+
+**Options considered — data shape:**
+1. **A `bannerXxxType: "image" | "video"` discriminator per size, with the existing
+   URL column repurposed to whichever type is active** — explicit, but means an
+   admin who removes a video loses the still image too (no separate fallback
+   column), directly contradicting "requires a fallback image."
+2. **A separate `bannerXxxVideoUrl` column per size, image column unchanged
+   (chosen)** — the existing `bannerXxxUrl` stays what it always was (a still
+   image, required for `Xl`); a new nullable sibling column holds the optional
+   video. No type discriminator needed — presence of the video URL is the signal
+   to render it. The image column doubles as the required fallback by
+   construction, not by a separate "fallback image" field: there's only ever one
+   image per size, and it's reused as the video's poster/fallback.
+
+**Options considered — enforcing "video requires its own image":**
+1. **DB-level constraint (check clause)** — Postgres can express "video IS NULL OR
+   image IS NOT NULL" per column pair, but this project has no precedent for
+   hand-written check constraints (every other cross-field rule so far is
+   app-layer, e.g. ADR-016's draft/publish field rules) and Prisma has no
+   declarative support for it.
+2. **App-layer check in `saveHomePage`, mirrored client-side (chosen)** — same
+   "Zod/action-layer validation, not a DB constraint" precedent as everywhere else
+   in this codebase. `assertVideoHasFallback` runs once per size in the Server
+   Action; `home-page-form.tsx`'s `findMissingFallback` runs the identical check
+   before submit so the error surfaces without a round trip.
+
+**Options considered — fallback behavior in the browser:**
+1. **`<video poster={image}>` only** — covers "shown while the video loads," but a
+   video element that fails outright (bad file, unsupported codec) just renders
+   blank; the poster only shows pre-play, not on error.
+2. **`<video poster={image}> + native fallback content` (a plain `<img>` child)** —
+   HTML5's actual fallback mechanism, but it only renders for browsers that don't
+   parse `<video>` at all (essentially none in current use) — doesn't help when a
+   modern browser can't play *this specific* file.
+3. **Poster for the loading state, plus a client-side `onError` handler that swaps
+   to rendering the plain image (chosen)** — `HeroBanner` (new
+   `src/app/(user)/(homepage)/(sections)/HeroBanner.tsx`, `"use client"` since it
+   needs `useState`) tracks a `videoFailed` flag; on the video element's `onError`
+   it re-renders the same slot as the plain `<Image>` instead. Extracted out of
+   `Hero.tsx` (previously a server component with no interactivity of its own)
+   so only this one piece becomes a Client Component, not the whole hero section.
+
+**Decision:** Options 2, 2, and 3 above. `HomePage` gains
+`bannerSmVideoUrl`/`bannerMdVideoUrl`/`bannerLgVideoUrl`/`bannerXlVideoUrl` (all
+nullable, migration `20260819173141_add_home_page_banner_video`). New limits
+(`MAX_HOME_BANNER_VIDEO_SIZE` = 8MB, `ACCEPTED_HOME_VIDEO_TYPES` = `["video/mp4"]`)
+and a new action `uploadHomePageBannerVideo`, mirroring the existing
+`uploadHomePageBanner` image action and landing in the same `home-page` upload
+feature directory. The shared `UploadField` component gained a new `kind: "video"`
+(accept `video/mp4`, preview via a native `<video controls>` box with the same
+replace/delete affordances the image kind has) so a future second video-capable
+banner reuses it directly instead of duplicating the upload UI.
+
+**Consequences:**
+- Serving the mp4 needed no change to the `/uploads/[...path]/route.ts` handler
+  (ADR-009) or its image-extension whitelist: that route only exists for
+  `next/image`'s optimizer resolving relative `url=` sources, and every banner
+  `<Image>`/video here is already `unoptimized`/a plain `<video src>` fetched
+  directly by the browser — Nginx (prod) and Next's static `public/` handling
+  (dev) serve `/uploads/home-page/*.mp4` the same way they'd serve any other file
+  in that directory, with no extension whitelist involved.
+- A size's video and image are independent uploads with independent lifecycles —
+  removing the video leaves the image in place (it was never "replaced," just not
+  rendered); removing the image while a video is still set is blocked by
+  `assertVideoHasFallback` both client- and server-side.
+- No orphan cleanup on replace/remove, same precedent as every other segment/
+  banner upload in this codebase (ADR-015, ADR-021) — an old video or image file
+  is left on disk once no longer referenced.
+- `Hero.tsx` stays a Server Component; `HeroBanner.tsx` is the one new Client
+  Component boundary, scoped to exactly the piece that needs `onError` state.
+
+## ADR-090: Only the visitor's matching breakpoint fetches its hero banner video
+
+**Date:** 2026-08-20
+**Status:** Accepted (amends ADR-089)
+
+**Context:** ADR-089's four `HeroBanner` instances are all mounted in the DOM at
+once — the `hidden portrait:.../landscape:...` classes only toggle CSS `display`
+so exactly one is *visible*, a pattern this codebase already used for the
+image-only banner before video existed. That's harmless for images (loaded via
+`next/image`, small, and browsers already treat every mounted `<Image>` the same
+regardless of visibility — pre-existing behavior, unchanged here). It is not
+harmless for `<video autoPlay>`: browsers fetch enough of an autoplaying video to
+start playing without regard to CSS `display:none`, so with all four breakpoints
+mounted, a visitor could end up downloading all four MP4s (up to 4×10MB — see the
+banner video limit task) even though only one is ever shown.
+
+**Options considered:**
+1. **`preload="none"`, then manually call `.load()`/`.play()` once a breakpoint is
+   confirmed active** — avoids the eager fetch, but needs more imperative video-
+   element control code for marginal benefit over option 2.
+2. **Only mount the `<video>` for the currently-matching breakpoint; the other
+   three always render their plain image instead, regardless of whether they have
+   a video set (chosen)** — a new `HeroBannerGroup` (replacing the four inline
+   `HeroBanner` calls) runs a `useActiveHeroBreakpoint` hook: four `matchMedia`
+   queries mirroring each slot's own CSS rule exactly (`(orientation: portrait)
+   and (max-width: 767.98px)` for `sm`, etc. — Tailwind's default `md`/`xl`
+   pixel breakpoints, kept in sync with the classes by hand since there's no
+   single source of truth to derive them from at build time), resolved
+   client-side via `useEffect` (`null` until then, so nothing guesses on the
+   server or on first paint before hydration). Each slot receives `isActive`;
+   only the active one's `videoUrl` is honored — inactive slots just render the
+   image, and video only kicks in once its breakpoint is confirmed active.
+
+**Decision:** Option 2. The CSS `hidden portrait:.../landscape:...` classes are
+unchanged and still solely control what's *visually* shown — `isActive` is a
+second, independent gate purely on what's allowed to *fetch*, so a JS/hydration
+timing mismatch can never show the wrong banner, only (briefly, worst case) show
+the image instead of the video for the correct one.
+
+**Consequences:**
+- Normal case: exactly one MP4 fetches, matching the visitor's actual screen —
+  the other three banner slots never touch the network for video.
+- On first paint (before the `useEffect` resolves), `activeBreakpoint` is `null`
+  and every slot renders its image — a visitor briefly sees the poster/fallback
+  image even on the breakpoint that has a video, for well under a frame in
+  practice. No layout shift, since the CSS classes already reserved the same
+  `position: absolute; inset: 0` space for image and video alike.
+- A window resize/orientation change crossing a breakpoint (e.g. rotating a
+  tablet) re-evaluates via the `matchMedia` `change` listeners and can newly
+  activate a size's video mid-session — same one-time fetch cost as loading that
+  breakpoint fresh, not a regression since that breakpoint's image/video was
+  never fetched before this point either.
+- `HeroBannerGroup` centralizes the breakpoint detection once (four `matchMedia`
+  listeners total) rather than duplicating it across four separate component
+  instances.
+
+## ADR-091: One global switch cascades video down through every smaller size until one has its own
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** The ask: let an admin who only bothered producing one video
+(typically for a larger size) have it also play on smaller sizes that have
+none of their own, without requiring a bespoke video per size — controlled by
+a single global switch, not a per-size one. Enabling it makes every size's
+video "active" for every smaller size down the list, *until cascading reaches
+a smaller size that has its own video* — that size's own video takes over
+from there and continues the cascade onward from itself. The four sizes are
+treated as one ordered list, largest → smallest (Xl, Lg, Md, Sm), independent
+of orientation.
+
+**Options considered — control granularity:**
+1. **A toggle per size (Xl/Lg/Md, each opting its own video into the cascade
+   independently)** — was the initial implementation; more precise, but the
+   actual ask is one on/off switch for the whole feature, not a per-size
+   decision, and a per-size model adds UI (three switches spread across the
+   table) and state for a distinction that wasn't asked for.
+2. **One global boolean (chosen)** — `bannerVideoUseForSmaller` on `HomePage`.
+   When off, every size shows only its own video (or none). When on, the
+   waterfall behavior applies uniformly: any size's video carries down to
+   smaller sizes with none of their own, stopping at (and continuing from)
+   the next size that has its own.
+
+**Options considered — resolution algorithm:**
+1. **Pairwise `own || (parent's video if parent opted in)`** — doesn't
+   generalize past one hop.
+2. **Single left-to-right walk carrying an "active cascading video" (chosen)**
+   — `resolveHomeBannerVideoUrls` (`src/lib/home-page.ts`) walks
+   `Xl → Lg → Md → Sm`: a size with its own video always resolves to that
+   video and becomes the new active video; a size with none resolves to the
+   active video when the global switch is on, or to `null` (no video) when
+   it's off. This is exactly "used until it finds another [smaller] video,"
+   and naturally supports an arbitrary-length chain with no per-hop
+   special-casing.
+
+**Decision:** Option 2 for both. `HomePage` gains one
+`bannerVideoUseForSmaller` (`Boolean @default(false)`, migration
+`20260820052500_simplify_home_page_video_cascade_to_global`, replacing an
+earlier three-column per-size design from the same task before anything
+shipped). The admin form (`home-page-form.tsx`) shows a single `Switch`
+outside the banner table entirely — "Use videos for smaller sizes too" —
+disabled until at least one of the four sizes has a video uploaded, since with
+none the switch would have nothing to cascade. `saveHomePage` independently
+forces the flag back to `false` server-side whenever every video URL is
+empty. `resolveHomeBannerVideoUrls` is exported from `src/lib/home-page.ts`
+(not duplicated in `Hero.tsx`) since it's pure data logic, callable directly
+against the `IHomePage` shape `getHomePage` returns. `Hero.tsx` calls it once
+and hands each slot its resolved URL to `HeroBannerGroup` — the ADR-090
+breakpoint-gated fetching is unaffected, since it only cares which URL a slot
+ends up with, not whose row it came from.
+
+**Consequences:**
+- Cascading is video-only — a size's own poster/fallback *image* logic is
+  untouched (its own uploaded image, or the static default), even while
+  playing a borrowed video. No new "fallback image" requirement was
+  introduced: `assertVideoHasFallback` still only checks a size against its
+  own stored video/image pair, exactly as ADR-089 left it.
+- The switch is all-or-nothing: there's no way to cascade from Xl but not from
+  Lg, for instance — any size's video cascades once the global switch is on.
+  If that granularity is ever needed, it would mean reintroducing a per-size
+  flag, a straightforward additive change (the resolution algorithm already
+  supports it; the schema/UI would need to grow back to per-size).
+- An admin can upload any size's own distinct video at any time, which
+  immediately takes priority over an inherited one at that point in the chain
+  and continues the cascade onward with itself as the new source (when the
+  global switch is on).
+- The mechanism cascades across orientations when the switch is on (e.g. Xl's
+  landscape video reaching all the way down to Sm, a portrait size, if
+  nothing in between has its own video) — intentional per the ask, not a gap;
+  content-appropriateness across orientations is an authoring concern, not
+  something the code enforces.
+
+## ADR-092: The homepage banner's video/cascade pattern extended to the 5 static-page banner models
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** `SupportPage`/`ContactPage`/`PodcastPage`/`ArticlesPage`/
+`GalleriesPage` share one banner shape — `bannerXlUrl` (2560x1107, required),
+`bannerMdUrl?` (1363x1107), `bannerSmUrl?` (1107x1107) — feeding 8 public
+pages (Articles, Galleries, Podcast, Registration & Documentation, Warranty &
+Service, Marcom & Promotion, Career, Contact) that all render through one
+shared `PageBanner` component, with `SupportPage` itself shared across 4 of
+those 8 (`SupportPageForm` parameterized by slug). The ask: give all 8 the
+same MP4-video-per-size + fallback-image + cascade-to-smaller-sizes
+capability the homepage hero banner already has (ADR-089/090/091), matching
+each page's own existing banner sizes rather than homepage's four-size set.
+
+**Options considered — how much to share vs. duplicate:**
+1. **Copy homepage's implementation into each of the 5 admin forms and the
+   public banner rendering, adjusted per page** — matches this codebase's
+   general precedent of per-feature-folder duplication (e.g. each page's own
+   near-identical `limits.ts`), but here the *entire* table UI, cascade
+   toggle, and breakpoint-gated video-fetch logic — not just a couple of
+   constants — would be near-verbatim copies 5-8 times over. That crosses
+   from "acceptable per-feature duplication" into "a few hundred duplicated
+   lines with no meaningful per-page variation," especially since these 5
+   models already share one banner shape and one public rendering component.
+2. **Extract the genuinely shared pieces once, keep everything else
+   per-feature (chosen)**:
+   - `src/lib/banner-video.ts` — generic `resolveCascadingVideoUrls<K>`
+     (the waterfall algorithm, now parameterized over the size-key type
+     instead of hardcoded to `HomeBannerSizeKey`) and
+     `findMissingBannerVideoFallback`, both used by `HomePage` too now
+     (`resolveHomeBannerVideoUrls` in `src/lib/home-page.ts` became a thin
+     wrapper). Also the shared `PAGE_BANNER_SIZE_ORDER`/`PageBannerSizeKey`/
+     `PAGE_BANNER_SIZE_LABELS` for the 5 pages' common Xl/Md/Sm shape.
+   - `src/components/page-banner-fields.tsx` — the entire admin Table +
+     Image/Video `UploadField` pair + global cascade `Switch` UI, taking
+     controlled values/setters and the two upload actions as props. Each of
+     the 5 admin forms still owns its own `useState`s, `handleSave`,
+     `FormData` building, and (for Support/Contact) its `RichTextEditor`
+     body section — only the banner *fields* UI itself is shared, since that
+     part is genuinely pixel-identical across all 5 with zero per-page
+     variation.
+   - `src/app/(user)/components/PageBannerMedia.tsx` — the breakpoint-gated
+     image/video slot renderer, mirroring `HeroBanner.tsx`'s
+     `HeroBannerGroup`/`HeroBannerSlot` split (ADR-090) but with plain
+     `sm`/`lg` width breakpoints instead of orientation+width, since
+     `PageBanner`'s three sizes aren't orientation-locked pairs the way
+     Sm/Md/Lg/Xl are on the homepage hero. Not merged into one shared
+     component with `HeroBanner.tsx` — the breakpoint semantics and slot
+     counts differ enough (3 width-only slots vs. 4 orientation-paired ones)
+     that a fully generic version would need enough parameters to lose the
+     clarity of two small, independently-readable implementations.
+   - Everything else — `saveXxxPage`'s Zod schema/upsert, `uploadXxxPageBanner`/
+     `uploadXxxPageBannerVideo` actions, each page's own `limits.ts` video
+     constants (`MAX_XXX_BANNER_VIDEO_SIZE`/`LABEL`, `ACCEPTED_XXX_VIDEO_TYPES`,
+     all identical 10MB/mp4 values) — stays duplicated per feature folder,
+     matching the existing convention throughout this codebase (e.g. every
+     page's `limits.ts` already repeats the same 2MB/JPEG-PNG-WEBP-GIF image
+     budget under its own constant names).
+
+**Decision:** Option 2. `UploadField`'s previously-private `UploadActionResult`
+type was exported so `page-banner-fields.tsx` could type its own
+`uploadImageAction`/`uploadVideoAction` props against it. Migration
+`20260820063038_add_static_page_banner_video` adds
+`bannerXlVideoUrl`/`bannerMdVideoUrl`/`bannerSmVideoUrl`/
+`bannerVideoUseForSmaller` to all 5 models identically.
+
+**Consequences:**
+- Every one of the 8 public pages gets the video/cascade capability from a
+  single `PageBanner` change, not 8 separate ones — and any future banner-only
+  page reusing this same 3-size shape gets it for free by using
+  `PageBannerFields` + `PageBanner`.
+- `HomePage`'s own cascade resolver now depends on `src/lib/banner-video.ts`;
+  a change to the shared algorithm affects both shapes. This is intentional
+  (one algorithm, two callers) rather than a coupling risk — the algorithm
+  itself (ADR-091's waterfall) is deliberately shape-agnostic (generic over
+  the size-key type).
+- The 5 static-page admin forms are shorter and more consistent than before
+  (each now just wires state + its own save action into
+  `PageBannerFields`), at the cost of one more file to know about
+  (`page-banner-fields.tsx`) when reading any single one of them in
+  isolation.
+- Same fallback-video-requirement, orphan-file, and no-DB-constraint-on-the-
+  boolean-flag tradeoffs as ADR-089/090/091 apply identically here — not
+  re-litigated per page.
+
+## ADR-093: Category banner gains the same video/cascade capability, with Image+Video stacked instead of side by side
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** `Category`'s own banner (ADR-035) is the exact four-size
+Sm/Md/Lg/Xl shape `HomePage` reused for its hero banner (ADR-082), but unlike
+`HomePage` and the 5 static pages (ADR-092), it had not yet gained the
+optional-MP4-per-size + fallback-image + cascade capability. The ask: extend
+the same video/cascade pattern here too. Unlike every prior banner, this
+form lives inside a `Dialog` fixed to `sm:max-w-2xl` (the category add/edit
+dialog), not a full-width admin page — too narrow to fit four Image+Video
+pairs side by side the way `home-page-form.tsx`'s table does.
+
+**Options considered — reuse vs. duplicate:**
+1. **Reuse `PageBannerFields`/`PAGE_BANNER_SIZE_ORDER`** (ADR-092's shared
+   3-size component) — doesn't fit: Category's shape is Xl/Lg/Md/Sm (four
+   sizes, orientation-paired like `HomePage`), not the static pages' Xl/Md/Sm.
+2. **Duplicate the table/state/validation wiring directly in
+   `category-tree.tsx`'s `CategoryForm` (chosen for the admin form)** — same
+   "one banner shape, one home" precedent ADR-092 itself drew the line at:
+   Category's admin banner table already lived inline in `category-tree.tsx`
+   (not a separate shared file) before this change, and the only other
+   four-size consumer is `HomePage`'s own dedicated `home-page-form.tsx` —
+   two forms sharing a component would save little and cross into the same
+   "needs enough parameters to lose clarity" territory ADR-092 avoided for
+   `PageBannerMedia.tsx` vs. `HeroBanner.tsx`.
+3. **Reuse `HeroBannerGroup`/`resolveCascadingVideoUrls` for the *public*
+   rendering side (chosen)** — unlike the admin table, the public
+   breakpoint-gated video-fetch logic (ADR-090) and the cascade algorithm
+   (ADR-091) are shape-identical between `HomePage` and `Category`: same four
+   orientation+width breakpoints, same largest-to-smallest waterfall. Moved
+   `HeroBanner.tsx`'s `HeroBannerGroup`/`HeroBannerSlot` out of the homepage's
+   own `(sections)` route group into `src/app/(user)/components/
+   HeroBannerGroup.tsx` (adding a required `imageAlt` prop, previously a
+   hardcoded "Alma Harmony hero banner" string) so both `HeroHomeSection` and
+   the catalogue's `HeroDevice` import the same implementation instead of a
+   second near-verbatim copy.
+
+**Decision:** Options 2 and 3 above. `Category` gains
+`bannerSmVideoUrl`/`bannerMdVideoUrl`/`bannerLgVideoUrl`/`bannerXlVideoUrl`
+(all nullable) and one `bannerVideoUseForSmaller` (`Boolean @default(false)`,
+not per-size — mirrors ADR-091 directly, skipping the per-size-then-collapsed
+history that field went through on `HomePage`), migration
+`20260820072327_add_category_banner_video`. New limits
+(`MAX_CATEGORY_BANNER_VIDEO_SIZE` = 10MB, `ACCEPTED_CATEGORY_VIDEO_TYPES` =
+`["video/mp4"]`, matching `HomePage`'s own budget) and a new action
+`uploadCategoryBannerVideo`, landing in the same `categories` upload feature
+directory as the existing image banner (not a separate "categories-video"
+folder — that name was already taken by the YouTube thumbnail upload).
+`createCategory`/`updateCategory`'s shared `parseCategoryPageContent` runs
+`findMissingBannerVideoFallback` (the same helper `saveHomePage`/`page-
+banner-fields.tsx` callers use) and force-resets the cascade flag to `false`
+server-side whenever no size has a video, identical to `saveHomePage`'s own
+guard.
+
+In `CategoryForm`'s admin table (`category-tree.tsx`), each size's column
+stacks its Image `UploadField` above its Video `UploadField` (both still
+sized via the same explicit `boxSizeClassName` pattern ADR-035 established,
+smaller than `home-page-form.tsx`'s own boxes to fit four stacked pairs at
+once) rather than placing them side by side in a `flex-row` the way
+`home-page-form.tsx` and `page-banner-fields.tsx` both do — the only layout
+difference from every prior banner table, driven purely by the dialog's fixed
+`sm:max-w-2xl` width rather than any difference in the underlying data model.
+The global cascade `Switch` sits below the table exactly as it does on
+`HomePage`'s own form, gated on `hasAnyBannerVideo` the same way.
+
+On the public side, `resolveCategoryBannerVideoUrls` (`src/lib/
+categories.ts`) is a thin wrapper around `resolveCascadingVideoUrls`, mirroring
+`resolveHomeBannerVideoUrls`'s own relationship to it. `CategoryPageView.tsx`
+calls it once and hands the four resolved URLs into `HeroDevice`'s
+`bannerUrls` prop (now carrying `smVideo`/`mdVideo`/`lgVideo`/`xlVideo`
+alongside the existing still-image URLs), which renders them through the
+shared `HeroBannerGroup` instead of four inline `next/image` calls.
+
+**Consequences:**
+- The admin table's per-size box sizes shrank relative to
+  `home-page-form.tsx`'s (which itself sizes down at `md:` for a full-width
+  page) since this table must fit two stacked fields in a fixed-width dialog
+  with no equivalent breakpoint to shrink into — a narrow viewport still
+  scrolls the table horizontally via its own `overflow-x-auto` wrapper,
+  unchanged from the plain-image version this replaces.
+- `HeroBannerGroup` moving out of `(homepage)/(sections)/` is a pure file
+  relocation plus one new required prop (`imageAlt`) — `HeroHomeSection`'s
+  own behavior and rendered output are unchanged, verified by passing the
+  same literal alt text through explicitly instead of relying on the
+  component's old hardcoded default.
+- Same fallback-video-requirement, orphan-file, and no-DB-constraint-on-the-
+  boolean-flag tradeoffs as ADR-089/090/091/092 apply identically here — not
+  re-litigated again.
+- A category card thumbnail (the sub-category grid `CategoryPageView.tsx`
+  builds from `child.bannerXlUrl`) intentionally stays image-only — cards are
+  static previews, not a hero, so no video ever plays there regardless of
+  whether the child category has one set.

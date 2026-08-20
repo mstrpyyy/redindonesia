@@ -5,9 +5,12 @@ import { revalidatePath, updateTag } from "next/cache";
 import { saveUpload } from "@/lib/uploads";
 import { z } from "zod";
 import {
+  ACCEPTED_CATEGORY_VIDEO_TYPES,
   ACCEPTED_IMAGE_TYPES,
   MAX_CATEGORY_BANNER_LABEL,
   MAX_CATEGORY_BANNER_SIZE,
+  MAX_CATEGORY_BANNER_VIDEO_LABEL,
+  MAX_CATEGORY_BANNER_VIDEO_SIZE,
   MAX_CATEGORY_DEPTH,
   MAX_CATEGORY_DESCRIPTION_LENGTH,
   MAX_CATEGORY_NAME_LENGTH,
@@ -16,6 +19,7 @@ import {
   MAX_CATEGORY_YOUTUBE_DESCRIPTION_LENGTH,
 } from "./limits";
 import { HERO_TEXT_COLOR_VALUES } from "@/lib/hero-text-colors";
+import { findMissingBannerVideoFallback } from "@/lib/banner-video";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -57,6 +61,34 @@ export async function uploadCategoryBanner(formData: FormData): Promise<ActionRe
     return { success: true, data: { url } };
   } catch {
     return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner image." } };
+  }
+}
+
+// Optional MP4 alongside each banner size — same pattern as the homepage
+// hero banner's video (ADR-089), extended to categories (ADR-093).
+const categoryBannerVideoSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Video is required")
+  .refine(
+    (file) => file.size <= MAX_CATEGORY_BANNER_VIDEO_SIZE,
+    `Video must be smaller than ${MAX_CATEGORY_BANNER_VIDEO_LABEL}`
+  )
+  .refine((file) => ACCEPTED_CATEGORY_VIDEO_TYPES.includes(file.type), "Video must be an MP4");
+
+export async function uploadCategoryBannerVideo(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const parsed = categoryBannerVideoSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid video" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, CATEGORY_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner video." } };
   }
 }
 
@@ -117,6 +149,13 @@ function revalidateCategoryPages(type: "device" | "product") {
   // and gets immediate read-your-own-writes semantics with no deprecation
   // warning and no cache-profile argument.
   updateTag(type === "device" ? "device-nav-categories" : "product-nav-categories");
+  // A category's name/slug/deletion also feeds the public homepage's
+  // "category" mode carousels (breadcrumb label, See More URL — ADR-066) and
+  // the public devices/products catch-all, both statically cached by Next
+  // with no revalidation of their own. Same fix as `revalidateProductPages`
+  // in product-actions.ts.
+  revalidatePath("/");
+  revalidatePath(type === "device" ? "/devices/[...slug]" : "/products/[...slug]", "page");
 }
 
 const DIACRITIC_MARKS_PATTERN = new RegExp("[\\u0300-\\u036f]", "g");
@@ -170,11 +209,24 @@ const categoryFieldsSchema = z.object({
 // the public side falls back to it for any size that wasn't uploaded. Only
 // validated when `isPage` is true; a breadcrumb-only node's page fields are
 // never read from the client.
+// Same "true"/"false" string convention as HomePage's own cascade switch
+// (homepage/content/actions.ts's `booleanFlagSchema`) — missing/anything else
+// defaults to false.
+const booleanFlagSchema = z
+  .preprocess((value) => value ?? "false", z.enum(["true", "false"]))
+  .transform((value) => value === "true");
+
 const categoryPageContentSchema = z.object({
   bannerSmUrl: z.string().trim().optional(),
+  bannerSmVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
+  bannerMdVideoUrl: z.string().trim().optional(),
   bannerLgUrl: z.string().trim().optional(),
+  bannerLgVideoUrl: z.string().trim().optional(),
   bannerXlUrl: z.string().trim().min(1, "Banner (2560x1440) image is required"),
+  bannerXlVideoUrl: z.string().trim().optional(),
+  // One global switch, not per-size — mirrors HomePage's own ADR-091.
+  bannerVideoUseForSmaller: booleanFlagSchema,
   title: z
     .string()
     .trim()
@@ -211,9 +263,14 @@ const categoryPageContentSchema = z.object({
 
 interface ICategoryPageContent {
   bannerSmUrl: string | null;
+  bannerSmVideoUrl: string | null;
   bannerMdUrl: string | null;
+  bannerMdVideoUrl: string | null;
   bannerLgUrl: string | null;
+  bannerLgVideoUrl: string | null;
   bannerXlUrl: string | null;
+  bannerXlVideoUrl: string | null;
+  bannerVideoUseForSmaller: boolean;
   title: string | null;
   description: string | null;
   body: string | null;
@@ -239,9 +296,14 @@ function parseCategoryPageContent(
       success: true,
       data: {
         bannerSmUrl: null,
+        bannerSmVideoUrl: null,
         bannerMdUrl: null,
+        bannerMdVideoUrl: null,
         bannerLgUrl: null,
+        bannerLgVideoUrl: null,
         bannerXlUrl: null,
+        bannerXlVideoUrl: null,
+        bannerVideoUseForSmaller: false,
         title: null,
         description: null,
         body: null,
@@ -261,9 +323,14 @@ function parseCategoryPageContent(
   // string, received null".
   const parsed = categoryPageContentSchema.safeParse({
     bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
+    bannerSmVideoUrl: formData.get("bannerSmVideoUrl") ?? undefined,
     bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
+    bannerMdVideoUrl: formData.get("bannerMdVideoUrl") ?? undefined,
     bannerLgUrl: formData.get("bannerLgUrl") ?? undefined,
+    bannerLgVideoUrl: formData.get("bannerLgVideoUrl") ?? undefined,
     bannerXlUrl: formData.get("bannerXlUrl"),
+    bannerXlVideoUrl: formData.get("bannerXlVideoUrl") ?? undefined,
+    bannerVideoUseForSmaller: formData.get("bannerVideoUseForSmaller"),
     title: formData.get("title"),
     description: formData.get("description"),
     body: formData.get("body") ?? undefined,
@@ -278,13 +345,43 @@ function parseCategoryPageContent(
     return { success: false, message: parsed.error.issues[0]?.message ?? "Invalid page content" };
   }
 
+  // A size's video is only ever shown alongside its own still image (the
+  // image becomes the required poster/fallback) — see ADR-089/093. Checked
+  // here, not just client-side, since create/updateCategory are the only
+  // write paths.
+  const fallbackError = findMissingBannerVideoFallback([
+    { label: "2560x1440", imageUrl: parsed.data.bannerXlUrl, videoUrl: parsed.data.bannerXlVideoUrl ?? "" },
+    { label: "2048x1536", imageUrl: parsed.data.bannerLgUrl ?? "", videoUrl: parsed.data.bannerLgVideoUrl ?? "" },
+    { label: "1536x2048", imageUrl: parsed.data.bannerMdUrl ?? "", videoUrl: parsed.data.bannerMdVideoUrl ?? "" },
+    { label: "1440x2560", imageUrl: parsed.data.bannerSmUrl ?? "", videoUrl: parsed.data.bannerSmVideoUrl ?? "" },
+  ]);
+  if (fallbackError) {
+    return { success: false, message: fallbackError };
+  }
+
+  // The flag is only meaningful once at least one size has a video — force it
+  // back off server-side so a stale "true" can't linger with nothing to
+  // cascade (mirrors saveHomePage's own guard).
+  const bannerVideoUseForSmaller =
+    Boolean(
+      parsed.data.bannerXlVideoUrl ||
+        parsed.data.bannerLgVideoUrl ||
+        parsed.data.bannerMdVideoUrl ||
+        parsed.data.bannerSmVideoUrl
+    ) && parsed.data.bannerVideoUseForSmaller;
+
   return {
     success: true,
     data: {
       bannerSmUrl: emptyToNull(parsed.data.bannerSmUrl),
+      bannerSmVideoUrl: emptyToNull(parsed.data.bannerSmVideoUrl),
       bannerMdUrl: emptyToNull(parsed.data.bannerMdUrl),
+      bannerMdVideoUrl: emptyToNull(parsed.data.bannerMdVideoUrl),
       bannerLgUrl: emptyToNull(parsed.data.bannerLgUrl),
+      bannerLgVideoUrl: emptyToNull(parsed.data.bannerLgVideoUrl),
       bannerXlUrl: parsed.data.bannerXlUrl,
+      bannerXlVideoUrl: emptyToNull(parsed.data.bannerXlVideoUrl),
+      bannerVideoUseForSmaller,
       title: parsed.data.title,
       description: parsed.data.description,
       body: emptyToNull(parsed.data.body),

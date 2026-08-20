@@ -25,6 +25,10 @@ export default async function MediaArticles() {
         defImage={page.bannerXlUrl ?? '/image/media/articles/dummy2.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) articles'
       >
         <span className='text-brand-red2'>RED</span>

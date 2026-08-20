@@ -1,16 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { UploadField } from "@/components/upload-field";
-import { MAX_ARTICLES_BANNER_LABEL } from "./limits";
-import { saveArticlesPage, uploadArticlesPageBanner } from "./actions";
+import { PageBannerFields } from "@/components/page-banner-fields";
+import { findMissingBannerVideoFallback, PAGE_BANNER_SIZE_LABELS } from "@/lib/banner-video";
+import { MAX_ARTICLES_BANNER_LABEL, MAX_ARTICLES_BANNER_VIDEO_LABEL } from "./limits";
+import { saveArticlesPage, uploadArticlesPageBanner, uploadArticlesPageBannerVideo } from "./actions";
 import type { IArticlesPage, ArticlesPageSlug } from "@/lib/articles-page";
-
-function RequiredMark() {
-  return <span className="text-destructive"> *</span>;
-}
 
 export function ArticlesPageForm({
   slug,
@@ -20,8 +16,12 @@ export function ArticlesPageForm({
   initialData: IArticlesPage;
 }) {
   const [bannerXlUrl, setBannerXlUrl] = useState(initialData.bannerXlUrl ?? "");
+  const [bannerXlVideoUrl, setBannerXlVideoUrl] = useState(initialData.bannerXlVideoUrl ?? "");
   const [bannerMdUrl, setBannerMdUrl] = useState(initialData.bannerMdUrl ?? "");
+  const [bannerMdVideoUrl, setBannerMdVideoUrl] = useState(initialData.bannerMdVideoUrl ?? "");
   const [bannerSmUrl, setBannerSmUrl] = useState(initialData.bannerSmUrl ?? "");
+  const [bannerSmVideoUrl, setBannerSmVideoUrl] = useState(initialData.bannerSmVideoUrl ?? "");
+  const [bannerVideoUseForSmaller, setBannerVideoUseForSmaller] = useState(initialData.bannerVideoUseForSmaller);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -29,11 +29,26 @@ export function ArticlesPageForm({
 
   const handleSave = () => {
     setMessage(null);
+
+    const fallbackError = findMissingBannerVideoFallback([
+      { label: PAGE_BANNER_SIZE_LABELS.Xl, imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
+      { label: PAGE_BANNER_SIZE_LABELS.Md, imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
+      { label: PAGE_BANNER_SIZE_LABELS.Sm, imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
+    ]);
+    if (fallbackError) {
+      setMessage({ type: "error", text: fallbackError });
+      return;
+    }
+
     startTransition(async () => {
       const formData = new FormData();
       formData.set("bannerXlUrl", bannerXlUrl);
+      if (bannerXlVideoUrl) formData.set("bannerXlVideoUrl", bannerXlVideoUrl);
       if (bannerMdUrl) formData.set("bannerMdUrl", bannerMdUrl);
+      if (bannerMdVideoUrl) formData.set("bannerMdVideoUrl", bannerMdVideoUrl);
       if (bannerSmUrl) formData.set("bannerSmUrl", bannerSmUrl);
+      if (bannerSmVideoUrl) formData.set("bannerSmVideoUrl", bannerSmVideoUrl);
+      formData.set("bannerVideoUseForSmaller", bannerVideoUseForSmaller ? "true" : "false");
 
       const result = await saveArticlesPage(slug, formData);
       setMessage(
@@ -46,56 +61,27 @@ export function ArticlesPageForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium">
-          Banner
-          <RequiredMark />
-        </p>
-        <p className="text-muted-foreground -mt-2 text-xs">
-          Up to {MAX_ARTICLES_BANNER_LABEL} each. JPEG, PNG, WEBP, or GIF.
-        </p>
-
-        <div className="flex flex-row flex-wrap justify-start gap-4">
-          <div className="flex w-40 flex-col gap-1.5">
-            <Label className="text-xxs">
-              2560x1107
-              <RequiredMark />
-            </Label>
-            <UploadField
-              kind="image"
-              aspect="square"
-              fit="cover"
-              uploadAction={uploadArticlesPageBanner}
-              value={bannerXlUrl}
-              onChange={(value) => setBannerXlUrl((value as string) ?? "")}
-            />
-          </div>
-
-          <div className="flex w-40 flex-col gap-1.5">
-            <Label className="text-xxs">1363x1107</Label>
-            <UploadField
-              kind="image"
-              aspect="square"
-              fit="cover"
-              uploadAction={uploadArticlesPageBanner}
-              value={bannerMdUrl}
-              onChange={(value) => setBannerMdUrl((value as string) ?? "")}
-            />
-          </div>
-
-          <div className="flex w-40 flex-col gap-1.5">
-            <Label className="text-xxs">1107x1107</Label>
-            <UploadField
-              kind="image"
-              aspect="square"
-              fit="cover"
-              uploadAction={uploadArticlesPageBanner}
-              value={bannerSmUrl}
-              onChange={(value) => setBannerSmUrl((value as string) ?? "")}
-            />
-          </div>
-        </div>
-      </div>
+      <PageBannerFields
+        bannerXlUrl={bannerXlUrl}
+        bannerXlVideoUrl={bannerXlVideoUrl}
+        bannerMdUrl={bannerMdUrl}
+        bannerMdVideoUrl={bannerMdVideoUrl}
+        bannerSmUrl={bannerSmUrl}
+        bannerSmVideoUrl={bannerSmVideoUrl}
+        bannerVideoUseForSmaller={bannerVideoUseForSmaller}
+        onBannerXlUrlChange={setBannerXlUrl}
+        onBannerXlVideoUrlChange={setBannerXlVideoUrl}
+        onBannerMdUrlChange={setBannerMdUrl}
+        onBannerMdVideoUrlChange={setBannerMdVideoUrl}
+        onBannerSmUrlChange={setBannerSmUrl}
+        onBannerSmVideoUrlChange={setBannerSmVideoUrl}
+        onBannerVideoUseForSmallerChange={setBannerVideoUseForSmaller}
+        uploadImageAction={uploadArticlesPageBanner}
+        uploadVideoAction={uploadArticlesPageBannerVideo}
+        imageSizeLabel={MAX_ARTICLES_BANNER_LABEL}
+        videoSizeLabel={MAX_ARTICLES_BANNER_VIDEO_LABEL}
+        disabled={isPending}
+      />
 
       <div className="flex items-center justify-start gap-3">
         <Button type="button" onClick={handleSave} disabled={isPending || !canSubmit} className="w-32">

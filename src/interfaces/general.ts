@@ -53,9 +53,17 @@ export interface ICategory {
   // `bannerXlUrl` (2560x1440, desktop landscape) is the only one required.
   isPage: boolean
   bannerSmUrl: string | null // 1440x2560 — mobile portrait
+  bannerSmVideoUrl: string | null
   bannerMdUrl: string | null // 1536x2048 — tablet portrait
+  bannerMdVideoUrl: string | null
   bannerLgUrl: string | null // 2048x1536 — tablet/small-desktop landscape
+  bannerLgVideoUrl: string | null
   bannerXlUrl: string | null // 2560x1440 — desktop landscape
+  bannerXlVideoUrl: string | null
+  // One global switch (not per-size — mirrors HomePage's own ADR-091): each
+  // size's video also plays on every smaller size that has none of its own,
+  // until a smaller size with its own video takes over — see ADR-093.
+  bannerVideoUseForSmaller: boolean
   title: string | null
   description: string | null
   body: string | null
@@ -177,6 +185,38 @@ export interface IProductPickerOption {
   name: string
   thumbnail: string | null
   url: string
+}
+
+// A category available to pick for a "custom" homepage carousel item,
+// alongside individual products/devices above — only categories with
+// `isPage: true` qualify, since a category without a page has nowhere for
+// `url` to point.
+export interface ICategoryPickerOption {
+  id: string
+  type: 'device' | 'product'
+  name: string
+  url: string
+}
+
+// One "page" suggestion in the site-wide navbar search dropdown
+// (SearchBar.tsx) — deliberately broader than the catalogue: a category
+// detail page, a published article, or one of the handful of fixed
+// support/contact/media-index pages (see src/lib/search.ts).
+export interface ISearchPageResult {
+  id: string
+  label: string
+  url: string
+  kind: 'category' | 'article' | 'support' | 'contact' | 'media'
+}
+
+// Result shape for the navbar search dropdown (see SearchBar.tsx) — two
+// independently-gated groups, each capped at a handful of results. `pages`
+// stays `[]` below its own (longer) minimum query length even once
+// `products` has already started returning matches — see
+// MIN_PAGE_SEARCH_QUERY_LENGTH in src/lib/search.ts.
+export interface ISearchSuggestions {
+  products: IProductPickerOption[]
+  pages: ISearchPageResult[]
 }
 
 export interface ICarouselItem {

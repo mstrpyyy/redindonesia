@@ -10,3 +10,9 @@ export const ACCEPTED_CONTACT_IMAGE_TYPES = [
   "image/webp",
   "image/gif",
 ];
+
+// Optional mp4 per banner size — same budget as the homepage hero banner's
+// video (see homepage/content/limits.ts, ADR-089/092).
+export const MAX_CONTACT_BANNER_VIDEO_SIZE = 10 * 1000 * 1024;
+export const MAX_CONTACT_BANNER_VIDEO_LABEL = "10MB";
+export const ACCEPTED_CONTACT_VIDEO_TYPES = ["video/mp4"];

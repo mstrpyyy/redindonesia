@@ -15,6 +15,10 @@ export default async function SupportWarrantyService() {
         defImage={page.bannerXlUrl ?? '/image/support/warranty/dummy.jpg'}
         mdImage={page.bannerMdUrl ?? undefined}
         smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Warranty & Service Support'
       >
         <span className='text-brand-red2'>Warranty</span>

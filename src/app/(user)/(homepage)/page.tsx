@@ -26,9 +26,14 @@ export default async function Home() {
       {/* HERO */}
       <HeroHomeSection
         bannerSmUrl={homePage.bannerSmUrl}
+        bannerSmVideoUrl={homePage.bannerSmVideoUrl}
         bannerMdUrl={homePage.bannerMdUrl}
+        bannerMdVideoUrl={homePage.bannerMdVideoUrl}
         bannerLgUrl={homePage.bannerLgUrl}
+        bannerLgVideoUrl={homePage.bannerLgVideoUrl}
         bannerXlUrl={homePage.bannerXlUrl}
+        bannerXlVideoUrl={homePage.bannerXlVideoUrl}
+        bannerVideoUseForSmaller={homePage.bannerVideoUseForSmaller}
       />
 
       <div className="shadow-[0_5px_25px_rgba(0,0,0,0.20)]">

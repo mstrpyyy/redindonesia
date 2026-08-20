@@ -82,7 +82,14 @@ The application follows a **hybrid data architecture**:
     slug uniqueness (scoped to `type` + `parentId`) is enforced in the server
     action, not a DB constraint — Postgres never treats `NULL` as equal to
     `NULL`, so a `@@unique([type, parentId, slug])` index can't catch duplicate
-    depth-1 slugs (they all share `parentId = null`).
+    depth-1 slugs (they all share `parentId = null`). A node can also opt into
+    being a real page (`isPage`, ADR-033) with its own `bannerSmUrl`/
+    `bannerMdUrl`/`bannerLgUrl`/`bannerXlUrl` (only `bannerXlUrl` required,
+    ADR-035), `title`, `description`, `body`, `youtubeUrl` + related fields,
+    and `heroTextColor` (ADR-045). Each banner size also has an optional
+    `bannerXxxVideoUrl` (mp4, up to 10MB) plus one global
+    `bannerVideoUseForSmaller` cascade flag — same mechanism as `HomePage`'s
+    (ADR-089/090/091), extended here in ADR-093.
   - `Product` — a device/product detail entry (see ADR-020). `id`, `type`
     (`"device" | "product"`), `name`, `slug` (unique per `type`), `tagline?`,
     `thumbnail?` (relative path under `/uploads/products`), `cardBackground?`
@@ -115,11 +122,17 @@ The application follows a **hybrid data architecture**:
     `createdAt`, `updatedAt`. No add/delete flow — only upsert-by-slug from
     each page's own admin form (`/admin/support/<slug>`). Marcom's admin
     slug (`marcom`) and public route (`/support/marcom-promotion`) differ —
-    `SUPPORT_PAGE_PUBLIC_PATH` maps between them for revalidation.
-  - `ContactPage` — same shape as `SupportPage`, for the admin Contact
-    dashboard's "Content" submenu (see ADR-072). Currently one fixed slug
-    (`content`, `CONTACT_PAGE_SLUGS` in `src/lib/contact-pages.ts`) feeding
-    the public `/contact` page's banner + rich text body.
+    `SUPPORT_PAGE_PUBLIC_PATH` maps between them for revalidation. Each size
+    also has an optional `bannerXxxVideoUrl` (mp4, up to 10MB) plus one
+    global `bannerVideoUseForSmaller` cascade flag — same mechanism as
+    `HomePage`'s (ADR-089/090/091), extended to this shared 3-size shape
+    (Xl/Md/Sm) and to the public `PageBanner` component all five banner-only
+    pages below share — see ADR-092.
+  - `ContactPage` — same shape as `SupportPage` (video/cascade fields
+    included), for the admin Contact dashboard's "Content" submenu (see
+    ADR-072). Currently one fixed slug (`content`, `CONTACT_PAGE_SLUGS` in
+    `src/lib/contact-pages.ts`) feeding the public `/contact` page's banner +
+    rich text body.
   - `ContactSubmission` — one row per public `/contact` form submission (see
     ADR-073). `id`, `name`, `phone`, `email`, `question`, `isRead` (see
     ADR-078), `createdAt`. No `updatedAt` — the only post-insert write is
@@ -149,9 +162,10 @@ The application follows a **hybrid data architecture**:
     `ProductHomeSection` already did this unconditionally before this
     feature existed, so no public component change was needed.
   - `PodcastPage` — same shape as `SupportPage`/`ContactPage` (banner-only,
-    upsert-by-fixed-slug, see ADR-076). Currently one fixed slug
-    (`podcasts`, `PODCAST_PAGE_SLUGS` in `src/lib/podcast-page.ts`) feeding
-    the public `/media/podcasts` page's banner.
+    upsert-by-fixed-slug, see ADR-076; video/cascade fields included, ADR-092).
+    Currently one fixed slug (`podcasts`, `PODCAST_PAGE_SLUGS` in
+    `src/lib/podcast-page.ts`) feeding the public `/media/podcasts` page's
+    banner.
   - `Podcast` — one episode shown on `/media/podcasts` (admin add/edit/
     delete/drag-reorder list, see ADR-076). `id`, `youtubeUrl`, `title`
     (max 50 chars), `description?` (max 200 chars), `thumbnailUrl?`
@@ -161,12 +175,22 @@ The application follows a **hybrid data architecture**:
     image grid — a podcast's only media is its one YouTube video, embedded
     via the existing `getYoutubeVideoId` helper.
   - `ArticlesPage` / `GalleriesPage` — same shape as `PodcastPage`
-    (banner-only, upsert-by-fixed-slug, see ADR-081), one per Media menu.
-    `ArticlesPage` (`ARTICLES_PAGE_SLUGS`, currently just `articles`) feeds
+    (banner-only, upsert-by-fixed-slug, see ADR-081; video/cascade fields
+    included, ADR-092), one per Media menu. `ArticlesPage`
+    (`ARTICLES_PAGE_SLUGS`, currently just `articles`) feeds
     `/media/articles`'s banner; `GalleriesPage` (`GALLERIES_PAGE_SLUGS`,
     currently just `galleries`) feeds `/media/galleries`'s banner. Kept as
     separate models rather than folding into `PodcastPage`, same reasoning
     as `ContactPage` vs `SupportPage` (ADR-072).
+  - All five of `SupportPage`/`ContactPage`/`PodcastPage`/`ArticlesPage`/
+    `GalleriesPage` render through the one shared public `PageBanner`
+    component (`src/app/(user)/components/PageBanner.tsx`), which itself
+    delegates the image/video swapping to `PageBannerMedia.tsx` — same
+    breakpoint-gated-fetch pattern as the homepage hero's `HeroBannerGroup`
+    (ADR-090), just width-only breakpoints (`sm`=640px, `lg`=1024px) instead
+    of orientation+width. The cascade resolution itself
+    (`resolveCascadingVideoUrls`, `src/lib/banner-video.ts`) is shared with
+    `HomePage`'s own resolver rather than reimplemented — see ADR-092.
   - `HomePage` — the homepage hero banner, upsert-by-fixed-slug (currently
     just `"home"`, `HOME_PAGE_SLUGS` in `src/lib/home-page.ts`), managed on
     the admin Homepage → "Content" page (renamed from "Carousel", see
@@ -174,8 +198,23 @@ The application follows a **hybrid data architecture**:
     the usual three — `bannerSmUrl`/`bannerMdUrl`/`bannerLgUrl`/
     `bannerXlUrl` at 1440x2560/1536x2048/2048x1536/2560x1440 — reusing the
     exact set `Category` established (ADR-035); only `bannerXlUrl` is
-    required. Not yet wired to the public homepage hero, which still renders
-    its own static images.
+    required. Wired to the public homepage hero (`HeroHomeSection`/
+    `HeroBannerGroup`), falling back to the static `herobanner-*.webp` images
+    for any size the admin hasn't uploaded. Each size also has an optional
+    `bannerXxxVideoUrl` (mp4, up to 10MB — see ADR-089): when set, that size's
+    still image becomes required and is used as the `<video>` poster and
+    error fallback rather than being replaced. Only the breakpoint matching
+    the visitor's actual screen ever fetches its video (ADR-090). One global
+    `bannerVideoUseForSmaller` flag (not per-size): when on, each size's video
+    also plays on every smaller size down the line — Xl, Lg, Md, Sm, in that
+    order — with none of its own, until cascading reaches a smaller size with
+    its own video, which takes over from there; see `resolveHomeBannerVideoUrls`
+    (`src/lib/home-page.ts`) and ADR-091. The breakpoint-gated slot renderer
+    (`HeroBannerGroup`) lives in `src/app/(user)/components/HeroBannerGroup.tsx`
+    (moved out of the homepage's own route group) since `Category`'s page
+    banner shares this exact four-size orientation-paired shape and reuses it
+    too, via `resolveCategoryBannerVideoUrls` (`src/lib/categories.ts`) feeding
+    `HeroDevice`'s `bannerUrls` prop — see ADR-093.
 - **Auth model**: a single shared login for the whole client team — not multi-user,
   not role-based (see ADR-005). Session is a JWT (signed via `jose`) stored in an
   httpOnly, secure, sameSite cookie. `src/middleware.ts` protects every `/admin/*`

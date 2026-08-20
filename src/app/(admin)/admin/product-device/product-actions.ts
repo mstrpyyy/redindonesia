@@ -32,6 +32,15 @@ function revalidateProductPages(type: "device" | "product") {
   // a product created/edited/hidden here wouldn't show up (or wouldn't drop
   // out) there until something else happened to revalidate that route.
   revalidatePath("/admin/homepage/content");
+  // The public homepage's "category" mode carousels and the public
+  // devices/products catch-all both read Product rows live at render time
+  // (ADR-066/ADR-036) with no admin-triggered revalidation of their own —
+  // without this they're stuck serving Next's statically cached HTML from
+  // before this change, since nothing here uses a dynamic API. The `"page"`
+  // type + dynamic-segment placeholder revalidates every generated page
+  // under that catch-all, not just one literal URL.
+  revalidatePath("/");
+  revalidatePath(type === "device" ? "/devices/[...slug]" : "/products/[...slug]", "page");
 }
 
 const DIACRITIC_MARKS_PATTERN = new RegExp("[\\u0300-\\u036f]", "g");

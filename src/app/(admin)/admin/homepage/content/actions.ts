@@ -6,12 +6,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   ACCEPTED_HOME_IMAGE_TYPES,
+  ACCEPTED_HOME_VIDEO_TYPES,
   MAX_CAROUSEL_ITEM_TITLE_LENGTH,
   MAX_CAROUSEL_ITEMS,
   MAX_CAROUSEL_SEE_MORE_URL_LENGTH,
   MAX_CAROUSEL_TITLE_LENGTH,
   MAX_HOME_BANNER_LABEL,
   MAX_HOME_BANNER_SIZE,
+  MAX_HOME_BANNER_VIDEO_LABEL,
+  MAX_HOME_BANNER_VIDEO_SIZE,
 } from "./limits";
 import { isHomePageSlug, type HomePageSlug } from "@/lib/home-page";
 
@@ -49,12 +52,68 @@ export async function uploadHomePageBanner(formData: FormData): Promise<ActionRe
   }
 }
 
+const homeBannerVideoSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Video is required")
+  .refine((file) => file.size <= MAX_HOME_BANNER_VIDEO_SIZE, `Video must be smaller than ${MAX_HOME_BANNER_VIDEO_LABEL}`)
+  .refine((file) => ACCEPTED_HOME_VIDEO_TYPES.includes(file.type), "Video must be an MP4");
+
+export async function uploadHomePageBannerVideo(formData: FormData): Promise<ActionResult<{ url: string }>> {
+  const parsed = homeBannerVideoSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid video" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, HOME_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the banner video." } };
+  }
+}
+
+// Same "true"/"false" string convention as HomeCarousel's `showSeeMore`
+// (actions.ts's `baseFieldsSchema`) — missing/anything else defaults to false.
+const booleanFlagSchema = z
+  .preprocess((value) => value ?? "false", z.enum(["true", "false"]))
+  .transform((value) => value === "true");
+
 const saveHomePageSchema = z.object({
   bannerSmUrl: z.string().trim().optional(),
+  bannerSmVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
+  bannerMdVideoUrl: z.string().trim().optional(),
   bannerLgUrl: z.string().trim().optional(),
+  bannerLgVideoUrl: z.string().trim().optional(),
   bannerXlUrl: z.string().trim().min(1, "Banner (2560x1440) image is required"),
+  bannerXlVideoUrl: z.string().trim().optional(),
+  // One global switch, not per-size — ADR-091.
+  bannerVideoUseForSmaller: booleanFlagSchema,
 });
+
+// A size's video is only ever shown alongside its still image (the image
+// becomes the required poster/fallback) — see ADR-089. Checked here, not
+// just client-side, since `saveHomePage` is the only write path.
+const BANNER_SIZE_LABELS: Record<"Sm" | "Md" | "Lg" | "Xl", string> = {
+  Sm: "1440x2560",
+  Md: "1536x2048",
+  Lg: "2048x1536",
+  Xl: "2560x1440",
+};
+
+function assertVideoHasFallback(
+  size: "Sm" | "Md" | "Lg" | "Xl",
+  imageUrl: string | undefined,
+  videoUrl: string | undefined
+): string | null {
+  if (videoUrl && !imageUrl) {
+    return `Upload a fallback image for the ${BANNER_SIZE_LABELS[size]} banner before adding its video.`;
+  }
+  return null;
+}
 
 export async function saveHomePage(
   slug: string,
@@ -66,9 +125,14 @@ export async function saveHomePage(
 
   const parsed = saveHomePageSchema.safeParse({
     bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
+    bannerSmVideoUrl: formData.get("bannerSmVideoUrl") ?? undefined,
     bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
+    bannerMdVideoUrl: formData.get("bannerMdVideoUrl") ?? undefined,
     bannerLgUrl: formData.get("bannerLgUrl") ?? undefined,
+    bannerLgVideoUrl: formData.get("bannerLgVideoUrl") ?? undefined,
     bannerXlUrl: formData.get("bannerXlUrl"),
+    bannerXlVideoUrl: formData.get("bannerXlVideoUrl") ?? undefined,
+    bannerVideoUseForSmaller: formData.get("bannerVideoUseForSmaller"),
   });
 
   if (!parsed.success) {
@@ -78,7 +142,32 @@ export async function saveHomePage(
     };
   }
 
-  const { bannerSmUrl, bannerMdUrl, bannerLgUrl, bannerXlUrl } = parsed.data;
+  const {
+    bannerSmUrl,
+    bannerSmVideoUrl,
+    bannerMdUrl,
+    bannerMdVideoUrl,
+    bannerLgUrl,
+    bannerLgVideoUrl,
+    bannerXlUrl,
+    bannerXlVideoUrl,
+    bannerVideoUseForSmaller,
+  } = parsed.data;
+
+  const fallbackError =
+    assertVideoHasFallback("Sm", bannerSmUrl, bannerSmVideoUrl) ??
+    assertVideoHasFallback("Md", bannerMdUrl, bannerMdVideoUrl) ??
+    assertVideoHasFallback("Lg", bannerLgUrl, bannerLgVideoUrl) ??
+    assertVideoHasFallback("Xl", bannerXlUrl, bannerXlVideoUrl);
+  if (fallbackError) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: fallbackError } };
+  }
+
+  // The flag is only meaningful once at least one size has a video — force it
+  // back off server-side so a stale "true" can't linger with nothing to
+  // cascade.
+  const videoUseForSmaller =
+    Boolean(bannerXlVideoUrl || bannerLgVideoUrl || bannerMdVideoUrl || bannerSmVideoUrl) && bannerVideoUseForSmaller;
 
   try {
     await prisma.homePage.upsert({
@@ -86,15 +175,25 @@ export async function saveHomePage(
       create: {
         slug,
         bannerSmUrl: bannerSmUrl || null,
+        bannerSmVideoUrl: bannerSmVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,
+        bannerMdVideoUrl: bannerMdVideoUrl || null,
         bannerLgUrl: bannerLgUrl || null,
+        bannerLgVideoUrl: bannerLgVideoUrl || null,
         bannerXlUrl,
+        bannerXlVideoUrl: bannerXlVideoUrl || null,
+        bannerVideoUseForSmaller: videoUseForSmaller,
       },
       update: {
         bannerSmUrl: bannerSmUrl || null,
+        bannerSmVideoUrl: bannerSmVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,
+        bannerMdVideoUrl: bannerMdVideoUrl || null,
         bannerLgUrl: bannerLgUrl || null,
+        bannerLgVideoUrl: bannerLgVideoUrl || null,
         bannerXlUrl,
+        bannerXlVideoUrl: bannerXlVideoUrl || null,
+        bannerVideoUseForSmaller: videoUseForSmaller,
       },
     });
 

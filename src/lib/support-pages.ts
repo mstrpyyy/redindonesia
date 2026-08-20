@@ -32,8 +32,15 @@ export const SUPPORT_PAGE_PUBLIC_PATH: Record<SupportPageSlug, string> = {
 export interface ISupportPage {
   slug: SupportPageSlug;
   bannerXlUrl: string | null;
+  bannerXlVideoUrl: string | null;
   bannerMdUrl: string | null;
+  bannerMdVideoUrl: string | null;
   bannerSmUrl: string | null;
+  bannerSmVideoUrl: string | null;
+  // One global switch (not per-size — ADR-091/092): each size's video also
+  // plays on every smaller size with none of its own, until a smaller size
+  // that does have one takes over.
+  bannerVideoUseForSmaller: boolean;
   body: string | null;
 }
 
@@ -46,8 +53,12 @@ export async function getSupportPage(slug: SupportPageSlug): Promise<ISupportPag
   return {
     slug,
     bannerXlUrl: row?.bannerXlUrl ?? null,
+    bannerXlVideoUrl: row?.bannerXlVideoUrl ?? null,
     bannerMdUrl: row?.bannerMdUrl ?? null,
+    bannerMdVideoUrl: row?.bannerMdVideoUrl ?? null,
     bannerSmUrl: row?.bannerSmUrl ?? null,
+    bannerSmVideoUrl: row?.bannerSmVideoUrl ?? null,
+    bannerVideoUseForSmaller: row?.bannerVideoUseForSmaller ?? false,
     body: row?.body ?? null,
   };
 }

@@ -3,15 +3,23 @@ import { Button } from '@/components/ui/button'
 import { FileDown } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
+import { HeroBannerGroup } from '@/app/(user)/components/HeroBannerGroup'
 
 // One image per orientation/breakpoint (see ADR-035) rather than one image
 // stretched everywhere — mirrors the homepage Hero's sm/md/lg/xl pattern.
-// Only `xl` is required; any size an admin left empty falls back to it.
+// Only `xl` is required; any size an admin left empty falls back to it. Each
+// size's optional video (ADR-093) is already resolved through the cascade
+// (`resolveCategoryBannerVideoUrls`, src/lib/categories.ts) by the caller —
+// this component just renders whatever it's handed.
 interface IHeroDeviceBannerUrls {
   sm?: string | null
+  smVideo?: string | null
   md?: string | null
+  mdVideo?: string | null
   lg?: string | null
+  lgVideo?: string | null
   xl: string
+  xlVideo?: string | null
 }
 
 interface IHeroDevice {
@@ -141,44 +149,46 @@ export const HeroDevice = ({
       {children}
 
       {bannerUrls ? (
-        <>
-          {/* portrait, width < md */}
-          <Image
-            src={bannerUrls.sm ?? bannerUrls.xl}
-            alt={imgAlt}
-            fill
-            priority
-            sizes="100vw"
-            className='object-cover object-center z-0 hidden portrait:block portrait:md:hidden'
-          />
-          {/* portrait, width >= md */}
-          <Image
-            src={bannerUrls.md ?? bannerUrls.xl}
-            alt={imgAlt}
-            fill
-            priority
-            sizes="100vw"
-            className='object-cover object-center z-0 hidden portrait:md:block'
-          />
-          {/* landscape, width < xl */}
-          <Image
-            src={bannerUrls.lg ?? bannerUrls.xl}
-            alt={imgAlt}
-            fill
-            priority
-            sizes="100vw"
-            className='object-cover object-center z-0 hidden landscape:block landscape:xl:hidden'
-          />
-          {/* landscape, width >= xl */}
-          <Image
-            src={bannerUrls.xl}
-            alt={imgAlt}
-            fill
-            priority
-            sizes="100vw"
-            className='object-cover object-center z-0 hidden landscape:xl:block'
-          />
-        </>
+        <HeroBannerGroup
+          slots={[
+            {
+              // portrait, width < md
+              key: 'sm',
+              imageUrl: bannerUrls.sm,
+              videoUrl: bannerUrls.smVideo,
+              fallbackImageUrl: bannerUrls.xl,
+              imageAlt: imgAlt,
+              className: 'object-cover object-center z-0 hidden portrait:block portrait:md:hidden absolute inset-0 size-full',
+            },
+            {
+              // portrait, width >= md
+              key: 'md',
+              imageUrl: bannerUrls.md,
+              videoUrl: bannerUrls.mdVideo,
+              fallbackImageUrl: bannerUrls.xl,
+              imageAlt: imgAlt,
+              className: 'object-cover object-center z-0 hidden portrait:md:block absolute inset-0 size-full',
+            },
+            {
+              // landscape, width < xl
+              key: 'lg',
+              imageUrl: bannerUrls.lg,
+              videoUrl: bannerUrls.lgVideo,
+              fallbackImageUrl: bannerUrls.xl,
+              imageAlt: imgAlt,
+              className: 'object-cover object-center z-0 hidden landscape:block landscape:xl:hidden absolute inset-0 size-full',
+            },
+            {
+              // landscape, width >= xl
+              key: 'xl',
+              imageUrl: bannerUrls.xl,
+              videoUrl: bannerUrls.xlVideo,
+              fallbackImageUrl: bannerUrls.xl,
+              imageAlt: imgAlt,
+              className: 'object-cover object-center z-0 hidden landscape:xl:block absolute inset-0 size-full',
+            },
+          ]}
+        />
       ) : imgUrl ? (
         <Image
           src={imgUrl}

@@ -14,8 +14,15 @@ export function isArticlesPageSlug(value: string): value is ArticlesPageSlug {
 export interface IArticlesPage {
   slug: ArticlesPageSlug;
   bannerXlUrl: string | null;
+  bannerXlVideoUrl: string | null;
   bannerMdUrl: string | null;
+  bannerMdVideoUrl: string | null;
   bannerSmUrl: string | null;
+  bannerSmVideoUrl: string | null;
+  // One global switch (not per-size — ADR-091/092): each size's video also
+  // plays on every smaller size with none of its own, until a smaller size
+  // that does have one takes over.
+  bannerVideoUseForSmaller: boolean;
 }
 
 // Never throws on a missing row — the admin form starts blank and the
@@ -26,7 +33,11 @@ export async function getArticlesPage(slug: ArticlesPageSlug): Promise<IArticles
   return {
     slug,
     bannerXlUrl: row?.bannerXlUrl ?? null,
+    bannerXlVideoUrl: row?.bannerXlVideoUrl ?? null,
     bannerMdUrl: row?.bannerMdUrl ?? null,
+    bannerMdVideoUrl: row?.bannerMdVideoUrl ?? null,
     bannerSmUrl: row?.bannerSmUrl ?? null,
+    bannerSmVideoUrl: row?.bannerSmVideoUrl ?? null,
+    bannerVideoUseForSmaller: row?.bannerVideoUseForSmaller ?? false,
   };
 }
