@@ -4,6 +4,7 @@ import { FileDown } from 'lucide-react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { HeroBannerGroup } from '@/app/(user)/components/HeroBannerGroup'
+import { RevealText } from '@/app/(user)/components/RevealText'
 
 // One image per orientation/breakpoint (see ADR-035) rather than one image
 // stretched everywhere — mirrors the homepage Hero's sm/md/lg/xl pattern.
@@ -70,6 +71,14 @@ export const HeroDevice = ({
   // and looks muddier with a shadow behind it, especially the darker swatches.
   const hasTextShadow = textColorClassName === 'text-white'
 
+  // Long CMS-authored titles (category.title/name, product.name) take
+  // noticeably long to finish revealing at the static pages' default
+  // stagger/duration — tighten both once the title crosses 20 chars so it
+  // still finishes at a reasonable pace.
+  const isLongTitle = title.length > 20
+  const revealStaggerMs = isLongTitle ? 200 : undefined
+  const revealDurationMs = isLongTitle ? 300 : undefined
+
   return (
     <section className='w-full h-svh relative flex flex-col px-5 sm:px-20 pb-10'>
       <div className='text-white mt-24 z-30'>
@@ -107,7 +116,14 @@ export const HeroDevice = ({
             without affecting the category hero's own (already centered,
             narrower) layout. */}
         <h1 className={cn('h1-format', hasTextShadow && 'text-shadow', variant === 'product' && 'xl:max-w-[66.6667vw]')}>
-          {title}
+          {/* `title` is CMS-authored (category.title/name or product.name), not a
+              fixed set of literal words like the other RevealText callers — split
+              on whitespace at render time instead of hardcoding a `words` array. */}
+          <RevealText
+            words={title.split(/\s+/).filter(Boolean).map((text) => ({ text }))}
+            staggerMs={revealStaggerMs}
+            durationMs={revealDurationMs}
+          />
         </h1>
         <p className={cn('p-lg-format text-balance mt-2', hasTextShadow && 'text-shadow', variant === 'category' ? 'text-center!' : 'text-left!', variant === 'product' && 'xl:max-w-[66.6667vw]')}>
           {description}
