@@ -1,4 +1,5 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '../../components/BodyWrapper'
 import { GalleryViewer } from '../../components/GalleryViewer'
 import { getGalleries } from '@/lib/galleries'
@@ -28,9 +29,12 @@ export default async function MediaGalleries() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) galleries'
       >
-        <span className='text-brand-red2'>RED</span>
-        {" "}
-        <span className='text-white'>Galleries</span>
+        <RevealText
+          words={[
+            { text: 'RED', className: 'text-brand-red2' },
+            { text: 'Galleries', className: 'text-white' },
+          ]}
+        />
       </PageBanner>
 
       <div className='radial-gradient1 py-10'>
@@ -46,6 +50,8 @@ export default async function MediaGalleries() {
           <BodyWrapper key={gallery.id} className="py-10">
             <div
               className={`flex lg:items-center gap-6 lg:gap-16 ${index % 2 === 1 ? "lg:flex-row-reverse flex-col" : "lg:flex-row flex-col"}`}
+              data-aos={index % 2 === 1 ? 'fade-left' : 'fade-right'}
+              data-aos-duration="600"
             >
               <div className="flex flex-col lg:w-200 2xl:w-250">
                 <h2 className="h2-format max-lg:text-center">{gallery.title}</h2>

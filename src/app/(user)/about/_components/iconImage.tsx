@@ -14,7 +14,7 @@ export const IconImage = ({ src, alt, width, height }: IIconImage) => {
       alt={alt}
       width={width}
       height={height}
-      className='w-52 mb-6' 
+      className='w-52 mb-6 z-10' 
     />
   )
 }

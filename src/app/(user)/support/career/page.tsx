@@ -1,4 +1,5 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
@@ -20,9 +21,12 @@ export default async function SupportCareer() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Career'
       >
-          <span className='text-brand-red2'>RED</span>
-          {" "}
-          <span className='text-white'>Career</span>
+          <RevealText
+            words={[
+              { text: 'RED', className: 'text-brand-red2' },
+              { text: 'Career', className: 'text-white' },
+            ]}
+          />
       </PageBanner>
 
       {bodyHtml && (

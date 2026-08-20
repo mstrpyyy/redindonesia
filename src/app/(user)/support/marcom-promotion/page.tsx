@@ -8,6 +8,7 @@ import {
   YoutubeOutlinedRounded,
 } from '@lineiconshq/react-lineicons'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSocialAccounts } from '@/lib/social-accounts'
 import { getSupportPage } from '@/lib/support-pages'
@@ -41,9 +42,13 @@ export default async function SupportMarcomPromotion() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
-          <span className='text-brand-red2'>Marcom</span>
-          {" "}
-          <span className='text-white'>& Promotion</span>
+          <RevealText
+            words={[
+              { text: 'Marcom', className: 'text-brand-red2' },
+              { text: '&', className: 'text-white' },
+              { text: 'Promotion', className: 'text-white' },
+            ]}
+          />
       </PageBanner>
 
       {bodyHtml && (

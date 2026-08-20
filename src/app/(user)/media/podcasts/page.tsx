@@ -1,4 +1,5 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '../../components/BodyWrapper'
 import { Button } from '@/components/ui/button'
 import { ExternalLink } from 'lucide-react'
@@ -24,9 +25,12 @@ export default async function MediaPodcasts() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) podcast'
       >
-        <span className='text-brand-red2'>RED</span>
-        {" "}
-        <span className='text-white'>Podcasts</span>
+        <RevealText
+          words={[
+            { text: 'RED', className: 'text-brand-red2' },
+            { text: 'Podcasts', className: 'text-white' },
+          ]}
+        />
       </PageBanner>
 
       <div className="bg-secondary py-20">
@@ -47,7 +51,11 @@ export default async function MediaPodcasts() {
               <section
                 className={`flex max-xl:flex-col gap-10 2xl:gap-20 overflow-hidden body-container-limit ${index % 2 === 1 ? 'xl:flex-row-reverse' : ''}`}
               >
-                <div className="flex-1 rounded-2xl">
+                <div
+                  className="flex-1 rounded-2xl"
+                  data-aos={index % 2 === 1 ? 'fade-left' : 'fade-right'}
+                  data-aos-duration="600"
+                >
                   <iframe
                     loading="lazy"
                     className="w-full rounded-xl aspect-video"
@@ -57,7 +65,12 @@ export default async function MediaPodcasts() {
                   />
                 </div>
 
-                <div className="xl:w-90 2xl:w-105 text-center text-pretty flex flex-col">
+                <div
+                  className="xl:w-90 2xl:w-105 text-center text-pretty flex flex-col"
+                  data-aos={index % 2 === 1 ? 'fade-right' : 'fade-left'}
+                  data-aos-duration="600"
+                  data-aos-delay="150"
+                >
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-3xl 2xl:text-4xl font-bold xl:leading-13 xl:text-start text-balance">
                     {podcast.title}
                   </h2>
@@ -68,7 +81,7 @@ export default async function MediaPodcasts() {
                     </p>
                   )}
 
-                  <Button asChild className="rounded-full mt-5  w-fit" variant={'outline'}>
+                  <Button asChild className="mt-5 w-fit" variant={'outlineSecondary'}>
                     <a href={podcast.youtubeUrl} target="_blank" rel="noopener noreferrer">
                       Watch on Youtube
                       <ExternalLink />

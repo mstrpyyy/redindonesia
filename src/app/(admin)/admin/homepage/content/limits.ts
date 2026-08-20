@@ -1,6 +1,7 @@
 export const MAX_CAROUSEL_TITLE_LENGTH = 100;
 export const MAX_CAROUSEL_ITEM_TITLE_LENGTH = 100;
 export const MAX_CAROUSEL_SEE_MORE_URL_LENGTH = 300;
+export const MIN_CAROUSEL_ITEMS = 4;
 export const MAX_CAROUSEL_ITEMS = 30;
 
 // The item picker's catalogue/category suggestions stay hidden below this —

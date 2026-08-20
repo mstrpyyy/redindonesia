@@ -26,7 +26,7 @@ import { ICarouselItem, ICategoryPickerOption, IProductPickerOption } from "@/in
 import { UploadField } from "@/components/upload-field";
 import { ProductPickerField } from "./product-picker-field";
 import { uploadHomeCarouselItemImage } from "./upload-actions";
-import { MAX_CAROUSEL_ITEMS } from "./limits";
+import { MIN_CAROUSEL_ITEMS, MAX_CAROUSEL_ITEMS } from "./limits";
 
 function SortableItemRow({
   item,
@@ -34,12 +34,14 @@ function SortableItemRow({
   categoryOptions,
   onChange,
   onRemove,
+  removeDisabled,
 }: {
   item: ICarouselItem;
   productOptions: IProductPickerOption[];
   categoryOptions: ICategoryPickerOption[];
   onChange: (next: ICarouselItem) => void;
   onRemove: () => void;
+  removeDisabled: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   // Once an item is picked from the catalogue, its image/link are locked to
@@ -89,6 +91,7 @@ function SortableItemRow({
           size="icon-sm"
           aria-label="Remove item"
           onClick={onRemove}
+          disabled={removeDisabled}
           className="text-destructive hover:text-destructive mt-5 shrink-0"
         >
           <Trash2 className="size-4" />
@@ -159,7 +162,7 @@ export function CarouselItemsEditor({
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Items</span>
         <span className="text-muted-foreground text-xs">
-          {items.length} / {MAX_CAROUSEL_ITEMS}
+          {items.length} / {MAX_CAROUSEL_ITEMS} (min {MIN_CAROUSEL_ITEMS})
         </span>
       </div>
 
@@ -182,6 +185,7 @@ export function CarouselItemsEditor({
                 categoryOptions={categoryOptions}
                 onChange={(next) => onChange(items.map((current, i) => (i === index ? next : current)))}
                 onRemove={() => onChange(items.filter((_, i) => i !== index))}
+                removeDisabled={items.length <= MIN_CAROUSEL_ITEMS}
               />
             ))}
           </div>

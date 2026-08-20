@@ -32,7 +32,7 @@ const qualityList = [
   {
     icon: <ShieldCheck size={40} strokeWidth={2} className='text-brand-red'  />,
     title: 'PRODUCT WARRANTY PERIOD',
-    description: 'All equipment and devices supplied by RED come with a one-year warranty covering all factory technical defects to ensure your investment remains fully protected.',
+    description: 'All equipment and devices supplied by RED Indonesia come with a one-year warranty covering all factory technical defects to ensure your investment remains fully protected.',
   },
 ]
 

@@ -10,7 +10,7 @@ export const  BeforeAfterDevice = ({h2, imageList}:IBeforeAfterDevice) => {
   return (
     <BodyWrapper className="mt-14 mb-24">
       <section>
-        <h2 className="h2-format text-center! mb-8">{h2}</h2>
+        <h2 className="h2-format text-center! mb-8" data-aos="fade-up" data-aos-duration="500">{h2}</h2>
 
         <div 
           className={`
@@ -27,7 +27,13 @@ export const  BeforeAfterDevice = ({h2, imageList}:IBeforeAfterDevice) => {
         >
           {imageList.map((item, index) => {
             return (
-              <div key={index} className="max-w-120">
+              <div
+                key={index}
+                className="max-w-120"
+                data-aos="fade-up"
+                data-aos-duration="500"
+                data-aos-delay={((index % 3) * 100).toString()}
+              >
                 <BeforeAfterImage
                   beforeImage={item.before}
                   afterImage={item.after}

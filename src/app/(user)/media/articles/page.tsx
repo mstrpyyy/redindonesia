@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { getArticlePreviewText, getPublishedArticles } from '@/lib/articles'
 import { getArticlesPage } from '@/lib/articles-page'
@@ -31,9 +32,12 @@ export default async function MediaArticles() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) articles'
       >
-        <span className='text-brand-red2'>RED</span>
-        {" "}
-        <span className='text-white'>Articles</span>
+        <RevealText
+          words={[
+            { text: 'RED', className: 'text-brand-red2' },
+            { text: 'Articles', className: 'text-white' },
+          ]}
+        />
       </PageBanner>
 
       <div className="bg-secondary py-10">
@@ -44,11 +48,14 @@ export default async function MediaArticles() {
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-12 sm:grid-cols-2 lg:grid-cols-3">
-              {articles.map((article) => (
+              {articles.map((article, index) => (
                 <Link
                   key={article.id}
                   href={`/media/articles/${article.slug}`}
                   className="group flex flex-col gap-3"
+                  data-aos="fade-up"
+                  data-aos-duration="500"
+                  data-aos-delay={((index % 3) * 100).toString()}
                 >
                   <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-neutral-100">
                     {article.coverImage && (

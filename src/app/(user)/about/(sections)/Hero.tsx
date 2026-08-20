@@ -1,4 +1,5 @@
 import { NavbarBg } from '@/app/(user)/components/navbar/NavbarBg'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import Image from 'next/image'
 import React from 'react'
 
@@ -32,10 +33,13 @@ export const AboutHero = () => {
       />
 
       <h1 className="text-shadow-md absolute top-2/3 left-1/2 -translate-x-1/2 w-full text-center text-5xl sm:text-6xl lg:text-8xl font-bold">
-        <span className='text-white'>About</span>
-        {" "}
-        <span className='text-brand-red2'>RED</span>
-      </h1>      
+        <RevealText
+          words={[
+            { text: 'About', className: 'text-white' },
+            { text: 'RED', className: 'text-brand-red2' },
+          ]}
+        />
+      </h1>
     </section>
   )
 }

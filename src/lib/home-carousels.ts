@@ -3,6 +3,14 @@ import { getCategoryAncestry } from "@/lib/categories";
 import { getPublishedProductCards } from "@/lib/products";
 import { ICarouselItem, IHomeCarouselListItem, IPublicHomeCarousel } from "@/interfaces/general";
 
+// Same floor as MIN_CAROUSEL_ITEMS (src/app/(admin)/admin/homepage/content/
+// limits.ts) — kept as a local literal since lib/ shouldn't import from the
+// admin route tree. Below this, the largest breakpoint's xl:basis-1/4 track
+// (see ProductCarousel in src/app/(user)/components/Carousels.tsx) has
+// nothing to loop, so an under-stocked carousel is dropped rather than shown
+// half-empty.
+const MIN_PUBLIC_CAROUSEL_ITEMS = 4;
+
 function parseItems(value: unknown): ICarouselItem[] {
   return Array.isArray(value) ? (value as ICarouselItem[]) : [];
 }
@@ -39,9 +47,9 @@ export async function getHomeCarousels(): Promise<IHomeCarouselListItem[]> {
 // list, "See More" URL) live from the linked category, rather than reading
 // back a snapshot, so a carousel always reflects the category's current
 // name/slug path and published products (see ADR-066). A "category" row
-// whose category was deleted, or whose category currently has zero
-// published products, is dropped entirely — an empty carousel has nothing
-// to render.
+// whose category was deleted, or whose category currently has fewer than
+// MIN_PUBLIC_CAROUSEL_ITEMS published products, is dropped entirely — an
+// under-stocked carousel has nothing usable to render.
 export async function getPublicHomeCarousels(): Promise<IPublicHomeCarousel[]> {
   const rows = await prisma.homeCarousel.findMany({ orderBy: { order: "asc" } });
 
@@ -54,7 +62,7 @@ export async function getPublicHomeCarousels(): Promise<IPublicHomeCarousel[]> {
 
       if (row.mode === "custom") {
         const items = parseItems(row.items);
-        if (!row.title || items.length === 0) return null;
+        if (!row.title || items.length < MIN_PUBLIC_CAROUSEL_ITEMS) return null;
         return {
           id: row.id,
           title: row.title,
@@ -71,7 +79,7 @@ export async function getPublicHomeCarousels(): Promise<IPublicHomeCarousel[]> {
 
       const urlPrefix = `/${ancestry.type === "device" ? "devices" : "products"}/${ancestry.slugPath.join("/")}`;
       const cards = await getPublishedProductCards(row.categoryId, urlPrefix);
-      if (cards.length === 0) return null;
+      if (cards.length < MIN_PUBLIC_CAROUSEL_ITEMS) return null;
 
       return {
         id: row.id,

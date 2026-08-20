@@ -8,6 +8,7 @@ import {
   ACCEPTED_HOME_IMAGE_TYPES,
   ACCEPTED_HOME_VIDEO_TYPES,
   MAX_CAROUSEL_ITEM_TITLE_LENGTH,
+  MIN_CAROUSEL_ITEMS,
   MAX_CAROUSEL_ITEMS,
   MAX_CAROUSEL_SEE_MORE_URL_LENGTH,
   MAX_CAROUSEL_TITLE_LENGTH,
@@ -290,7 +291,7 @@ function parseModeFields(
   }
   const itemsParsed = z
     .array(carouselItemSchema)
-    .min(1, "Add at least one item")
+    .min(MIN_CAROUSEL_ITEMS, `A carousel needs at least ${MIN_CAROUSEL_ITEMS} items`)
     .max(MAX_CAROUSEL_ITEMS, `A carousel can have at most ${MAX_CAROUSEL_ITEMS} items`)
     .safeParse(itemsRaw);
   if (!itemsParsed.success) {

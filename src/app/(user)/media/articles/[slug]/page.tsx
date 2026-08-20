@@ -92,7 +92,11 @@ export default async function ArticleDetailPage({ params }: IPageProps) {
       <div className="bg-secondary py-10">
         <BodyWrapper className="py-10">
           <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
-            <article className="flex flex-col gap-6 lg:col-span-2">
+            <article
+              className="flex flex-col gap-6 lg:col-span-2"
+              data-aos="fade-right"
+              data-aos-duration="600"
+            >
               <Link href="/media/articles" className="text-muted-foreground text-sm hover:underline">
                 &larr; Back to articles
               </Link>
@@ -133,14 +137,24 @@ export default async function ArticleDetailPage({ params }: IPageProps) {
               />
             </article>
 
-            <aside className="flex flex-col gap-4">
+            <aside
+              className="flex flex-col gap-4"
+              data-aos="fade-left"
+              data-aos-duration="600"
+              data-aos-delay="150"
+            >
               <h2 className="h3-sm-format">Other Articles</h2>
               {otherArticles.length === 0 ? (
                 <p className="text-muted-foreground text-sm">No other articles yet.</p>
               ) : (
                 <ul className="flex flex-col gap-4">
-                  {otherArticles.map((other) => (
-                    <li key={other.id}>
+                  {otherArticles.map((other, index) => (
+                    <li
+                      key={other.id}
+                      data-aos="fade-up"
+                      data-aos-duration="500"
+                      data-aos-delay={(200 + index * 100).toString()}
+                    >
                       <Link href={`/media/articles/${other.slug}`} className="group flex gap-3">
                         <div className="relative aspect-video w-28 shrink-0 overflow-hidden rounded-lg bg-neutral-100">
                           {other.coverImage && (

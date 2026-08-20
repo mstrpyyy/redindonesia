@@ -73,7 +73,7 @@ export const PageBanner = ({
       />
       <div className="absolute left-0 w-full bottom-0 bg-linear-to-t from-black/90 to-transparent z-0 h-2/3"/>
 
-      <h1 className="text-shadow-md absolute bottom-14 left-1/2 -translate-x-1/2 w-full text-center banner-title font-bold text-balance">
+      <h1 className="text-shadow-md absolute bottom-14 left-1/2 -translate-x-1/2 w-full text-center banner-title font-bold text-balance sm:px-10 md:px-20">
         {children}
       </h1>
     </section>

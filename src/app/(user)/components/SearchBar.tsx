@@ -165,6 +165,11 @@ export function SearchBar({
                     }}
                     className="hover:bg-accent flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
                   >
+                    {page.image && (
+                      <div className="bg-muted relative size-8 shrink-0 overflow-hidden rounded-sm">
+                        <Image src={page.image} alt="" fill sizes="32px" className="object-cover" />
+                      </div>
+                    )}
                     <span className="flex-1 truncate">{page.label}</span>
                     <Badge variant="outline" className="shrink-0 text-xxs capitalize">
                       {page.kind}

@@ -1,10 +1,4 @@
-"use client"
-
-import { useState } from "react"
-
-
 export const VideoHomeSection = () => {
-  const [play, setPlay] =  useState(false)
   return (
     <section className="flex max-xl:flex-col gap-10 2xl:gap-20 overflow-hidden body-container-limit">  
       <div className="xl:w-90 2xl:w-105 text-center xl:text-justify text-pretty">

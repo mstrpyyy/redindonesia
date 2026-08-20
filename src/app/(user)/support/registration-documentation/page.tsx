@@ -1,4 +1,5 @@
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
@@ -21,10 +22,13 @@ export default async function SupportRegistrationDocumentation() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Registration & Documentation Support'
       >
-        <div className='flex flex-col items-center'>
-          <span className='text-brand-red2'>Registration</span>
-          <span className='text-white'>& Documentation</span>
-        </div>
+        <RevealText
+          words={[
+            { text: 'Registration', className: 'text-brand-red2' },
+            { text: '&', className: 'text-white' },
+            { text: 'Documentation', className: 'text-white' },
+          ]}
+        />
       </PageBanner>
 
       {bodyHtml && (

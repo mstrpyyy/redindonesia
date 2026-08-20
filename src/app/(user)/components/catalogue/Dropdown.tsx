@@ -28,12 +28,21 @@ export const DropdownDevice = ({ list, header, backgroundColor }: IDropdownDevic
 
   return (
     <section className={cn("w-full rounded-2xl overflow-hidden border border-neutral-200", bgClassName)}>
-      <h2 className={cn("h2-md-format px-8 py-6", textClassName)}>{header ?? "Technology"}</h2>
+      <h2
+        className={cn("h2-md-format px-8 py-6", textClassName)}
+        data-aos="fade-up"
+        data-aos-duration="500"
+      >
+        {header ?? "Technology"}
+      </h2>
       <Accordion
         type="single"
         collapsible={false}
         defaultValue="0"
         className=""
+        data-aos="fade-up"
+        data-aos-duration="500"
+        data-aos-delay="150"
       >
         {list.map((item, idx) => (
           <AccordionItem key={idx} value={idx.toString()}>

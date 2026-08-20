@@ -255,7 +255,12 @@ export const BasicCarousel = ({list}:{list:IBasicCarousel[]}) => {
 
         {list.map((item, index) => (
           <CarouselItem key={index} className="sm:basis-1/2 pl-6 lg:basis-1/3 2xl:basis-1/4">
-            <div className="p-1">
+            <div
+              className="p-1"
+              data-aos="fade-up"
+              data-aos-duration="500"
+              data-aos-delay={((index % 4) * 100).toString()}
+            >
               <FeatureCard item={item} index={index} fullText={fullText} showFullText={showFullText} />
             </div>
           </CarouselItem>
@@ -279,7 +284,13 @@ export const CardGrid = ({ list }: { list: IBasicCarousel[] }) => {
   return (
     <div className="flex flex-wrap justify-center items-start -mt-6 -ml-6 py-2">
       {list.map((item, index) => (
-        <div key={index} className="basis-full pt-6 pl-6 sm:basis-1/2 lg:basis-1/3 2xl:basis-1/4">
+        <div
+          key={index}
+          className="basis-full pt-6 pl-6 sm:basis-1/2 lg:basis-1/3 2xl:basis-1/4"
+          data-aos="fade-up"
+          data-aos-duration="500"
+          data-aos-delay={((index % 4) * 100).toString()}
+        >
           <div className="p-1">
             <FeatureCard item={item} index={index} transparent />
           </div>

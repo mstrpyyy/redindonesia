@@ -28,7 +28,7 @@ interface IDocumentDevice {
 export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt, certification }: IDocumentDevice) => {
   return (
     <section className='flex max-sm:flex-col items-center justify-evenly gap-10'>
-      <h2 className='max-sm:text-center'>
+      <h2 className='max-sm:text-center' data-aos='fade-right' data-aos-duration='600'>
         {!certification && (
           <span className='p-format leading-2! sm:block'>
             Download Document
@@ -64,6 +64,8 @@ export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt, 
           href={fileUrl}
           target='_blank'
           rel='noopener noreferrer'
+          data-aos='fade-left'
+          data-aos-duration='600'
           className='
             group relative overflow-hidden
             w-full  max-w-96 aspect-3/4 rounded-xl bg-red-500
@@ -93,6 +95,8 @@ export const DocumentDevice = ({ header, subheader, fileUrl, thumbnailUrl, alt, 
           href={fileUrl}
           target='_blank'
           rel='noopener noreferrer'
+          data-aos='fade-left'
+          data-aos-duration='600'
           className='
             rounded-full h-16 px-10
             flex items-center justify-center gap-3

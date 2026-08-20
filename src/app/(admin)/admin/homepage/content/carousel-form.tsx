@@ -17,7 +17,7 @@ import { UploadField } from "@/components/upload-field";
 import { createHomeCarousel, updateHomeCarousel } from "./actions";
 import { CarouselCategoryPicker } from "./carousel-category-picker";
 import { CarouselItemsEditor } from "./carousel-items-editor";
-import { MAX_CAROUSEL_TITLE_LENGTH } from "./limits";
+import { MAX_CAROUSEL_TITLE_LENGTH, MIN_CAROUSEL_ITEMS } from "./limits";
 import { uploadHomeCarouselTitleImage } from "./upload-actions";
 
 // Only `isPage` categories qualify (a category without a page has nowhere
@@ -127,8 +127,8 @@ export function CarouselForm({
       setError("Title is required.");
       return;
     }
-    if (mode === "custom" && items.length === 0) {
-      setError("Add at least one item.");
+    if (mode === "custom" && items.length < MIN_CAROUSEL_ITEMS) {
+      setError(`Add at least ${MIN_CAROUSEL_ITEMS} items.`);
       return;
     }
     if (mode === "custom" && showSeeMore && !seeMoreUrl.trim()) {

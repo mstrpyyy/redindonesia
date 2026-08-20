@@ -207,6 +207,9 @@ export interface ISearchPageResult {
   label: string
   url: string
   kind: 'category' | 'article' | 'support' | 'contact' | 'media'
+  // Only populated for `kind: 'article'` (its cover image) — every other
+  // kind has no image of its own and always sends null.
+  image: string | null
 }
 
 // Result shape for the navbar search dropdown (see SearchBar.tsx) — two

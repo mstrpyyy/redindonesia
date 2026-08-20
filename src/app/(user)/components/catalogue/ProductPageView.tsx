@@ -42,10 +42,10 @@ function CertificationBadge({
   const content = (
     <>
       {logo && (
-        <Image src={logo} alt={certification.label} height={1080} width={1080} className='h-6 w-auto' />
+        <Image src={logo} alt={certification.label} height={1080} width={1080} className='h-6 md:h-7 w-auto' />
       )}
       <p className='text-left'>
-        <span className='block font-medium text-xxs'>{certification.label}</span>
+        <span className='block font-medium text-xxs md:text-xs'>{certification.label}</span>
         {subLabel && <span className='block font-normal text-xxs'>{subLabel}</span>}
       </p>
     </>
@@ -60,7 +60,7 @@ function CertificationBadge({
   }
 
   return (
-    <Button variant='transparent' className='h-11 gap-2 rounded-full px-4' asChild>
+    <Button variant='glass' className='h-11 gap-2 rounded-full px-4' asChild>
       {/* `transparent`'s own `text-white` (button.tsx, not to be edited)
           lands on this `<a>` itself via Radix Slot's prop merge — same
           same-element tie as the document button (Hero.tsx). Wrapping the
@@ -106,7 +106,11 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
     case 'viewer360':
       return (
         <BodyWrapper className='my-14'>
-          <div className={cn('flex flex-col gap-6 items-center', segment.header && 'lg:flex-row lg:justify-center')}>
+          <div
+            className={cn('flex flex-col gap-6 items-center', segment.header && 'lg:flex-row lg:justify-center')}
+            data-aos='fade-up'
+            data-aos-duration='600'
+          >
             {segment.header && (
               <h2 className='h2-md-format max-lg:text-center xl:text-3xl! shrink-0 lg:w-fit lg:max-w-100'>{segment.header}</h2>
             )}
@@ -157,7 +161,7 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
 
       return (
         <BodyWrapper className='my-14'>
-          <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
+          <h2 className='h2-format text-center! mb-8' data-aos='fade-up' data-aos-duration='500'>{segment.header}</h2>
           <BasicCarousel list={items} />
         </BodyWrapper>
       )
@@ -174,7 +178,7 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
       return (
         <BodyWrapper className={cn('py-10 md:py-20', bgClassName)}>
           <section className={textClassName}>
-            <h2 className='h2-format text-center! mb-8'>{segment.header}</h2>
+            <h2 className='h2-format text-center! mb-8' data-aos='fade-up' data-aos-duration='500'>{segment.header}</h2>
             <CardGrid list={items} />
           </section>
         </BodyWrapper>
@@ -242,6 +246,8 @@ function renderSegment(segment: IProductSegment, heroDocs: IHeroDoc[], heroCerti
         <BodyWrapper className='my-14'>
           <div
             className='tiptap-content tiptap-content-product'
+            data-aos='fade-up'
+            data-aos-duration='600'
             dangerouslySetInnerHTML={{ __html: segment.body }}
           />
         </BodyWrapper>

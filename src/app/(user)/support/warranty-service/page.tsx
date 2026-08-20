@@ -1,5 +1,6 @@
 
 import { PageBanner } from '@/app/(user)/components/PageBanner'
+import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
@@ -21,9 +22,13 @@ export default async function SupportWarrantyService() {
         videoUseForSmaller={page.bannerVideoUseForSmaller}
         alt='RED (Radian Elok Distriversa) Warranty & Service Support'
       >
-        <span className='text-brand-red2'>Warranty</span>
-        {" "}
-        <span className='text-white'>& Service</span>
+        <RevealText
+          words={[
+            { text: 'Warranty', className: 'text-brand-red2' },
+            { text: '&', className: 'text-white' },
+            { text: 'Service', className: 'text-white' },
+          ]}
+        />
       </PageBanner>
 
       {bodyHtml && (

@@ -35,7 +35,7 @@ const CERTIFICATION_TYPES: { value: ICertification["certType"]; label: string }[
   { value: "kemenkes", label: "Kemenkes" },
   { value: "bpom", label: "BPOM" },
   { value: "other", label: "Other" },
-  { value: "lkpp", label: "LKPP" },
+  { value: "lkpp", label: "LKPP E-Catalogue" },
 ];
 
 function getCertificationTypeLabel(certType: ICertification["certType"]): string {
@@ -65,7 +65,7 @@ function createCertification(certType: ICertification["certType"]): ICertificati
     return { id, certType: "bpom", label: "BPOM", imageUrl: CERTIFICATION_BPOM_LOGO, registrationNumber: "", fileUrl: "" };
   }
   if (certType === "lkpp") {
-    return { id, certType: "lkpp", label: "LKPP", linkUrl: "" };
+    return { id, certType: "lkpp", label: "LKPP E-Catalogue", linkUrl: "" };
   }
   return { id, certType: "other", label: "", fileUrl: "" };
 }

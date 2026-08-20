@@ -87,6 +87,7 @@ async function searchCategoryPages(query: string): Promise<ISearchPageResult[]> 
         label: row.title ?? row.name,
         url: `${urlBase}/${ancestry.slugPath.join("/")}`,
         kind: "category",
+        image: null,
       };
     })
   );
@@ -106,7 +107,7 @@ async function searchArticlePages(query: string): Promise<ISearchPageResult[]> {
     },
     orderBy: { publishedAt: "desc" },
     take: MAX_RESULTS_PER_GROUP,
-    select: { id: true, title: true, slug: true },
+    select: { id: true, title: true, slug: true, coverImage: true },
   });
 
   return rows.map((row) => ({
@@ -114,6 +115,7 @@ async function searchArticlePages(query: string): Promise<ISearchPageResult[]> {
     label: row.title,
     url: `/media/articles/${row.slug}`,
     kind: "article",
+    image: row.coverImage,
   }));
 }
 
@@ -134,6 +136,7 @@ async function searchStaticPages(query: string): Promise<ISearchPageResult[]> {
       label: SUPPORT_PAGE_LABELS[page.slug],
       url: `/support/${SUPPORT_PAGE_PUBLIC_PATH[page.slug]}`,
       kind: "support" as const,
+      image: null,
       searchText: `${SUPPORT_PAGE_LABELS[page.slug]} ${stripHtml(page.body ?? "")}`.toLowerCase(),
     })),
     {
@@ -141,6 +144,7 @@ async function searchStaticPages(query: string): Promise<ISearchPageResult[]> {
       label: "Contact Us",
       url: "/contact",
       kind: "contact",
+      image: null,
       searchText: `Contact Us ${stripHtml(contactPage.body ?? "")}`.toLowerCase(),
     },
     ...MEDIA_INDEX_PAGES.map((page) => ({
@@ -148,6 +152,7 @@ async function searchStaticPages(query: string): Promise<ISearchPageResult[]> {
       label: page.label,
       url: page.url,
       kind: "media" as const,
+      image: null,
       searchText: page.label.toLowerCase(),
     })),
   ];
