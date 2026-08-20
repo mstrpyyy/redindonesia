@@ -190,12 +190,16 @@ export const HeroDevice = ({
           ]}
         />
       ) : imgUrl ? (
+        // `quality={90}`, not the `next/image` default of 75 — a full-bleed
+        // hero this large shows visible extra compression at the default
+        // (same fix `PageBannerMedia.tsx`/`GalleryViewer.tsx` apply).
         <Image
           src={imgUrl}
           alt={imgAlt}
           fill
           priority
           sizes="100vw"
+          quality={90}
           className='object-cover object-center z-0'
         />
       ) : null}

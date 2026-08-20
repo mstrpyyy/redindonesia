@@ -86,7 +86,11 @@ function PageBannerMediaSlot({
   }
 
   return (
-    <Image src={resolvedImageUrl} alt={alt} fill priority sizes="100vw" className={className} />
+    // `quality={90}`, not the `next/image` default of 75 — a full-bleed
+    // 100vw banner is large enough on screen that the default's extra
+    // compression reads as visible softness/artifacting (same fix
+    // `GalleryViewer.tsx` already applies for the same reason).
+    <Image src={resolvedImageUrl} alt={alt} fill priority sizes="100vw" quality={90} className={className} />
   );
 }
 

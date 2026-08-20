@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    // Next 16's image optimizer 400s any `quality` prop not explicitly
+    // allow-listed here — the built-in default only allows 75. Every full-
+    // bleed banner/gallery image in this codebase (GalleryViewer.tsx,
+    // PageBannerMedia.tsx, catalogue/Hero.tsx) passes `quality={90}` to
+    // avoid the default's visible extra compression; without this list
+    // those requests were silently failing (400, broken image) rather than
+    // actually rendering at higher quality.
+    qualities: [75, 90],
+  },
   experimental: {
     // Galleries submit up to 50 images per Server Action call; the 1MB
     // default is sized for single-file forms (see ADR-008) and rejects any
