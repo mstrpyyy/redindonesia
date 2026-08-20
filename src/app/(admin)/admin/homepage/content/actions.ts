@@ -88,7 +88,7 @@ const saveHomePageSchema = z.object({
   bannerMdVideoUrl: z.string().trim().optional(),
   bannerLgUrl: z.string().trim().optional(),
   bannerLgVideoUrl: z.string().trim().optional(),
-  bannerXlUrl: z.string().trim().min(1, "Banner (2560x1440) image is required"),
+  bannerXlUrl: z.string().trim().min(1, "Banner (1920x1080) image is required"),
   bannerXlVideoUrl: z.string().trim().optional(),
   // One global switch, not per-size — ADR-091.
   bannerVideoUseForSmaller: booleanFlagSchema,
@@ -98,10 +98,10 @@ const saveHomePageSchema = z.object({
 // becomes the required poster/fallback) — see ADR-089. Checked here, not
 // just client-side, since `saveHomePage` is the only write path.
 const BANNER_SIZE_LABELS: Record<"Sm" | "Md" | "Lg" | "Xl", string> = {
-  Sm: "1440x2560",
-  Md: "1536x2048",
-  Lg: "2048x1536",
-  Xl: "2560x1440",
+  Sm: "1080x1920",
+  Md: "1080x1440",
+  Lg: "1440x1080",
+  Xl: "1920x1080",
 };
 
 function assertVideoHasFallback(

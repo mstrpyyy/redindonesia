@@ -97,7 +97,7 @@ const booleanFlagSchema = z
   .transform((value) => value === "true");
 
 const saveContactPageSchema = z.object({
-  bannerXlUrl: z.string().trim().min(1, "The 2560x1107 banner is required."),
+  bannerXlUrl: z.string().trim().min(1, "The 1920x830 banner is required."),
   bannerXlVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
   bannerMdVideoUrl: z.string().trim().optional(),
@@ -211,5 +211,35 @@ export async function markContactSubmissionAsRead(id: string): Promise<ActionRes
     return { success: true, data: null };
   } catch {
     return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to mark the message as read." } };
+  }
+}
+
+// Fired from the detail pane's "Mark as unread" button — same silent-fail
+// reasoning as markContactSubmissionAsRead, just the reverse flip.
+export async function markContactSubmissionAsUnread(id: string): Promise<ActionResult<null>> {
+  if (!id) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Missing submission id." } };
+  }
+
+  try {
+    await prisma.contactSubmission.update({ where: { id }, data: { isRead: false } });
+    revalidatePath("/admin/contact/form-response");
+    return { success: true, data: null };
+  } catch {
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to mark the message as unread." } };
+  }
+}
+
+export async function deleteContactSubmission(id: string): Promise<ActionResult<null>> {
+  if (!id) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Missing submission id." } };
+  }
+
+  try {
+    await prisma.contactSubmission.delete({ where: { id } });
+    revalidatePath("/admin/contact/form-response");
+    return { success: true, data: null };
+  } catch {
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to delete the message." } };
   }
 }

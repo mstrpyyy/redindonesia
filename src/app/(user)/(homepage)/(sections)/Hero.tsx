@@ -110,7 +110,7 @@ export const HeroHomeSection = ({
           px-7 sm:px-14 text-white
         "
       >
-        <h1 className="text-3xl md:text-5xl font-bold max-lg:text-center portrait:text-center text-brand-red text-shadow-md sm:text-balance w-full lg:w-150 portrait:w-full">Your Complete Medical Aesthetic Partner</h1>
+        <h1 className="text-3xl md:text-5xl font-bold max-lg:text-center portrait:text-center text-brand-red2 text-shadow-md sm:text-balance w-full lg:w-150 portrait:w-full">Your Complete Medical Aesthetic Partner</h1>
         <h2 className="text-lg md:text-2xl text-pretty mt-2 mb-8 max-lg:text-center portrait:text-center">Powering the Future of Your Practice</h2>
         <div className="relative w-full lg:w-150 portrait:mx-auto">
           <SearchBar

@@ -205,7 +205,7 @@ const categoryFieldsSchema = z.object({
 // A node is either a real page (bannerXlUrl/title/description required, the
 // other three banner sizes/body/youtubeUrl optional) or stays a plain
 // breadcrumb (all fields null) — see ADR-033. Four banner sizes rather than
-// one — see ADR-035; only the largest (`bannerXlUrl`, 2560x1440) is required,
+// one — see ADR-035; only the largest (`bannerXlUrl`, 1920x1080) is required,
 // the public side falls back to it for any size that wasn't uploaded. Only
 // validated when `isPage` is true; a breadcrumb-only node's page fields are
 // never read from the client.
@@ -223,7 +223,7 @@ const categoryPageContentSchema = z.object({
   bannerMdVideoUrl: z.string().trim().optional(),
   bannerLgUrl: z.string().trim().optional(),
   bannerLgVideoUrl: z.string().trim().optional(),
-  bannerXlUrl: z.string().trim().min(1, "Banner (2560x1440) image is required"),
+  bannerXlUrl: z.string().trim().min(1, "Banner (1920x1080) image is required"),
   bannerXlVideoUrl: z.string().trim().optional(),
   // One global switch, not per-size — mirrors HomePage's own ADR-091.
   bannerVideoUseForSmaller: booleanFlagSchema,
@@ -350,10 +350,10 @@ function parseCategoryPageContent(
   // here, not just client-side, since create/updateCategory are the only
   // write paths.
   const fallbackError = findMissingBannerVideoFallback([
-    { label: "2560x1440", imageUrl: parsed.data.bannerXlUrl, videoUrl: parsed.data.bannerXlVideoUrl ?? "" },
-    { label: "2048x1536", imageUrl: parsed.data.bannerLgUrl ?? "", videoUrl: parsed.data.bannerLgVideoUrl ?? "" },
-    { label: "1536x2048", imageUrl: parsed.data.bannerMdUrl ?? "", videoUrl: parsed.data.bannerMdVideoUrl ?? "" },
-    { label: "1440x2560", imageUrl: parsed.data.bannerSmUrl ?? "", videoUrl: parsed.data.bannerSmVideoUrl ?? "" },
+    { label: "1920x1080", imageUrl: parsed.data.bannerXlUrl, videoUrl: parsed.data.bannerXlVideoUrl ?? "" },
+    { label: "1440x1080", imageUrl: parsed.data.bannerLgUrl ?? "", videoUrl: parsed.data.bannerLgVideoUrl ?? "" },
+    { label: "1080x1440", imageUrl: parsed.data.bannerMdUrl ?? "", videoUrl: parsed.data.bannerMdVideoUrl ?? "" },
+    { label: "1080x1920", imageUrl: parsed.data.bannerSmUrl ?? "", videoUrl: parsed.data.bannerSmVideoUrl ?? "" },
   ]);
   if (fallbackError) {
     return { success: false, message: fallbackError };

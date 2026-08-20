@@ -3,7 +3,10 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { sendMail } from "@/lib/mailer";
 import { MAX_CONTACT_NAME_LENGTH, MAX_CONTACT_PHONE_LENGTH, MAX_CONTACT_QUESTION_LENGTH } from "./limits";
+
+const CONTACT_NOTIFICATION_EMAIL = "info@red-indonesia.co.id";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -55,11 +58,27 @@ export async function submitContactForm(formData: FormData): Promise<ActionResul
   try {
     await prisma.contactSubmission.create({ data: parsed.data });
     revalidatePath("/admin/contact/form-response");
-    return { success: true, data: null };
   } catch {
     return {
       success: false,
       error: { code: "INTERNAL_ERROR", message: "Failed to submit the form. Please try again." },
     };
   }
+
+  // Best-effort: the ContactSubmission row above is the source of truth (shown in
+  // the admin Form Response list), so a broken/misconfigured SMTP setup must not
+  // fail the user's submission — just log it for the deploy owner to notice.
+  try {
+    const { name, phone, email, question } = parsed.data;
+    await sendMail({
+      to: CONTACT_NOTIFICATION_EMAIL,
+      replyTo: email,
+      subject: `Website contact form submission: ${name}`,
+      text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\n\nQuestion:\n${question}`,
+    });
+  } catch (error) {
+    console.error("Failed to send contact form notification email:", error);
+  }
+
+  return { success: true, data: null };
 }

@@ -115,9 +115,9 @@ The application follows a **hybrid data architecture**:
     latter also keeps its own `SocialAccount`-driven highlight list
     alongside its banner/body, see ADR-080), keyed by a fixed `slug`
     (see ADR-070). `id`, `slug` (unique, one of `SUPPORT_PAGE_SLUGS`,
-    `src/lib/support-pages.ts`), `bannerXlUrl` (2560x1107, required in
+    `src/lib/support-pages.ts`), `bannerXlUrl` (1920x830, required in
     practice via the save action's Zod schema, not a DB constraint),
-    `bannerMdUrl?` (1363x1107), `bannerSmUrl?` (1107x1107, all relative
+    `bannerMdUrl?` (1080x878), `bannerSmUrl?` (1080x1080, all relative
     paths under `/uploads/support-pages`), `body?` (Tiptap-produced HTML),
     `createdAt`, `updatedAt`. No add/delete flow — only upsert-by-slug from
     each page's own admin form (`/admin/support/<slug>`). Marcom's admin
@@ -138,7 +138,13 @@ The application follows a **hybrid data architecture**:
     ADR-078), `createdAt`. No `updatedAt` — the only post-insert write is
     `markContactSubmissionAsRead` flipping `isRead`. Read by the admin
     Contact dashboard's "Form Response" list/detail view
-    (`/admin/contact/form-response`).
+    (`/admin/contact/form-response`), which also supports deleting a
+    submission and re-flagging a read one as unread (`deleteContactSubmission`/
+    `markContactSubmissionAsUnread`, same file). `submitContactForm` also
+    emails a copy to `info@red-indonesia.co.id` via `sendMail`
+    (`src/lib/mailer.ts`, ADR-094) after the row is written; the DB row is
+    the source of truth, so a failed send is logged and swallowed rather
+    than failing the submission.
   - `HomeCarousel` — a homepage carousel section (see ADR-066).
     `mode: "category" | "custom"` discriminates two authoring paths:
     "category" stores only `categoryId` (a leaf `Category` node — no
@@ -289,6 +295,10 @@ The application follows a **hybrid data architecture**:
   Do not perform this until explicitly instructed.
 - **Assets**: Images and fonts are served from the `public` directory.
 - **Fonts**: Plus Jakarta Sans (local).
+- **Outbound email**: `src/lib/mailer.ts` sends via `nodemailer` over the existing
+  `info@red-indonesia.co.id` mailbox's SMTP credentials (`SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` in `.env`/PM2 environment) rather than a
+  transactional email API — see ADR-094. No local MTA is used.
 
 ## Future Considerations
 

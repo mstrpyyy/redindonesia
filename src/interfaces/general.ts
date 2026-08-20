@@ -50,15 +50,15 @@ export interface ICategory {
   // A node is either a real page (banners/title/description required, body/
   // youtubeUrl optional) or a plain breadcrumb (all fields null) — see
   // ADR-033. Four banner sizes/orientations rather than one — see ADR-035;
-  // `bannerXlUrl` (2560x1440, desktop landscape) is the only one required.
+  // `bannerXlUrl` (1920x1080, desktop landscape) is the only one required.
   isPage: boolean
-  bannerSmUrl: string | null // 1440x2560 — mobile portrait
+  bannerSmUrl: string | null // 1080x1920 — mobile portrait
   bannerSmVideoUrl: string | null
-  bannerMdUrl: string | null // 1536x2048 — tablet portrait
+  bannerMdUrl: string | null // 1080x1440 — tablet portrait
   bannerMdVideoUrl: string | null
-  bannerLgUrl: string | null // 2048x1536 — tablet/small-desktop landscape
+  bannerLgUrl: string | null // 1440x1080 — tablet/small-desktop landscape
   bannerLgVideoUrl: string | null
-  bannerXlUrl: string | null // 2560x1440 — desktop landscape
+  bannerXlUrl: string | null // 1920x1080 — desktop landscape
   bannerXlVideoUrl: string | null
   // One global switch (not per-size — mirrors HomePage's own ADR-091): each
   // size's video also plays on every smaller size that has none of its own,

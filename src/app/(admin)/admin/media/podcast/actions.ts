@@ -87,7 +87,7 @@ const booleanFlagSchema = z
   .transform((value) => value === "true");
 
 const savePodcastPageSchema = z.object({
-  bannerXlUrl: z.string().trim().min(1, "The 2560x1107 banner is required."),
+  bannerXlUrl: z.string().trim().min(1, "The 1920x830 banner is required."),
   bannerXlVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
   bannerMdVideoUrl: z.string().trim().optional(),

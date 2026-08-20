@@ -2840,3 +2840,72 @@ same four-size orientation-paired shape as the homepage hero.
 **Do not:** Reuse `PageBannerFields`/`PAGE_BANNER_SIZE_ORDER` (the 5 static
 pages' shared 3-size component) — Category's shape is the four-size Xl/Lg/Md/
 Sm set, not Xl/Md/Sm.
+
+## [x] Task: Email contact form submissions to info@red-indonesia.co.id
+
+**Context:** `submitContactForm` (ADR-073) only wrote to `ContactSubmission`,
+surfaced in the admin Form Response list. The client also wants every
+submission emailed directly to `info@red-indonesia.co.id`.
+**Approach:** SMTP via `nodemailer`, using SMTP credentials for the mailbox
+that already exists for that domain, rather than a new transactional email
+API — see ADR-094. New `src/lib/mailer.ts` wraps a lazily-built, cached
+`Transporter` behind `sendMail({ to, subject, text })`, reading
+`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM` from env.
+`submitContactForm` calls it after the `ContactSubmission` insert succeeds,
+in its own `try/catch` so a broken SMTP config logs and no-ops instead of
+failing the visitor's submission.
+**Files to create or modify:**
+- `src/lib/mailer.ts` — new: `sendMail`
+- `src/app/(user)/contact/actions.ts` — call `sendMail` after the
+  `ContactSubmission` insert
+- `.env` — added `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/`SMTP_FROM`
+  (blank locally; real values are host-specific, not committed)
+- `package.json` — added `nodemailer`, `@types/nodemailer`
+- `ARCHITECTURE.md` (updated `ContactSubmission` bullet + new Infrastructure
+  bullet), `DECISIONS.md` (ADR-094)
+**Acceptance criteria:**
+- [x] A valid contact form submission still creates a `ContactSubmission` row
+  and shows the success message even if SMTP is unset/misconfigured.
+- [x] With valid `SMTP_*` env vars set, submitting the form sends an email to
+  `info@red-indonesia.co.id` containing the name, phone, email, and question.
+- [x] A `sendMail` failure is caught and logged, never surfaced to the
+  visitor and never blocks the DB write or the success response.
+**Do not:** Make the email send block or fail the form submission — the
+`ContactSubmission` row is the source of truth.
+
+## [x] Task: Delete and mark-as-unread on Contact Form Response
+
+**Context:** `/admin/contact/form-response` (ADR-075) could only mark a
+submission read on open (ADR-078); there was no way to remove one or flip it
+back to unread.
+**Approach:** Two new server actions in `admin/contact/actions.ts`, same
+shape as `markContactSubmissionAsRead`/`deletePodcast`
+(`admin/media/podcast/actions.ts`): `deleteContactSubmission` (hard delete,
+`revalidatePath`) and `markContactSubmissionAsUnread` (flips `isRead` back to
+`false`, same silent-fail reasoning as the existing read action). In
+`form-response-view.tsx`, the list now holds local `items` state (synced from
+the `submissions` prop via `useEffect`, mirroring `PodcastTable`'s `items`
+pattern) so a delete updates the UI immediately; each row grew a
+hover-revealed trash button (row restructured into a flex container with two
+sibling buttons instead of a nested button, since a `<button>` can't nest
+another one) opening a shadcn `Dialog` confirm, same delete-confirmation
+pattern as `PodcastTable`. The detail pane header gained a "Mark as unread"
+button, shown only while the open message is currently read.
+**Files to create or modify:**
+- `src/app/(admin)/admin/contact/actions.ts` — new: `deleteContactSubmission`,
+  `markContactSubmissionAsUnread`
+- `src/app/(admin)/admin/contact/form-response/form-response-view.tsx` —
+  local `items` state, per-row delete button + confirm dialog, detail pane
+  "Mark as unread" button
+- `ARCHITECTURE.md` — updated `ContactSubmission` bullet
+**Acceptance criteria:**
+- [x] Hovering a row in the Messages list reveals a delete (trash) button
+  that does not also open the message.
+- [x] Confirming delete removes the row from the list immediately and, if
+  that message was open in the detail pane, closes the pane.
+- [x] Opening a message marks it read as before; the detail pane then shows
+  a "Mark as unread" button that clears the unread dot's absence (dot
+  reappears in the list) without needing a page refresh.
+- [x] A failed delete shows an error message and leaves the row in place.
+**Do not:** Add a soft-delete/trash flag — this is a hard delete, matching
+`deletePodcast`/`deleteGallery`'s existing convention for this app.

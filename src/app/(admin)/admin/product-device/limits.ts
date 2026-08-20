@@ -11,7 +11,7 @@ export const MAX_CATEGORY_BANNER_LABEL = "2MB";
 // Category banner video (ADR-093) — same optional-MP4-per-size/cascade
 // pattern as the homepage hero banner (ADR-089/091); same size/type budget
 // as HomePage's own (see homepage/content/limits.ts).
-export const MAX_CATEGORY_BANNER_VIDEO_SIZE = 10 * 1000 * 1024;
+export const MAX_CATEGORY_BANNER_VIDEO_SIZE = 10 * 1024 * 1024;
 export const MAX_CATEGORY_BANNER_VIDEO_LABEL = "10MB";
 export const ACCEPTED_CATEGORY_VIDEO_TYPES = ["video/mp4"];
 

@@ -4578,3 +4578,37 @@ shared `HeroBannerGroup` instead of four inline `next/image` calls.
   builds from `child.bannerXlUrl`) intentionally stays image-only — cards are
   static previews, not a hero, so no video ever plays there regardless of
   whether the child category has one set.
+
+## ADR-094: Contact form submissions are also emailed via SMTP through the existing info@ mailbox, not a transactional email API
+
+**Date:** 2026-08-20
+**Status:** Accepted
+
+**Context:** `submitContactForm` (ADR-073) only wrote to `ContactSubmission`,
+read by the admin Form Response list. The client also wants every submission
+emailed to `info@red-indonesia.co.id` so it's seen without opening the admin.
+
+**Options considered:**
+1. SMTP via `nodemailer`, using SMTP credentials for the existing
+   `info@red-indonesia.co.id` mailbox (already hosted somewhere, since
+   `red-indonesia.co.id` runs a live WordPress site) — no new vendor, no
+   added cost, credentials are just env vars.
+2. A transactional email API (Resend, SendGrid, Postmark, etc.) — better
+   deliverability/retry/logging out of the box, but a new third-party
+   account with its own pricing and ToS.
+3. A local MTA (Postfix) on the VPS sending directly — rejected outright,
+   never seriously considered: a VPS IP with no sender reputation and no
+   SPF/DKIM/DMARC history will land in spam or get rejected outright.
+**Decision:** Option 1. Added `src/lib/mailer.ts`, a thin `nodemailer`
+wrapper (`sendMail({ to, subject, text })`) that lazily builds one cached
+`Transporter` from `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`/
+`SMTP_FROM` env vars. `submitContactForm` calls it with the four form fields
+after the `ContactSubmission` row is written.
+**Consequences:** No new billed vendor. Deliverability depends entirely on
+whatever host actually serves that mailbox's SMTP — if it starts bouncing or
+rate-limiting, revisit option 2. The DB row stays the source of truth: the
+email send is wrapped in its own `try/catch` and only `console.error`-logged
+on failure, so a broken SMTP config never fails the visitor's submission or
+blocks it from showing up in `/admin/contact/form-response`. `SMTP_*` env
+vars are unset in local dev by default, so `sendMail` throws early
+(caught, logged, no-op) rather than silently trying to connect.

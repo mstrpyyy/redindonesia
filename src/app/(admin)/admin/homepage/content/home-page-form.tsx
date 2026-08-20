@@ -42,10 +42,10 @@ const BANNER_SIZES: {
   Icon: typeof Monitor;
   iconClassName?: string;
 }[] = [
-  { key: "Xl", label: "2560x1440", required: true, aspect: "video", boxSizeClassName: "w-56 h-32 md:w-36 md:h-24", Icon: Monitor },
-  { key: "Lg", label: "2048x1536", required: false, aspect: "4:3", boxSizeClassName: "w-44 h-32 md:w-28 md:h-24", Icon: Tablet, iconClassName: "rotate-90" },
-  { key: "Md", label: "1536x2048", required: false, aspect: "3:4", boxSizeClassName: "w-32 h-44 md:w-24 md:h-32", Icon: Tablet },
-  { key: "Sm", label: "1440x2560", required: false, aspect: "9:16", boxSizeClassName: "w-28 h-48 md:w-20 md:h-32", Icon: Smartphone },
+  { key: "Xl", label: "1920x1080", required: true, aspect: "video", boxSizeClassName: "w-56 h-32 md:w-36 md:h-24", Icon: Monitor },
+  { key: "Lg", label: "1440x1080", required: false, aspect: "4:3", boxSizeClassName: "w-44 h-32 md:w-28 md:h-24", Icon: Tablet, iconClassName: "rotate-90" },
+  { key: "Md", label: "1080x1440", required: false, aspect: "3:4", boxSizeClassName: "w-32 h-44 md:w-24 md:h-32", Icon: Tablet },
+  { key: "Sm", label: "1080x1920", required: false, aspect: "9:16", boxSizeClassName: "w-28 h-48 md:w-20 md:h-32", Icon: Smartphone },
 ];
 
 export function HomePageForm({
@@ -85,10 +85,10 @@ export function HomePageForm({
     setMessage(null);
 
     const fallbackError = findMissingBannerVideoFallback([
-      { label: "2560x1440", imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
-      { label: "2048x1536", imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl },
-      { label: "1536x2048", imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
-      { label: "1440x2560", imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
+      { label: "1920x1080", imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
+      { label: "1440x1080", imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl },
+      { label: "1080x1440", imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
+      { label: "1080x1920", imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
     ]);
     if (fallbackError) {
       setMessage({ type: "error", text: fallbackError });

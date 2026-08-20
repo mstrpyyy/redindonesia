@@ -45,7 +45,7 @@ export const PAGE_BANNER_SIZE_ORDER = ["Xl", "Md", "Sm"] as const;
 export type PageBannerSizeKey = (typeof PAGE_BANNER_SIZE_ORDER)[number];
 
 export const PAGE_BANNER_SIZE_LABELS: Record<PageBannerSizeKey, string> = {
-  Xl: "2560x1107",
-  Md: "1363x1107",
-  Sm: "1107x1107",
+  Xl: "1920x830",
+  Md: "1080x878",
+  Sm: "1080x1080",
 };

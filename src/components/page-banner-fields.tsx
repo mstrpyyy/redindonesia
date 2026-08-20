@@ -17,7 +17,7 @@ function RequiredMark() {
 // Marcom, and Contact's Content page — see ADR-092). Same table/Image+Video/
 // global-cascade-switch pattern the homepage banner introduced (ADR-089/090/
 // 091), just parameterized for these five pages' shared 3-size shape
-// (2560x1107/1363x1107/1107x1107) instead of homepage's four-size one.
+// (1920x830/1080x878/1080x1080) instead of homepage's four-size one.
 //
 // `boxSizeClassName` is a fully explicit width+height pair per size (not a
 // height + `w-auto`-from-`aspect-ratio` trick) — browsers don't reliably run

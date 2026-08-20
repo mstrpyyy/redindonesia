@@ -87,16 +87,16 @@ model Category {
   //
   // Four banner sizes, one per orientation/breakpoint, mirroring the
   // hardcoded sm/md/lg/xl banner images the homepage/about hero sections
-  // already use (see ADR-035): bannerXlUrl (2560x1440, desktop landscape) is
+  // already use (see ADR-035): bannerXlUrl (1920x1080, desktop landscape) is
   // the only one required — the others fall back to it on the public side.
   isPage              Boolean @default(false)
-  bannerSmUrl         String? // 1440x2560 — mobile portrait
+  bannerSmUrl         String? // 1080x1920 — mobile portrait
   bannerSmVideoUrl    String? // optional MP4 paired with bannerSmUrl — see ADR-093
-  bannerMdUrl         String? // 1536x2048 — tablet portrait
+  bannerMdUrl         String? // 1080x1440 — tablet portrait
   bannerMdVideoUrl    String?
-  bannerLgUrl         String? // 2048x1536 — tablet/small-desktop landscape
+  bannerLgUrl         String? // 1440x1080 — tablet/small-desktop landscape
   bannerLgVideoUrl    String?
-  bannerXlUrl         String? // 2560x1440 — desktop landscape, required when isPage
+  bannerXlUrl         String? // 1920x1080 — desktop landscape, required when isPage
   bannerXlVideoUrl    String?
   // One global switch, not per-size — same cascade pattern as HomePage's own
   // banner video (ADR-091), reused here rather than re-invented — see ADR-093.
@@ -240,11 +240,11 @@ model Tag {
 model SupportPage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlUrl              String? // 1920x830 — required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
-  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdUrl              String? // 1080x878 — optional
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmUrl              String? // 1080x1080 — optional
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
   body                     String?  @db.Text
@@ -259,11 +259,11 @@ model SupportPage {
 model ContactPage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlUrl              String? // 1920x830 — required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
-  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdUrl              String? // 1080x878 — optional
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmUrl              String? // 1080x1080 — optional
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
   body                     String?  @db.Text
@@ -293,11 +293,11 @@ model ContactSubmission {
 model PodcastPage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlUrl              String? // 1920x830 — required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
-  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdUrl              String? // 1080x878 — optional
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmUrl              String? // 1080x1080 — optional
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
   createdAt                DateTime @default(now())
@@ -310,11 +310,11 @@ model PodcastPage {
 model ArticlesPage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlUrl              String? // 1920x830 — required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
-  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdUrl              String? // 1080x878 — optional
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmUrl              String? // 1080x1080 — optional
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
   createdAt                DateTime @default(now())
@@ -326,11 +326,11 @@ model ArticlesPage {
 model GalleriesPage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerXlUrl              String? // 2560x1107 — required
+  bannerXlUrl              String? // 1920x830 — required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
-  bannerMdUrl              String? // 1363x1107 — optional
+  bannerMdUrl              String? // 1080x878 — optional
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerSmUrl              String? // 1107x1107 — optional
+  bannerSmUrl              String? // 1080x1080 — optional
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
   createdAt                DateTime @default(now())
@@ -358,13 +358,13 @@ model GalleriesPage {
 model HomePage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
-  bannerSmUrl              String? // 1440x2560 — mobile portrait, smallest, nothing to cascade to
+  bannerSmUrl              String? // 1080x1920 — mobile portrait, smallest, nothing to cascade to
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
-  bannerMdUrl              String? // 1536x2048 — tablet portrait
+  bannerMdUrl              String? // 1080x1440 — tablet portrait
   bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
-  bannerLgUrl              String? // 2048x1536 — tablet/small-desktop landscape
+  bannerLgUrl              String? // 1440x1080 — tablet/small-desktop landscape
   bannerLgVideoUrl         String? // optional mp4, falls back to bannerLgUrl as poster/no-video image
-  bannerXlUrl              String? // 2560x1440 — desktop landscape, required
+  bannerXlUrl              String? // 1920x1080 — desktop landscape, required
   bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
   bannerVideoUseForSmaller Boolean  @default(false)
   createdAt                DateTime @default(now())

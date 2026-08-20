@@ -31,6 +31,6 @@ export const ACCEPTED_HOME_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp
 
 // Homepage hero banner video (ADR-089) — an optional mp4 per banner size,
 // always paired with that size's still image as a required poster/fallback.
-export const MAX_HOME_BANNER_VIDEO_SIZE = 10 * 1000 * 1024;
+export const MAX_HOME_BANNER_VIDEO_SIZE = 10 * 1024 * 1024;
 export const MAX_HOME_BANNER_VIDEO_LABEL = "10MB";
 export const ACCEPTED_HOME_VIDEO_TYPES = ["video/mp4"];
