@@ -135,6 +135,42 @@ html {
   animation: spinOut 0.7s ease-in forwards;
 }
 
+/* Several full turns that visibly decelerate into a clean stop at 0deg (a
+   multiple of 360deg, so the mark lands right-side up) — the `cubic-bezier`
+   below is an ease-out-expo curve, fast at first and slowing hard toward the
+   end, which is what actually reads as "spin, then slowly stop" rather than
+   a constant-speed spin that just cuts off. */
+@keyframes splashLogoSpinIn {
+  0% {
+    opacity: 0;
+    transform: rotate(-1080deg) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes splashFadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.splash-logo-spin-in {
+  animation: splashLogoSpinIn 1.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-fade-out {
+  animation: splashFadeOut 0.5s ease-in forwards;
+}
+
 /* Thumb-only scrollbar */
 .scrollbar-thumb-only {
   scrollbar-width: 30px;              /* Firefox */

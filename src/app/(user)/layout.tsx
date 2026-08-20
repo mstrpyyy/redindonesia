@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Navbar } from "./components/navbar/Navbar";
 import { Footer } from "./components/Footer";
+import SplashScreen from "./components/SplashScreen";
+import CanvasCursor from "./components/CanvasCursor";
 import { buildNavMenus } from "@/lib/data";
 import {
   getPublicDeviceCategoryTree,
@@ -45,6 +47,8 @@ export default async function userLayout({
 
   return (
     <>
+      <SplashScreen />
+      <CanvasCursor />
       <Navbar menus={menus} />
       {children}
       <Footer />
