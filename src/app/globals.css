@@ -58,6 +58,11 @@
 
 html {
   scroll-padding-top: 80px;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
 }
 
 :root {

@@ -66,7 +66,7 @@ export default async function MediaPodcasts() {
                 </div>
 
                 <div
-                  className="xl:w-90 2xl:w-105 text-center text-pretty flex flex-col"
+                  className="xl:w-90 2xl:w-105 text-center text-pretty flex flex-col items-center xl:items-start"
                   data-aos={index % 2 === 1 ? 'fade-right' : 'fade-left'}
                   data-aos-duration="600"
                   data-aos-delay="150"

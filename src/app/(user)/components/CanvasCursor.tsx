@@ -15,7 +15,7 @@ export default function CanvasCursor({ color }: ICanvasCursorProps) {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-40"
+      className="pointer-events-none fixed inset-0 z-40 hidden md:block"
     />
   )
 }

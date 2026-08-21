@@ -116,6 +116,10 @@ export function useCanvasCursor(
     const canvas = canvasRef.current
     const ctx = canvas?.getContext("2d") ?? null
     if (!canvas || !ctx) return
+    // Pointer-trail effect only makes sense with a real mouse — skip it
+    // below Tailwind's `md` breakpoint (touch devices) rather than running
+    // the rAF loop and listeners for an effect nobody sees.
+    if (!window.matchMedia("(min-width: 768px)").matches) return
 
     let running = true
     let started = false
