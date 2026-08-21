@@ -12,7 +12,7 @@ import { IProductPickerOption, ISearchPageResult, ISearchSuggestions } from "@/i
 export const MIN_PRODUCT_SEARCH_QUERY_LENGTH = 3;
 export const MIN_PAGE_SEARCH_QUERY_LENGTH = 5;
 
-const MAX_RESULTS_PER_GROUP = 3;
+const MAX_RESULTS_PER_GROUP = 5;
 
 const SUPPORT_PAGE_LABELS: Record<SupportPageSlug, string> = {
   "registration-documentation": "Registration & Documentation",

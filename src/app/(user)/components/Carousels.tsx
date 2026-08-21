@@ -68,13 +68,13 @@ export function ProductCarousel({ carouselList, size }: ICarousel) {
                       {item.title}
                     </p>
                   </div>
-                  <Button variant={'secondary'} asChild className="font-medium w-full inset-shadow-sm rounded-full">
+                  <Button variant={'secondary'} asChild className="font-medium w-full inset-shadow-sm rounded-full hover:bg-black hover:text-white active:bg-black active:text-white">
                     <Link href={item.href}>
                       View Details
                     </Link>
                   </Button>
                 </div>
-                <div 
+                <div
                   className="
                     absolute bottom-0 h-[60%] w-full
                     shadow-[0_4px_8px_rgba(0,0,0,0.25)] hover:shadow-[0_4px_10px_rgba(0,0,0,0.35)]
@@ -141,7 +141,7 @@ function CarouselSquare({list}:{list:ICarouselList[]}) {
                       {item.title}
                     </p>
                   </div>
-                  <Button variant={'secondary'} asChild className="font-medium w-full inset-shadow-sm rounded-full">
+                  <Button variant={'secondary'} asChild className="font-medium w-full inset-shadow-sm rounded-full hover:bg-black hover:text-white active:bg-black active:text-white">
                     <Link href={item.href}>
                       View Details
                     </Link>
