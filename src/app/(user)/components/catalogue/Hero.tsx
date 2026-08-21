@@ -90,13 +90,21 @@ export const HeroDevice = ({
           bg-linear-to-t from-black/70 to-transparent 
         "
       />
-      <div 
+      <div
         className="
           absolute inset-x-0 top-0 z-20
           h-20
-          bg-linear-to-b from-black/50 to-transparent 
+          bg-linear-to-b from-black/50 to-transparent
         "
       />
+      {variant === 'product' && (
+        <div
+          className="
+            absolute inset-0 z-10
+            bg-linear-to-r from-black/70 to-transparent
+          "
+        />
+      )}
       <div
         className={cn(
           textColorClassName, 'z-30',
