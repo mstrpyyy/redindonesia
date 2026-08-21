@@ -4,13 +4,10 @@ import { getContactPage } from "@/lib/contact-pages";
 import { getSupportPage, SUPPORT_PAGE_PUBLIC_PATH, SUPPORT_PAGE_SLUGS, type SupportPageSlug } from "@/lib/support-pages";
 import { IProductPickerOption, ISearchPageResult, ISearchSuggestions } from "@/interfaces/general";
 
-// Product/device suggestions match on `name` alone, so a short query is
-// already precise — page suggestions pull in whole-body text across five
-// content sources (categories, articles, support/contact pages, media index
-// pages) and need a longer query to avoid a flood of noisy body-text matches
-// on a couple of letters.
+// Same minimum for both groups — kept as separate constants since products
+// and pages are gated independently in getSearchSuggestions below.
 export const MIN_PRODUCT_SEARCH_QUERY_LENGTH = 3;
-export const MIN_PAGE_SEARCH_QUERY_LENGTH = 5;
+export const MIN_PAGE_SEARCH_QUERY_LENGTH = 3;
 
 const MAX_RESULTS_PER_GROUP = 5;
 

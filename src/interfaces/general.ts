@@ -213,10 +213,9 @@ export interface ISearchPageResult {
 }
 
 // Result shape for the navbar search dropdown (see SearchBar.tsx) — two
-// independently-gated groups, each capped at a handful of results. `pages`
-// stays `[]` below its own (longer) minimum query length even once
-// `products` has already started returning matches — see
-// MIN_PAGE_SEARCH_QUERY_LENGTH in src/lib/search.ts.
+// independently-gated groups, each capped at a handful of results. See
+// MIN_PRODUCT_SEARCH_QUERY_LENGTH / MIN_PAGE_SEARCH_QUERY_LENGTH in
+// src/lib/search.ts.
 export interface ISearchSuggestions {
   products: IProductPickerOption[]
   pages: ISearchPageResult[]

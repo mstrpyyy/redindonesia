@@ -12,8 +12,8 @@ import { getSearchSuggestions } from "./search-actions";
 const EMPTY_SUGGESTIONS: ISearchSuggestions = { products: [], pages: [] };
 const SEARCH_DEBOUNCE_MS = 300;
 // Below this, neither group has anything to show yet (see
-// MIN_PRODUCT_SEARCH_QUERY_LENGTH in src/lib/search.ts, the shorter of the
-// two per-group minimums) — skip the request entirely below it.
+// MIN_PRODUCT_SEARCH_QUERY_LENGTH / MIN_PAGE_SEARCH_QUERY_LENGTH in
+// src/lib/search.ts) — skip the request entirely below it.
 const MIN_QUERY_LENGTH = 3;
 
 const DEFAULT_ICON_CLASSNAME = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2";
