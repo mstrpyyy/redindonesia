@@ -17,6 +17,7 @@ import { ICertification, IHeroDoc, IHeroSegment, IProductSegment } from '@/inter
 import { getHeroTextColor } from '@/lib/hero-text-colors'
 import { getSegmentBackgroundColor } from '@/lib/segment-colors'
 import { getCertificationHref, getCertificationLogo, getCertificationSubLabel } from '@/lib/certification-logos'
+import { resolveHeroBannerXlUrl, resolveProductHeroBannerVideoUrls } from '@/lib/products'
 
 interface IProductPageViewProps {
   product: IProduct
@@ -288,6 +289,8 @@ export const ProductPageView = ({ product }: IProductPageViewProps) => {
     .map((segment) => ({ name: segment.name as string, href: `#segment-${segment.id}` }))
 
   const heroColor = hero ? getHeroTextColor(hero.textColor) : undefined
+  const heroBannerXlUrl = hero ? resolveHeroBannerXlUrl(hero) : ''
+  const heroBannerVideoUrls = hero ? resolveProductHeroBannerVideoUrls(hero) : undefined
 
   return (
     <main>
@@ -297,10 +300,19 @@ export const ProductPageView = ({ product }: IProductPageViewProps) => {
           title={hero.title}
           description={hero.description}
           imgAlt={hero.imgAlt}
-          imgUrl={hero.imgUrl}
           heroDocs={hero.heroDocs}
           textColorClassName={heroColor.className}
           contrastClassName={heroColor.contrastClassName}
+          bannerUrls={heroBannerXlUrl ? {
+            sm: hero.bannerSmUrl,
+            smVideo: heroBannerVideoUrls?.Sm ?? null,
+            md: hero.bannerMdUrl,
+            mdVideo: heroBannerVideoUrls?.Md ?? null,
+            lg: hero.bannerLgUrl,
+            lgVideo: heroBannerVideoUrls?.Lg ?? null,
+            xl: heroBannerXlUrl,
+            xlVideo: heroBannerVideoUrls?.Xl ?? null,
+          } : undefined}
         >
           {hero.certifications.length > 0 && (
             <div className='z-30 flex max-sm:flex-col items-start sm:items-center gap-2'>

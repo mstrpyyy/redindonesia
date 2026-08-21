@@ -73,8 +73,13 @@ function withHeroSegment(segments: ISegmentRecord[], name: string, tagline: stri
 
 // Existing `heroDocs`/`certifications` entries can predate their own `id`
 // field (IHeroDoc's added in ADR-051, ICertification's in ADR-059) — both
-// let the Document Highlight segment reference one by id. Backfilled once
-// here, alongside `withHeroSegment`, rather than on every render.
+// let the Document Highlight segment reference one by id. A hero can also
+// predate the responsive banner/video fields entirely (ADR-095) and only
+// have the old single `imgUrl` — backfilled into `bannerXlUrl` here too, so
+// the editor shows it already sitting in the Xl slot (and the required-field
+// check doesn't flag an otherwise-complete hero as missing its banner) rather
+// than requiring a re-upload. All backfilled once here, alongside
+// `withHeroSegment`, rather than on every render.
 function ensureHeroFileIds(segments: ISegmentRecord[]): ISegmentRecord[] {
   return segments.map((segment) => {
     if (segment.type !== "hero") return segment;
@@ -82,13 +87,17 @@ function ensureHeroFileIds(segments: ISegmentRecord[]): ISegmentRecord[] {
     const certifications = (segment.certifications as ICertification[] | undefined) ?? [];
     const docsNeedIds = !docs.every((doc) => typeof doc.id === "string" && doc.id !== "");
     const certsNeedIds = !certifications.every((cert) => typeof cert.id === "string" && cert.id !== "");
-    if (!docsNeedIds && !certsNeedIds) return segment;
+    const legacyImgUrl = typeof segment.imgUrl === "string" ? segment.imgUrl : "";
+    const bannerXlUrl = typeof segment.bannerXlUrl === "string" ? segment.bannerXlUrl : "";
+    const needsBannerBackfill = !bannerXlUrl && legacyImgUrl !== "";
+    if (!docsNeedIds && !certsNeedIds && !needsBannerBackfill) return segment;
     return {
       ...segment,
       heroDocs: docsNeedIds ? docs.map((doc) => ({ ...doc, id: doc.id || crypto.randomUUID() })) : docs,
       certifications: certsNeedIds
         ? certifications.map((cert) => ({ ...cert, id: cert.id || crypto.randomUUID() }))
         : certifications,
+      ...(needsBannerBackfill ? { bannerXlUrl: legacyImgUrl } : {}),
     };
   });
 }

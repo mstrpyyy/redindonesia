@@ -1,7 +1,6 @@
 import { Breadcrumbs } from '@/app/(user)/components/Breadcrumbs'
 import { Button } from '@/components/ui/button'
 import { FileDown } from 'lucide-react'
-import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { HeroBannerGroup } from '@/app/(user)/components/HeroBannerGroup'
 import { RevealText } from '@/app/(user)/components/RevealText'
@@ -27,9 +26,9 @@ interface IHeroDevice {
   title: string
   description: string
   imgAlt: string
-  // Either a single image (existing hardcoded pages) or the four responsive
-  // sizes (Category-backed pages) — exactly one should be passed.
-  imgUrl?: string
+  // Undefined only for a hero with no banner set yet (e.g. an incomplete
+  // draft) — both callers (Category, Product) always pass this once their
+  // own Xl banner is set. See ADR-093/ADR-095.
   bannerUrls?: IHeroDeviceBannerUrls
   children?: React.ReactNode
   heroDocs?: {
@@ -56,7 +55,6 @@ interface IHeroDevice {
 export const HeroDevice = ({
   title,
   description,
-  imgUrl,
   imgAlt,
   bannerUrls,
   children,
@@ -204,19 +202,6 @@ export const HeroDevice = ({
               className: 'object-cover object-center z-0 hidden landscape:xl:block absolute inset-0 size-full',
             },
           ]}
-        />
-      ) : imgUrl ? (
-        // `quality={90}`, not the `next/image` default of 75 — a full-bleed
-        // hero this large shows visible extra compression at the default
-        // (same fix `PageBannerMedia.tsx`/`GalleryViewer.tsx` apply).
-        <Image
-          src={imgUrl}
-          alt={imgAlt}
-          fill
-          priority
-          sizes="100vw"
-          quality={90}
-          className='object-cover object-center z-0'
         />
       ) : null}
     </section>

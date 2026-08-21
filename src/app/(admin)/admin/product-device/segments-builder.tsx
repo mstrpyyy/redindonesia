@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import NextImage from "next/image";
-import { ChevronDown, ChevronRight, ChevronUp, CircleCheck, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, CircleCheck, Monitor, Plus, Smartphone, Tablet, Trash2, Upload } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +44,7 @@ import { uploadSegmentContentImage } from "./segment-upload-actions";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { HeroTextColorPicker } from "./hero-text-color-picker";
 import Viewer360 from "@/app/(user)/components/Viewer360";
-import { MAX_VIEWER360_FRAMES, MAX_VIEWER360_FRAME_LABEL } from "./limits";
+import { MAX_SEGMENT_BANNER_VIDEO_LABEL, MAX_SEGMENT_IMAGE_LABEL, MAX_VIEWER360_FRAMES, MAX_VIEWER360_FRAME_LABEL } from "./limits";
 import type { ICertification, IHeroDoc } from "@/interfaces/segments";
 import { getCertificationLogo, getCertificationSubLabel } from "@/lib/certification-logos";
 
@@ -249,7 +250,139 @@ function FieldLabelText({ field }: { field: Pick<IFieldDef, "label" | "required"
 }
 
 function isImageFieldType(type: IFieldDef["type"]) {
-  return type === "image" || type === "icon" || type === "carouselImage" || type === "file";
+  return type === "image" || type === "icon" || type === "carouselImage" || type === "video" || type === "file";
+}
+
+type HeroBannerSizeKey = "Xl" | "Lg" | "Md" | "Sm";
+
+// One column per breakpoint, largest first — mirrors CATEGORY_BANNER_SIZES
+// in category-tree.tsx (ADR-093) so both banner-video tables read as the
+// same pattern; extended here to the hero segment (ADR-095).
+const HERO_BANNER_SIZES: {
+  key: HeroBannerSizeKey;
+  label: string;
+  imageKey: string;
+  videoKey: string;
+  required: boolean;
+  aspect: "video" | "4:3" | "3:4" | "9:16";
+  boxSizeClassName: string;
+  Icon: typeof Monitor;
+  iconClassName?: string;
+}[] = [
+  { key: "Xl", label: "1920x1080", imageKey: "bannerXlUrl", videoKey: "bannerXlVideoUrl", required: true, aspect: "video", boxSizeClassName: "w-36 h-24", Icon: Monitor },
+  { key: "Lg", label: "1440x1080", imageKey: "bannerLgUrl", videoKey: "bannerLgVideoUrl", required: false, aspect: "4:3", boxSizeClassName: "w-28 h-24", Icon: Tablet, iconClassName: "rotate-90" },
+  { key: "Md", label: "1080x1440", imageKey: "bannerMdUrl", videoKey: "bannerMdVideoUrl", required: false, aspect: "3:4", boxSizeClassName: "w-24 h-32", Icon: Tablet },
+  { key: "Sm", label: "1080x1920", imageKey: "bannerSmUrl", videoKey: "bannerSmVideoUrl", required: false, aspect: "9:16", boxSizeClassName: "w-20 h-32", Icon: Smartphone },
+];
+
+// Every hero banner field key besides "bannerXlUrl" itself — see the
+// "hero"/"bannerXlUrl" special case in `renderField` below.
+const HERO_BANNER_SUB_FIELD_KEYS = new Set(
+  HERO_BANNER_SIZES.flatMap((size) => [size.imageKey, size.videoKey]).filter((key) => key !== "bannerXlUrl")
+);
+
+// The hero segment's background image/video table — four responsive sizes,
+// each with an optional video that falls back to that same size's own image
+// as its poster (ADR-089) and, on the public page, to the Xl image if the
+// size itself has none (HeroDevice/HeroBannerGroup). Renders in place of the
+// "bannerXlUrl" row in the generic field loop (segments-builder.tsx's
+// `renderField`); every other banner-related field def exists only so
+// `createEmptySegmentData`/the required-field walk in product-actions.ts
+// know about it, not to render its own row. See ADR-095, which extends the
+// Category banner's own video/cascade capability (ADR-093) to here.
+function HeroBannerFields({
+  segment,
+  onChange,
+}: {
+  segment: ISegmentRecord;
+  onChange: (segment: ISegmentRecord) => void;
+}) {
+  const hasAnyVideo = HERO_BANNER_SIZES.some((size) => Boolean(segment[size.videoKey]));
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-xxs">
+        Image: up to {MAX_SEGMENT_IMAGE_LABEL}, JPEG/PNG/WEBP/GIF. Video: up to {MAX_SEGMENT_BANNER_VIDEO_LABEL}, MP4,
+        optional per size — image is used as its fallback/poster.
+      </p>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent divide-x">
+              {HERO_BANNER_SIZES.map((size) => (
+                <TableHead key={size.key} className="text-center">
+                  <div className="flex flex-col items-center gap-1.5 py-2">
+                    <size.Icon className={cn("text-muted-foreground size-6", size.iconClassName)} />
+                    <span className="text-xs font-semibold whitespace-nowrap">
+                      {size.label}
+                      {size.required && <span className="text-destructive"> *</span>}
+                    </span>
+                  </div>
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="hover:bg-transparent divide-x">
+              {HERO_BANNER_SIZES.map((size) => (
+                <TableCell key={size.key} className="align-top">
+                  {/* Video stacked under Image — this card can render at a
+                      range of widths (segment cards aren't fixed-width like
+                      the category dialog), so stacking rather than a
+                      side-by-side pair keeps every column the same shape
+                      regardless of how narrow the card gets. */}
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Label className="text-xs font-medium text-foreground">
+                        Image
+                        {size.required && <span className="text-destructive"> *</span>}
+                      </Label>
+                      <UploadField
+                        kind="image"
+                        aspect={size.aspect}
+                        fit="cover"
+                        boxSizeClassName={size.boxSizeClassName}
+                        value={segment[size.imageKey]}
+                        onChange={(value) => onChange({ ...segment, [size.imageKey]: (value as string) ?? "" })}
+                      />
+                    </div>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <Label className="text-xs font-medium text-foreground">Video</Label>
+                      <UploadField
+                        kind="video"
+                        aspect={size.aspect}
+                        fit="cover"
+                        boxSizeClassName={size.boxSizeClassName}
+                        value={segment[size.videoKey]}
+                        onChange={(value) => onChange({ ...segment, [size.videoKey]: (value as string) ?? "" })}
+                      />
+                    </div>
+                  </div>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+
+      {hasAnyVideo && (
+        <label className="flex items-start gap-2.5 pt-1">
+          <Switch
+            checked={Boolean(segment.bannerVideoUseForSmaller)}
+            onCheckedChange={(checked) => onChange({ ...segment, bannerVideoUseForSmaller: checked })}
+            className="mt-0.5 shrink-0"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-foreground">Use existing video for empty screen sizes</span>
+            <span className="text-muted-foreground text-xs">
+              Screen size with no video will use the larger size&apos;s video if it exists.
+            </span>
+          </span>
+        </label>
+      )}
+    </div>
+  );
 }
 
 // One list item's field: label (with the required asterisk) + input + help
@@ -691,6 +824,23 @@ function SegmentCard({
       segment.type === "document" &&
       (field.key === "header" || field.key === "subheader") &&
       segment.referenceKind === "certification";
+
+    // The hero's four responsive banner sizes render as one combined table
+    // (see HeroBannerFields above) keyed off "bannerXlUrl" — every other
+    // banner-related field key here is a data slot for that table, not a
+    // row of its own.
+    if (segment.type === "hero" && HERO_BANNER_SUB_FIELD_KEYS.has(field.key)) return null;
+
+    if (segment.type === "hero" && field.key === "bannerXlUrl") {
+      return (
+        <div key={field.key} className="flex flex-col gap-1.5">
+          <Label>
+            <FieldLabelText field={field} />
+          </Label>
+          <HeroBannerFields segment={segment} onChange={onChange} />
+        </div>
+      );
+    }
 
     // Placement/fit render inline next to the image field below, not as
     // their own row.

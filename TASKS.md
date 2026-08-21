@@ -2909,3 +2909,66 @@ button, shown only while the open message is currently read.
 - [x] A failed delete shows an error message and leaves the row in place.
 **Do not:** Add a soft-delete/trash flag — this is a hard delete, matching
 `deletePodcast`/`deleteGallery`'s existing convention for this app.
+
+## [x] Task: Product hero background gains responsive sizes + video (same as homepage/category banner)
+
+**Context:** The product/device hero segment only had a single static
+`imgUrl` background image — no responsive sizes, no video, unlike the
+HomePage hero and Category banner (ADR-089/091/093), which both already had
+four sizes + optional per-size video + a cascade flag, and the same
+breakpoint-gated video-fetch behavior on the visitor's side. The ask was to
+bring the product hero's input up to that same standard.
+**Approach:** See ADR-095 for the full design. Summary: extended
+`IHeroSegment` with the same `bannerSmUrl`/…/`bannerXlUrl`(required)/
+`bannerVideoUseForSmaller` fields Category uses (no Prisma migration —
+segments are a JSON blob); added a combined Image+Video table
+(`HeroBannerFields`) as a special case in the segment editor's generic field
+loop; extended `uploadSegmentAsset` with a `"video"` kind; added the same
+video-needs-its-own-fallback-image validation and cascade-flag force-reset
+`product-actions.ts` runs on every save (not just publish); wired
+`ProductPageView.tsx` to pass `bannerUrls` (via the new
+`resolveProductHeroBannerVideoUrls`) instead of `imgUrl`, reusing
+`HeroDevice`/`HeroBannerGroup` as-is. A hero saved before this change is
+migrated from its old `imgUrl` into `bannerXlUrl` at read time, both in the
+admin editor (`ensureHeroFileIds`) and on the public page/OG image
+(`resolveHeroBannerXlUrl`), so nothing breaks for existing published
+products without requiring a re-save.
+**Files to create or modify:**
+- `src/interfaces/segments.ts` — `IHeroSegment` banner/video fields
+- `src/lib/products.ts` — `resolveProductHeroBannerVideoUrls`,
+  `resolveHeroBannerXlUrl`
+- `src/app/(admin)/admin/product-device/limits.ts` — segment banner video
+  size/type budget
+- `src/app/(admin)/admin/product-device/segment-types.ts` — `"video"` field
+  type, hero's banner field defs
+- `src/app/(admin)/admin/product-device/segment-upload-actions.ts` —
+  `"video"` upload kind
+- `src/app/(admin)/admin/product-device/segments-builder.tsx` —
+  `HeroBannerFields` table, hero/`bannerXlUrl` special case
+- `src/app/(admin)/admin/product-device/product-form.tsx` —
+  `ensureHeroFileIds` legacy `imgUrl` → `bannerXlUrl` backfill
+- `src/app/(admin)/admin/product-device/product-actions.ts` — fallback-image
+  validation + cascade-flag force-reset for the hero segment
+- `src/app/(user)/components/catalogue/ProductPageView.tsx` — pass
+  `bannerUrls` instead of `imgUrl`
+- `src/app/(user)/components/catalogue/Hero.tsx` — removed the now-dead
+  single-`imgUrl` render path (`HeroDevice`)
+- `src/app/(user)/devices/[...slug]/page.tsx`,
+  `src/app/(user)/products/[...slug]/page.tsx` — OG image via
+  `resolveHeroBannerXlUrl`
+- `ARCHITECTURE.md` (`Product` bullet), `DECISIONS.md` (ADR-095)
+**Acceptance criteria:**
+- [x] The Page Segments tab's Hero card shows a 4-column Image+Video table
+  (1920x1080/1440x1080/1080x1440/1080x1920), matching Category's own table.
+- [x] Only the 1920x1080 image is required to save; every other size/video
+  is optional.
+- [x] Uploading a video for a size with no image for that same size is
+  rejected with an error, on save.
+- [x] The public product hero renders the matching breakpoint's video
+  (autoplay/muted/loop/playsInline) with its own image as the poster and
+  error fallback, and only the visitor's actual breakpoint ever fetches a
+  video file.
+- [x] A product published before this change still shows its existing hero
+  image on the public page and in the admin editor without any manual fix.
+**Do not:** Add a Prisma migration — the hero banner lives inside
+`Product.segments`' JSON blob, same as every other segment field.

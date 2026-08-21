@@ -109,7 +109,19 @@ The application follows a **hybrid data architecture**:
     practice (hero background image, hero/document downloadable files,
     certification logo + certificate) upload immediately on file select via
     `uploadSegmentAsset` (`segment-upload-actions.ts`, `/uploads/products-content`)
-    and store the resulting URL — see ADR-021.
+    and store the resulting URL — see ADR-021. The hero segment's background
+    has the same four responsive sizes + optional per-size video + cascade
+    flag as `Category`'s own banner (`bannerSmUrl`/`bannerSmVideoUrl`/…/
+    `bannerXlUrl`(required)/`bannerXlVideoUrl`/`bannerVideoUseForSmaller`),
+    stored as fields on the hero's own JSON entry rather than real columns
+    (segments have no schema of their own) — rendered as one combined
+    Image+Video table (`HeroBannerFields`, `segments-builder.tsx`) and, on
+    the public page, through the same `HeroDevice`/`HeroBannerGroup`
+    breakpoint-gated-fetch path Category uses. `imgUrl` is the pre-existing
+    single-image field, kept only as a read fallback for a hero saved before
+    this (`resolveHeroBannerXlUrl`, `src/lib/products.ts`) — see ADR-095,
+    which extends the Category banner's video/cascade capability (ADR-093)
+    here.
   - `SupportPage` — one row per static Support page (Registration &
     Documentation, Warranty & Service, Career, and Marcom & Promotion — the
     latter also keeps its own `SocialAccount`-driven highlight list

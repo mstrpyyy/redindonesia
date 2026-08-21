@@ -7,8 +7,11 @@ import {
   ACCEPTED_ICON_TYPES,
   ACCEPTED_IMAGE_TYPES,
   ACCEPTED_SEGMENT_FILE_TYPES,
+  ACCEPTED_SEGMENT_VIDEO_TYPES,
   MAX_CAROUSEL_IMAGE_LABEL,
   MAX_CAROUSEL_IMAGE_SIZE,
+  MAX_SEGMENT_BANNER_VIDEO_LABEL,
+  MAX_SEGMENT_BANNER_VIDEO_SIZE,
   MAX_SEGMENT_FILE_LABEL,
   MAX_SEGMENT_FILE_SIZE,
   MAX_SEGMENT_IMAGE_LABEL,
@@ -44,6 +47,13 @@ const segmentFileSchema = z
   .refine((file) => file.size <= MAX_SEGMENT_FILE_SIZE, `File must be smaller than ${MAX_SEGMENT_FILE_LABEL}`)
   .refine((file) => ACCEPTED_SEGMENT_FILE_TYPES.includes(file.type), "File must be a JPEG, PNG, WEBP, GIF, or PDF");
 
+// The hero segment's banner video (ADR-095) — same MP4-only, 10MB budget as
+// the Category/HomePage banner video.
+const segmentVideoSchema = z
+  .instanceof(File)
+  .refine((file) => file.size <= MAX_SEGMENT_BANNER_VIDEO_SIZE, `Video must be smaller than ${MAX_SEGMENT_BANNER_VIDEO_LABEL}`)
+  .refine((file) => ACCEPTED_SEGMENT_VIDEO_TYPES.includes(file.type), "Video must be an MP4");
+
 // Uploaded immediately on file select (same pattern as the article editor's
 // inline content images, ADR-015) rather than deferred to form submit — the
 // segments payload is otherwise a plain JSON blob, so by the time the form
@@ -56,7 +66,15 @@ export async function uploadSegmentAsset(
 ): Promise<ActionResult<{ url: string }>> {
   const kindParam = formData.get("kind");
   const kind =
-    kindParam === "file" ? "file" : kindParam === "icon" ? "icon" : kindParam === "carouselImage" ? "carouselImage" : "image";
+    kindParam === "file"
+      ? "file"
+      : kindParam === "icon"
+        ? "icon"
+        : kindParam === "carouselImage"
+          ? "carouselImage"
+          : kindParam === "video"
+            ? "video"
+            : "image";
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {
@@ -70,7 +88,9 @@ export async function uploadSegmentAsset(
         ? segmentIconSchema
         : kind === "carouselImage"
           ? segmentCarouselImageSchema
-          : segmentImageSchema;
+          : kind === "video"
+            ? segmentVideoSchema
+            : segmentImageSchema;
   const parsed = schema.safeParse(file);
   if (!parsed.success) {
     return {

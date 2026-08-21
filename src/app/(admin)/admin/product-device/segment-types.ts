@@ -12,6 +12,7 @@ export type IFieldType =
   | "image"
   | "icon"
   | "carouselImage"
+  | "video"
   | "file"
   | "colorSwatch"
   | "richText"
@@ -88,7 +89,20 @@ export const SEGMENT_TYPES: ISegmentTypeDef[] = [
         maxLength: 150,
         placeholder: "e.g. Integrated Technologies. Unlimited Diversity",
       },
-      { key: "imgUrl", label: "Background image", type: "image", required: true },
+      // Four responsive sizes + optional per-size video (ADR-095), same
+      // shape as the Category banner's own (ADR-093) — rendered as one
+      // combined table by the "hero"/"bannerXlUrl" special case in
+      // segments-builder.tsx, not the generic one-field-per-row layout, so
+      // every other size's field here is just a data slot for that table to
+      // read/write. Only `bannerXlUrl` is required.
+      { key: "bannerXlUrl", label: "Hero Banner", type: "image", required: true },
+      { key: "bannerXlVideoUrl", label: "Hero Banner Video (1920x1080)", type: "video" },
+      { key: "bannerLgUrl", label: "Hero Banner (1440x1080)", type: "image" },
+      { key: "bannerLgVideoUrl", label: "Hero Banner Video (1440x1080)", type: "video" },
+      { key: "bannerMdUrl", label: "Hero Banner (1080x1440)", type: "image" },
+      { key: "bannerMdVideoUrl", label: "Hero Banner Video (1080x1440)", type: "video" },
+      { key: "bannerSmUrl", label: "Hero Banner (1080x1920)", type: "image" },
+      { key: "bannerSmVideoUrl", label: "Hero Banner Video (1080x1920)", type: "video" },
       // Same 12-color set and picker as the Category page's own hero text
       // color (ADR-045), extended to the product/device hero here (ADR-047).
       // Not required — an unset value falls back to peach via

@@ -80,7 +80,25 @@ export interface IHeroSegment extends ISegmentBase {
   type: 'hero'
   title: string
   description: string
-  imgUrl: string
+  // Four responsive sizes + optional per-size video, same shape/naming as
+  // Category's own banner (ADR-093) and HomePage's (ADR-089/091) — see
+  // ADR-095. Only `bannerXlUrl` is required; a smaller size an admin left
+  // empty falls back to it (HeroDevice/HeroBannerGroup). `imgUrl` is the
+  // pre-ADR-095 single-image field: still read (never written) as a
+  // fallback for `bannerXlUrl` on a hero segment saved before this field
+  // existed — see `resolveHeroBannerXlUrl` (src/lib/products.ts).
+  imgUrl?: string
+  bannerSmUrl?: string | null
+  bannerSmVideoUrl?: string | null
+  bannerMdUrl?: string | null
+  bannerMdVideoUrl?: string | null
+  bannerLgUrl?: string | null
+  bannerLgVideoUrl?: string | null
+  bannerXlUrl: string
+  bannerXlVideoUrl?: string | null
+  // Same one-global-switch cascade as Category/HomePage — see
+  // resolveCascadingVideoUrls (src/lib/banner-video.ts).
+  bannerVideoUseForSmaller?: boolean
   imgAlt: string
   heroDocs: IHeroDoc[]
   certifications: ICertification[]

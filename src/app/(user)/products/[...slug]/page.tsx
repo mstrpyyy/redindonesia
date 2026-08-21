@@ -7,6 +7,7 @@ import { CATALOGUE_PAGE_SIZE } from '@/app/(user)/components/catalogue/limits'
 import { CategoryPageView } from '@/app/(user)/components/catalogue/CategoryPageView'
 import { ProductPageView } from '@/app/(user)/components/catalogue/ProductPageView'
 import { IHeroSegment } from '@/interfaces/segments'
+import { resolveHeroBannerXlUrl } from '@/lib/products'
 
 interface IPageProps {
   params: Promise<{ slug: string[] }>
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: IPageProps): Promise<Metadata
   const hero = product.segments.find((segment): segment is IHeroSegment => segment.type === 'hero')
   const title = product.name
   const description = product.tagline ?? hero?.description ?? undefined
-  const image = hero?.imgUrl ?? product.thumbnail ?? undefined
+  const image = (hero ? resolveHeroBannerXlUrl(hero) : '') || product.thumbnail || undefined
 
   return {
     title,

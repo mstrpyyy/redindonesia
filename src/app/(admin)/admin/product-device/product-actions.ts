@@ -14,6 +14,7 @@ import {
 } from "./limits";
 import { getSegmentTypeDef } from "./segment-types";
 import { CARD_BACKGROUND_VALUES } from "@/lib/card-backgrounds";
+import { findMissingBannerVideoFallback } from "@/lib/banner-video";
 
 const UPLOAD_FEATURE = "products";
 
@@ -134,6 +135,22 @@ function validateSegments(
     const def = getSegmentTypeDef(type);
     if (!def) return { valid: false, message: `Unknown segment type "${type}".` };
 
+    // A size's video is only ever shown alongside its own still image (the
+    // image is its required poster/fallback) — checked unconditionally, not
+    // just when publishing, same as the HomePage/Category banner (ADR-089,
+    // extended to the hero segment by ADR-095).
+    if (type === "hero") {
+      const record = segment as Record<string, unknown>;
+      const asString = (value: unknown): string => (typeof value === "string" ? value : "");
+      const fallbackError = findMissingBannerVideoFallback([
+        { label: "1920x1080", imageUrl: asString(record.bannerXlUrl), videoUrl: asString(record.bannerXlVideoUrl) },
+        { label: "1440x1080", imageUrl: asString(record.bannerLgUrl), videoUrl: asString(record.bannerLgVideoUrl) },
+        { label: "1080x1440", imageUrl: asString(record.bannerMdUrl), videoUrl: asString(record.bannerMdVideoUrl) },
+        { label: "1080x1920", imageUrl: asString(record.bannerSmUrl), videoUrl: asString(record.bannerSmVideoUrl) },
+      ]);
+      if (fallbackError) return { valid: false, message: fallbackError };
+    }
+
     if (status !== "public") continue;
 
     for (const field of def.fields) {
@@ -168,7 +185,17 @@ function normalizeSegments(segments: unknown[]): unknown[] {
       record = { ...record, showInNav: false };
     }
     if (record.type === "hero") {
-      return { ...record, imgAlt: typeof record.title === "string" ? record.title : "" };
+      // The cascade flag only means anything once at least one size has a
+      // video — force it back off here so a stale "true" can't linger with
+      // nothing to cascade (same precedent as HomePage/Category, ADR-089).
+      const hasAnyVideo = Boolean(
+        record.bannerXlVideoUrl || record.bannerLgVideoUrl || record.bannerMdVideoUrl || record.bannerSmVideoUrl
+      );
+      return {
+        ...record,
+        imgAlt: typeof record.title === "string" ? record.title : "",
+        bannerVideoUseForSmaller: hasAnyVideo && Boolean(record.bannerVideoUseForSmaller),
+      };
     }
     if (record.type === "beforeAfter" && Array.isArray(record.items)) {
       return {

@@ -50,6 +50,13 @@ export const MAX_SEGMENT_FILE_SIZE = 5 * 1000 * 1024;
 export const MAX_SEGMENT_FILE_LABEL = "5MB";
 export const ACCEPTED_SEGMENT_FILE_TYPES = [...ACCEPTED_IMAGE_TYPES, "application/pdf"];
 
+// The hero segment's banner video (ADR-095) — same optional-MP4-per-size
+// budget as the Category banner's own (MAX_CATEGORY_BANNER_VIDEO_SIZE) and
+// HomePage's.
+export const MAX_SEGMENT_BANNER_VIDEO_SIZE = 10 * 1024 * 1024;
+export const MAX_SEGMENT_BANNER_VIDEO_LABEL = "10MB";
+export const ACCEPTED_SEGMENT_VIDEO_TYPES = ["video/mp4"];
+
 // Carousel item images specifically — smaller than the general
 // MAX_SEGMENT_IMAGE_SIZE (hero background, highlight image) since a carousel
 // can hold many of these in one segment, and no GIF (a carousel item is a

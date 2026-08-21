@@ -4612,3 +4612,71 @@ on failure, so a broken SMTP config never fails the visitor's submission or
 blocks it from showing up in `/admin/contact/form-response`. `SMTP_*` env
 vars are unset in local dev by default, so `sendMail` throws early
 (caught, logged, no-op) rather than silently trying to connect.
+
+## ADR-095: Product hero background gains the Category banner's video/cascade capability
+
+**Date:** 2026-08-21
+**Status:** Accepted
+
+**Context:** The product/device hero segment (`IHeroSegment`) only ever had a
+single `imgUrl` background image field — no responsive sizes, no video. The
+Category banner already gained four responsive sizes with optional per-size
+video and a cascade switch (ADR-093, itself built on the HomePage banner's
+own ADR-089/091), and both share the same public rendering component
+(`HeroDevice`/`HeroBannerGroup`). The ask was to bring the product hero's
+background input up to that same standard, video included, with the same
+breakpoint-gated fetch behavior on the visitor's side.
+
+**Options considered:**
+1. Extend `IHeroSegment` with the same `bannerSmUrl`/`bannerSmVideoUrl`/…/
+   `bannerXlUrl`/`bannerXlVideoUrl`/`bannerVideoUseForSmaller` fields Category
+   uses, stored inside `Product.segments`' JSON blob (no schema migration —
+   the hero is just one entry in that array) — reuses `HeroDevice`'s existing
+   `bannerUrls` prop as-is (it already supported this shape for Category) and
+   `resolveCascadingVideoUrls` (`src/lib/banner-video.ts`) for the cascade.
+2. Give `Product` its own real `bannerXlUrl`/… columns, like `HomePage`/
+   `Category` have — rejected: every other segment's media lives inside the
+   JSON blob (ADR-020), and a product can have things Category's hero
+   doesn't (heroDocs, certifications) that already live there too; pulling
+   just the banner out to real columns would split one segment's data across
+   two storage shapes for no benefit.
+**Decision:** Option 1. `segment-types.ts`'s hero field list gained 8 new
+field defs (`bannerXlUrl` required, the other 3 sizes' image/video pairs
+optional) so `createEmptySegmentData`/the required-field walk in
+`product-actions.ts` know about them the same way every other field does;
+they render as one combined Image+Video table (`HeroBannerFields`,
+segments-builder.tsx) via a "hero"/`bannerXlUrl` special case in the generic
+field loop, mirroring Category's own table (`category-tree.tsx`) but with
+Image/Video stacked under every column regardless of the card's width
+(segment cards aren't fixed-width like Category's dialog). `UploadField`
+already supported a `"video"` kind end-to-end (Category/HomePage use it) —
+only `uploadSegmentAsset` (segment-upload-actions.ts) needed a new `"video"`
+branch, budgeted at `MAX_SEGMENT_BANNER_VIDEO_SIZE` (10MB, MP4-only, same as
+Category/HomePage). `product-actions.ts` gained the same
+`findMissingBannerVideoFallback` check (a video needs its own size's image as
+fallback/poster) and the same server-side force-reset of
+`bannerVideoUseForSmaller` to `false` when nothing actually has a video,
+both run unconditionally (not just when publishing) — same precedent as
+HomePage/Category. `ProductPageView.tsx` now passes `bannerUrls` (resolved
+via the new `resolveProductHeroBannerVideoUrls`, `src/lib/products.ts`)
+instead of `imgUrl`; `HeroDevice`'s now-dead single-`imgUrl` render path was
+deleted since both its callers (Category, Product) exclusively pass
+`bannerUrls`. A hero segment saved before this ADR only has the old `imgUrl`
+— rather than a one-off migration script, `imgUrl` stays as a
+never-written-again fallback field on `IHeroSegment`, read through
+`resolveHeroBannerXlUrl` (`bannerXlUrl || imgUrl`) at both the admin edit
+(`ensureHeroFileIds` in `product-form.tsx`, so an old product's editor shows
+its existing image already sitting in the Xl slot) and public-render
+(`ProductPageView.tsx`, both catch-all routes' `generateMetadata`) read
+paths.
+**Consequences:** No Prisma migration — this is a JSON-blob shape change, not
+a schema change. Every product's public hero now gets the same breakpoint-
+gated video fetch as the homepage/category hero (`HeroBannerGroup`'s
+`useActiveHeroBreakpoint`: only the visitor's actual breakpoint ever fetches
+a video; every other slot, and any slot whose video fails to load, renders
+the plain image). An admin editing an old product sees its image pre-filled
+into the Xl slot the moment they open the editor, with nothing further
+required unless they want to add responsive sizes or video. The two
+catch-all routes' `generateMetadata` and `ProductPageView` each independently
+call `resolveHeroBannerXlUrl` — a third caller needing the same fallback
+should do the same rather than re-deriving it inline.

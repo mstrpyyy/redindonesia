@@ -11,10 +11,41 @@ import {
   IPublicCatalogueResult,
 } from "@/interfaces/general";
 import { ICardBackgroundValue } from "@/lib/card-backgrounds";
-import { IProductSegment } from "@/interfaces/segments";
+import { IHeroSegment, IProductSegment } from "@/interfaces/segments";
 import { getCategoryAncestry } from "@/lib/categories";
+import { resolveCascadingVideoUrls } from "@/lib/banner-video";
 import { PRODUCT_LIST_PAGE_SIZE } from "@/app/(admin)/admin/product-device/limits";
 import { CATALOGUE_PAGE_SIZE } from "@/app/(user)/components/catalogue/limits";
+
+// Same four-size waterfall/order as Category's own banner (ADR-093) — see
+// ADR-095, which extends the same video/cascade capability to the product
+// hero segment.
+export const PRODUCT_HERO_BANNER_SIZE_ORDER = ["Xl", "Lg", "Md", "Sm"] as const;
+export type ProductHeroBannerSizeKey = (typeof PRODUCT_HERO_BANNER_SIZE_ORDER)[number];
+
+export function resolveProductHeroBannerVideoUrls(
+  hero: Pick<
+    IHeroSegment,
+    "bannerXlVideoUrl" | "bannerLgVideoUrl" | "bannerMdVideoUrl" | "bannerSmVideoUrl" | "bannerVideoUseForSmaller"
+  >
+): Record<ProductHeroBannerSizeKey, string | null> {
+  const ownVideo: Record<ProductHeroBannerSizeKey, string | null> = {
+    Xl: hero.bannerXlVideoUrl ?? null,
+    Lg: hero.bannerLgVideoUrl ?? null,
+    Md: hero.bannerMdVideoUrl ?? null,
+    Sm: hero.bannerSmVideoUrl ?? null,
+  };
+
+  return resolveCascadingVideoUrls(PRODUCT_HERO_BANNER_SIZE_ORDER, ownVideo, hero.bannerVideoUseForSmaller ?? false);
+}
+
+// A hero segment saved before ADR-095 only ever had `imgUrl` — this is the
+// one read-time fallback for that pre-existing data so an old product's
+// public hero keeps its background without every admin having to re-save it
+// first (see the comment on `IHeroSegment.imgUrl`).
+export function resolveHeroBannerXlUrl(hero: Pick<IHeroSegment, "bannerXlUrl" | "imgUrl">): string {
+  return hero.bannerXlUrl || hero.imgUrl || "";
+}
 
 const listItemSelect = {
   id: true,
