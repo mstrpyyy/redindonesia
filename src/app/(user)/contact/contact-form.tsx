@@ -6,7 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { submitContactForm } from "./actions";
-import { MAX_CONTACT_NAME_LENGTH, MAX_CONTACT_PHONE_LENGTH, MAX_CONTACT_QUESTION_LENGTH } from "./limits";
+import {
+  MAX_CONTACT_NAME_LENGTH,
+  MAX_CONTACT_PHONE_LENGTH,
+  MAX_CONTACT_QUESTION_LENGTH,
+  MIN_CONTACT_QUESTION_LENGTH,
+} from "./limits";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,7 +36,11 @@ function validateEmail(value: string): string | null {
 }
 
 function validateQuestion(value: string): string | null {
-  if (!value.trim()) return "Please enter your question.";
+  const trimmed = value.trim();
+  if (!trimmed) return "Please enter your question.";
+  if (trimmed.length < MIN_CONTACT_QUESTION_LENGTH) {
+    return `Question must be at least ${MIN_CONTACT_QUESTION_LENGTH} characters.`;
+  }
   if (value.length > MAX_CONTACT_QUESTION_LENGTH) {
     return `Question must be ${MAX_CONTACT_QUESTION_LENGTH} characters or fewer.`;
   }
@@ -142,7 +151,6 @@ export function ContactForm() {
           maxLength={MAX_CONTACT_QUESTION_LENGTH}
           aria-invalid={questionError ? true : undefined}
           onChange={(event) => setQuestion(event.target.value)}
-          onBlur={() => setQuestionError(validateQuestion(question))}
         />
         <div className="flex items-center justify-between gap-2">
           {questionError ? <p className="text-destructive text-xs">{questionError}</p> : <span />}

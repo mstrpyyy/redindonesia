@@ -4,7 +4,12 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { sendMail } from "@/lib/mailer";
-import { MAX_CONTACT_NAME_LENGTH, MAX_CONTACT_PHONE_LENGTH, MAX_CONTACT_QUESTION_LENGTH } from "./limits";
+import {
+  MAX_CONTACT_NAME_LENGTH,
+  MAX_CONTACT_PHONE_LENGTH,
+  MAX_CONTACT_QUESTION_LENGTH,
+  MIN_CONTACT_QUESTION_LENGTH,
+} from "./limits";
 
 const CONTACT_NOTIFICATION_EMAIL = "info@red-indonesia.co.id";
 
@@ -27,7 +32,7 @@ const contactSubmissionSchema = z.object({
   question: z
     .string()
     .trim()
-    .min(1, "Please enter your question.")
+    .min(MIN_CONTACT_QUESTION_LENGTH, `Question must be at least ${MIN_CONTACT_QUESTION_LENGTH} characters.`)
     .max(MAX_CONTACT_QUESTION_LENGTH, `Question must be ${MAX_CONTACT_QUESTION_LENGTH} characters or fewer.`),
 });
 
