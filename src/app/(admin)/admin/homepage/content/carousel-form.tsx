@@ -204,11 +204,18 @@ export function CarouselForm({
             {mode === "category"
               ? "Shown instead of the category's name. The category's name is still used as the accessible title."
               : "Shown instead of the title above. The title is still required for accessibility."}
+            {" "}Recommended size: 128x32px.
           </p>
-          <div className="w-56">
+          <div>
+            {/* Explicit w-64/h-16 (256x64px, same 4:1 ratio as the
+                recommended 128x32) rather than the `aspect` prop's fixed
+                enum — none of its options are this wide/short. Both
+                dimensions being explicit makes the box's own aspect-ratio
+                class a no-op, so the preview reads at the real ratio instead
+                of stretching to a taller box. */}
             <UploadField
               kind="image"
-              aspect="4:3"
+              boxSizeClassName="w-64 h-16"
               uploadAction={uploadHomeCarouselTitleImage}
               value={titleImage}
               onChange={(value) => setTitleImage((value as string) ?? "")}

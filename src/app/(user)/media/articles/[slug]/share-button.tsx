@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 
 interface IShareButtonProps {
   title: string;
+  // Canonical pathname for this article (e.g. `/media/articles/my-slug`),
+  // supplied by the server component that already knows the slug. Never
+  // derive this from `window.location.pathname` — this page sits behind
+  // client-side (soft) navigation (the "Back to articles" link, browser
+  // back/forward), so the live pathname can flip to the listing page
+  // slightly out of step with this component's render, letting a share
+  // click capture the wrong URL. A server-supplied path can't go stale.
+  path: string;
 }
 
 function buildShareLinks(url: string, title: string) {
@@ -42,13 +50,7 @@ function buildShareLinks(url: string, title: string) {
   ];
 }
 
-// No canonical production domain is configured anywhere in the app yet (see
-// DECISIONS.md — `metadataBase` is a known gap), so share URLs are read from
-// `window.location.href` at click time rather than a server-side constant.
-// Nothing here is rendered into the DOM (these are onClick handlers, not
-// anchor hrefs), so there's no state/effect needed just to hold it, and no
-// server/client hydration mismatch to worry about.
-export function ShareButton({ title }: IShareButtonProps) {
+export function ShareButton({ title, path }: IShareButtonProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -57,19 +59,21 @@ export function ShareButton({ title }: IShareButtonProps) {
     return () => clearTimeout(timeout);
   }, [copied]);
 
+  // `window.location.origin` (protocol + host) is read fresh at click time
+  // rather than stored — it's stable across in-app navigation, unlike the
+  // pathname, so there's no staleness risk in reading it live.
+  const getArticleUrl = () => `${window.location.origin}${path}`;
+
   const handleShareClick = (href: string) => {
     window.open(href, "_blank", "noopener,noreferrer");
   };
 
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(window.location.href);
+    await navigator.clipboard.writeText(getArticleUrl());
     setCopied(true);
   };
 
-  const links = buildShareLinks(
-    typeof window !== "undefined" ? window.location.href : "",
-    title
-  );
+  const links = buildShareLinks(getArticleUrl(), title);
 
   return (
     <div className="flex w-auto flex-row gap-1">

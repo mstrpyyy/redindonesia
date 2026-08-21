@@ -41,7 +41,7 @@ export const PageBanner = ({
   )
 
   return (
-     <section className="h-[65vh] min-h-75 w-full relative">
+     <section className="h-[65vh] min-h-75 w-full relative isolate bg-black">
       <NavbarBg />
       <PageBannerMedia
         slots={[

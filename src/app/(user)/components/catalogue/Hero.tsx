@@ -78,7 +78,7 @@ export const HeroDevice = ({
   const revealDurationMs = isLongTitle ? 300 : undefined
 
   return (
-    <section className='w-full h-svh relative flex flex-col px-5 sm:px-20 pb-10'>
+    <section className='w-full h-svh relative isolate flex flex-col px-5 sm:px-20 pb-10 bg-black'>
       <div className='text-white mt-24 z-30'>
         <Breadcrumbs />
       </div>

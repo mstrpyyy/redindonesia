@@ -4680,3 +4680,101 @@ required unless they want to add responsive sizes or video. The two
 catch-all routes' `generateMetadata` and `ProductPageView` each independently
 call `resolveHeroBannerXlUrl` — a third caller needing the same fallback
 should do the same rather than re-deriving it inline.
+
+## ADR-096: Article `ShareButton` reads its URL's path from a server prop, not `window.location`
+
+**Date:** 2026-08-21
+**Status:** Accepted
+
+**Context:** `ShareButton` (article detail page) built every share link —
+including the WhatsApp `wa.me` link — from `window.location.href`, read once
+during the component's render. The article page (`[slug]/page.tsx`) is
+reached via client-side (soft) navigation from two places on the same
+screen: the "Back to articles" link and the "Other Articles" sidebar list,
+plus ordinary browser back/forward. During that kind of navigation, Next.js
+can update the browser's `window.location` slightly out of step with when
+this component's own render/unmount actually lands. A share click landing in
+that window captured whatever `window.location.href` happened to be at that
+instant — sometimes the listing page's URL (`/media/articles`) instead of
+the article's — so WhatsApp shares intermittently linked to the listing
+page, not the article.
+
+**Options considered:**
+1. Keep reading from `window.location`, but move the read from render-time
+   into the click handler — narrows the race window but doesn't close it;
+   the handler can still fire in the same brief window where the browser's
+   location has already advanced but this component hasn't re-rendered
+   (or has been left mounted) for the new route yet.
+2. Pass the article's canonical pathname down as a prop from the server
+   component, which already knows the exact slug for the page it rendered,
+   and read only `window.location.origin` (protocol + host) on the client —
+   rejected as the full fix for now, but the path-prop half was adopted.
+   Origin still comes from `window` because there's no production domain
+   configured anywhere in the app yet (`metadataBase` gap, noted in
+   ADR-comments in this file's predecessor — still open); reading it live is
+   safe because unlike the pathname, the origin cannot change mid-session on
+   a soft navigation within the same app.
+**Decision:** Option 2. `ArticleDetailPage` now passes
+`path={`/media/articles/${slug}`}` to `ShareButton` alongside `title`.
+`ShareButton` builds each share URL as `${window.location.origin}${path}`,
+computed fresh on every render/click rather than cached — `path` always
+matches whichever article is actually being shown (it's a prop, not a
+snapshot of a mutable global), so there's no longer any window in which a
+navigation-in-flight can corrupt the shared link. `window.location.origin`
+is still read from the browser rather than a constant, since there is no
+`metadataBase`/canonical-domain env var to read it from instead.
+**Consequences:** WhatsApp/Facebook/X/Telegram/LinkedIn share links and the
+"Copy link" button on the article page now always resolve to the exact
+article being viewed, independent of navigation timing. This does not fix
+Open Graph preview images (`article.coverImage` is stored as an app-relative
+path and still needs an absolute URL for external crawlers to fetch it) —
+that still requires a configured production domain and was explicitly left
+out of this fix's scope.
+
+## ADR-097: `SITE_URL` + `metadataBase` to fix Open Graph previews on the homepage and articles
+
+**Date:** 2026-08-21
+**Status:** Accepted
+
+**Context:** Sharing the homepage or an article link (WhatsApp, Facebook,
+etc.) showed no preview image. Article `openGraph.images` used
+`article.coverImage` as-is, which is an app-relative upload path (e.g.
+`/uploads/articles/x.jpg` — ADR-007/008); the homepage had no `openGraph`
+metadata at all. Link-preview crawlers require a fully-qualified image URL —
+a relative path can't be fetched — and this is exactly the gap ADR-096
+flagged as still open (no production domain configured anywhere in the app).
+**Options considered:**
+1. Hardcode the real production domain as a string constant — rejected: no
+   confirmed production domain exists yet in this repo (`.env` has no
+   site-URL variable), and hardcoding one that turns out wrong silently
+   breaks every OG tag again with no visible error.
+2. Add a `SITE_URL` env var, read through one helper with a fallback to the
+   current staging domain (`https://demo.red-indonesia.co.id`, given by the
+   user) so OG previews work today and swapping in the real production
+   domain later is a one-line env change, not a code change.
+**Decision:** Option 2. New `src/lib/site.ts` exports
+`SITE_URL = process.env.SITE_URL ?? "https://demo.red-indonesia.co.id"`.
+The root layout (`src/app/layout.tsx`) — previously had no `metadata` export
+at all — now sets `metadataBase: new URL(SITE_URL)` plus site-wide
+`openGraph.siteName`/`twitter.card` defaults every page inherits unless it
+sets its own. `metadataBase` is what makes any relative URL in a page's
+`openGraph.images`/`openGraph.url`/`alternates.canonical` resolve to an
+absolute one automatically — no per-page string concatenation needed. The
+homepage (`(homepage)/page.tsx`, a static `metadata` export, not
+`generateMetadata`, so it can't await the CMS hero banner) gained
+`openGraph`/`alternates.canonical`, defaulting its image to
+`/image/home/hero/herobanner-xl.webp` — the same static fallback
+`HeroHomeSection`/`Hero.tsx` already uses when no CMS banner is set. The
+article detail page's `generateMetadata` gained `alternates.canonical` and
+`openGraph.url` (both `/media/articles/${slug}`); its existing
+`openGraph.images: [{ url: article.coverImage }]` needed no change — it now
+resolves to an absolute URL purely because `metadataBase` exists.
+**Consequences:** Homepage and article links now show a proper image/title/
+description preview on WhatsApp, Facebook, X, Telegram, LinkedIn. Until
+`SITE_URL` is set in `.env`, every absolute metadata URL points at the
+staging domain — including in production, if deployed without that env var
+set — so setting `SITE_URL` to the real production domain before/at
+production deploy is required, not optional. The articles *listing* page
+(`media/articles/page.tsx`) still has no `openGraph` beyond `metadataBase`'s
+site-wide defaults — left out of this fix's scope; extend it the same way if
+its own link previews need a specific title/image later.
