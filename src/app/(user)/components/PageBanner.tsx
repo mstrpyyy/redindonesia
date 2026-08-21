@@ -41,6 +41,7 @@ export const PageBanner = ({
   )
 
   return (
+    // update
      <section className="h-[65vh] min-h-75 w-full relative isolate bg-black">
       <NavbarBg />
       <PageBannerMedia
