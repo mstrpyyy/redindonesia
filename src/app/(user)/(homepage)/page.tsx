@@ -11,25 +11,8 @@ import { ProductHomeSection } from "./(sections)/Products";
 import { getPublicHomeCarousels } from "@/lib/home-carousels";
 import { getHomePage } from "@/lib/home-page";
 
-const description =
-  "Established in 2004, PT. Radian Elok Distriversa has many years of experience and a broad network in the field of trading and distribution for medical aesthetic devices, medical laser devices, and cosmoceutical products.";
-
 export const metadata: Metadata = {
-  title: 'Home',
-  description,
-  alternates: {
-    canonical: '/',
-  },
-  openGraph: {
-    title: 'PT. Radian Elok Distriversa',
-    description,
-    url: '/',
-    // Static fallback — matches the hero's own fallback image (Hero.tsx) so
-    // the OG preview isn't left without an image on a request where the CMS
-    // hero banner hasn't been fetched (metadata here is a static export, not
-    // `generateMetadata`, so it can't await the CMS banner itself).
-    images: ['/image/home/hero/herobanner-xl.webp'],
-  },
+  title: 'Home'
 };
 
 export default async function Home() {

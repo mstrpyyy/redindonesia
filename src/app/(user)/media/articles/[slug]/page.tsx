@@ -29,23 +29,15 @@ export async function generateMetadata({ params }: IPageProps): Promise<Metadata
 
   const title = article.title || 'Untitled'
   const description = article.excerpt ?? undefined
-  const path = `/media/articles/${slug}`
 
   return {
     title,
     description,
-    alternates: {
-      canonical: path,
-    },
     openGraph: {
       title,
       description,
-      url: path,
       type: 'article',
       publishedTime: article.publishedAt?.toISOString(),
-      // `article.coverImage` is an app-relative path (`/uploads/...`) —
-      // resolved to an absolute URL via the root layout's `metadataBase` so
-      // link-preview crawlers (WhatsApp, Facebook, etc.) can actually fetch it.
       images: article.coverImage ? [{ url: article.coverImage }] : undefined,
     },
     twitter: {
@@ -117,7 +109,7 @@ export default async function ArticleDetailPage({ params }: IPageProps) {
                       {formatArticleDate(article.publishedAt)}
                     </span>
                   )}
-                  <ShareButton title={title} path={`/media/articles/${slug}`} />
+                  <ShareButton title={title} />
                 </div>
               </div>
 
