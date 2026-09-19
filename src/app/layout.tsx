@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import localFont from 'next/font/local'
-import AOSProvider from "@/providers/AosProvider";
 
 const jakarta = localFont({
   src: [
@@ -53,7 +52,6 @@ export default function RootLayout({
       <body
         className={`${jakarta.className} antialiased`}
       >
-        <AOSProvider />
         {children}
       </body>
     </html>

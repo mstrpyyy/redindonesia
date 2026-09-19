@@ -2972,3 +2972,470 @@ products without requiring a re-save.
   image on the public page and in the admin editor without any manual fix.
 **Do not:** Add a Prisma migration — the hero banner lives inside
 `Product.segments`' JSON blob, same as every other segment field.
+
+## [ ] Task: Site-wide SEO foundation (metadataBase, sitemap, robots, Organization JSON-LD, default OG)
+
+**Context:** Per-page `<title>`/`<description>` and single-`<h1>` coverage is now
+complete for every `(user)` route (About/Contact/Support/Media pages got their
+missing `metadata` exports in the h1-audit pass). Four site-wide SEO primitives
+are still missing and were deliberately left out of that pass:
+1. No `metadataBase` anywhere — OG/Twitter/canonical URLs resolve as relative
+   paths, which some link-unfurlers reject (also noted as the "Known gap" on the
+   article detail page task, ADR-013-era).
+2. No `sitemap.xml` — search engines have no crawl manifest for the CMS-driven
+   routes (articles, device/product categories and products, galleries, podcasts).
+3. No `robots.txt` — `/admin` is not disallowed for crawlers and there's no
+   `Sitemap:` pointer.
+4. No `Organization` / `WebSite` JSON-LD on the homepage — this is the main
+   signal Google uses for the brand entity / knowledge panel / sitelinks search
+   box. (The article detail page already emits `Article` JSON-LD; this is the
+   site-level equivalent.)
+5. Root/`(user)` layout has no default `openGraph` block — pages that don't set
+   their own OG have no share image or `og:site_name`.
+
+**IMPORTANT — prior incident:** A previous `metadataBase`/OG change caused a
+production 502 and was reverted (see memory `project_og_metadata_502_incident.md`,
+2026-08-21). The root layout is imported on every route, so anything added there
+that throws takes down the whole site. Do this change carefully: keep the new
+metadata static and literal (no runtime env reads that can be undefined, no
+`new URL()` on a possibly-empty string), test against a local production build
+(`next build && next start`), and be ready to explain the difference from the
+reverted attempt in the ADR.
+
+**Approach:**
+- Pick the canonical production domain first — this is a real decision, not a
+  guess. `ARCHITECTURE.md` currently names `demo.red-indonesia.co.id` with a
+  planned cutover to `red-indonesia.co.id`. **DECISION NEEDED** from the user:
+  which domain is canonical now, and should `metadataBase` read from a
+  `NEXT_PUBLIC_SITE_URL` env var (with a hardcoded fallback so it can never be
+  `undefined`) or just be hardcoded.
+- `metadataBase: new URL(SITE_URL)` in `src/app/(user)/layout.tsx`'s existing
+  `metadata` export (not the root layout — keep the blast radius on the `(user)`
+  group, matching where the title template already lives). Guard `SITE_URL` so
+  it is always a valid absolute URL string at module load.
+- Add a static `openGraph` (+ `twitter`) block to the same `(user)` layout
+  metadata: `siteName`, `type: "website"`, `locale: "en_ID"`, and a default
+  share image committed to `public/` (e.g. `public/og-default.png`, 1200x630).
+- `src/app/sitemap.ts` — Next.js `MetadataRoute.Sitemap`. Static routes hardcoded;
+  dynamic entries from Prisma: `getPublishedArticleSlugs()` (exists),
+  published product slugs + category slug paths (device + product), gallery/
+  podcast list pages. Wrap every DB read in `.catch(() => [])` so a DB hiccup
+  yields a partial sitemap, never a 500.
+- `src/app/robots.ts` — `MetadataRoute.Robots`: allow `/`, disallow `/admin`,
+  `Sitemap:` → `${SITE_URL}/sitemap.xml`.
+- `src/app/(user)/(homepage)/page.tsx` — add `Organization` + `WebSite` JSON-LD
+  via a `<script type="application/ld+json">` tag (server-rendered, same pattern
+  as `media/articles/[slug]/page.tsx`). `Organization`: `name` "PT. Radian Elok
+  Distriversa", `alternateName` ["RED Indonesia", "Radian Elok Distriversa"],
+  `url`, `logo`, `foundingDate` "2004", `sameAs` (social URLs from
+  `getSocialAccounts()` if cheap, else omit).
+
+**Files to create or modify:**
+- `src/lib/site.ts` — new: `SITE_URL` constant (env + hardcoded fallback), shared
+  by all of the below
+- `src/app/(user)/layout.tsx` — `metadataBase`, static `openGraph`/`twitter`
+- `src/app/sitemap.ts` — new
+- `src/app/robots.ts` — new
+- `src/app/(user)/(homepage)/page.tsx` — `Organization`/`WebSite` JSON-LD
+- `public/og-default.png` — new default share image (1200x630)
+- `src/lib/products.ts` / `src/lib/categories.ts` — lean slug-only helpers for the
+  sitemap if not already present
+- `ARCHITECTURE.md` (SEO section), `DECISIONS.md` (new ADR — reference and
+  distinguish from the reverted `project_og_metadata_502_incident.md` attempt)
+
+**Acceptance criteria:**
+- [ ] `GET /sitemap.xml` returns valid XML listing every static route plus all
+  published articles, products, public category pages, and media list pages.
+- [ ] `GET /robots.txt` disallows `/admin` and points to the sitemap.
+- [ ] A page that sets no OG of its own inherits `og:site_name`, a default
+  `og:image`, and absolute (not relative) `og:url` / image URLs.
+- [ ] Product/article pages that set their own OG still override the defaults,
+  and their image URLs are now absolute.
+- [ ] Homepage HTML contains `Organization` and `WebSite` JSON-LD that validates
+  in Google's Rich Results Test.
+- [ ] `next build && next start` serves every route with no 5xx — specifically
+  verify the homepage and an arbitrary deep route render, since the reverted
+  attempt 502'd here.
+- [ ] `tsc --noEmit` passes.
+
+**Do not:** Put `metadataBase` or any env-dependent metadata in the root
+`src/app/layout.tsx` — keep it in the `(user)` group layout. Do not read an env
+var that can be `undefined` without a literal fallback. Do not add per-page
+canonical URLs, hreflang, or an i18n sitemap in this task — single locale only
+for now.
+
+---
+
+## Homepage CMS Buildout
+
+Making the public homepage (`src/app/(user)/(homepage)/`) editable from
+`/admin/homepage/content`, one section at a time. The hero banner + carousels
+are already CMS-driven (ADR-082/089/091); the remaining sections' copy is
+still hardcoded.
+
+## [x] Task: Hero heading + subheading CMS fields (admin input only)
+
+**Context:** The homepage hero (`(homepage)/(sections)/Hero.tsx`) has a
+hardcoded headline and subline. First slice of the homepage CMS buildout —
+add the admin inputs now, wire the public hero later.
+**Approach:** Two nullable `String` columns on the existing `HomePage` model
+(`heroHeading`, `heroSubheading`), edited in the existing `HomePageForm` above
+the banner table, saved by the existing `saveHomePage` upsert. See ADR-096.
+**Files to create or modify:**
+- `prisma/schema.prisma` + `prisma/migrations/20260829000000_add_home_page_hero_text/`
+- `src/lib/home-page.ts` — `IHomePage` + `getHomePage` mapping
+- `src/app/(admin)/admin/homepage/content/limits.ts` — length caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema + upsert
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — two `Input`s
+- `ARCHITECTURE.md` (HomePage bullet), `DECISIONS.md` (ADR-096)
+**Acceptance criteria:**
+- [x] "Hero Heading" and "Hero Subheading" inputs appear under the Hero
+  heading, above the Banner table.
+- [x] Both optional — saving with them blank stores `NULL`; `bannerXlUrl`
+  stays the only required field.
+- [x] Values persist across save/reload; over-length input is rejected
+  server-side, not just by the `maxLength` attribute.
+- [ ] `tsc --noEmit` passes (not yet run — pending user go-ahead).
+**Do not:** Wire the public hero to these fields in this task — that's the
+next slice, and it must fall back to the current hardcoded copy when null.
+
+## [x] Task: Wire the public homepage hero to `heroHeading`/`heroSubheading`
+
+**Context:** Follow-up to the admin-input task. `Hero.tsx` rendered hardcoded
+copy; the CMS fields existed but nothing read them.
+**Approach:** `page.tsx` passes `homePage.heroHeading`/`heroSubheading` into
+`HeroHomeSection`. The heading is split on whitespace into `RevealText` words
+so it keeps the same staggered reveal; a blank heading → a single "-" word
+(ADR-099). The subheading `<h2>` renders the trimmed string or "-". The
+hardcoded "Your Complete Medical Aesthetic Partner" / "Powering the Future of
+Your Practice" strings are removed (no hardcoded fallback — ADR-099).
+**Files to create or modify:**
+- `src/app/(user)/(homepage)/(sections)/Hero.tsx`
+- `src/app/(user)/(homepage)/page.tsx`
+**Acceptance criteria:**
+- [x] With both fields blank, the hero shows "-" for the title and subtitle.
+- [x] With them set, the CMS text renders (title keeps the word-by-word reveal).
+- [x] The `<h1>`/`<h2>` structure and styling are unchanged.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+
+## [x] Task: About-section CMS fields — heading, body, link buttons (admin input only)
+
+**Context:** Second slice of the homepage CMS buildout. The About section on
+the public homepage (`(homepage)/(sections)/About.tsx`) is a two-tone `<h2>`
+title ("22 Years" in brand red + oversized, then the rest), a supporting
+paragraph, and a column of 3 image-as-button links. Add the admin inputs for
+all three; wire the public side later.
+**Approach:** Two new nullable HTML columns (`HomePage.aboutHeading`,
+`HomePage.aboutBody`) + a `Json` column `HomePage.aboutLinkButtons`
+(`@default("[]")`, array of `{ id, href, image }`). New `MiniRichTextEditor`
+component with a `mode` prop: `"heading"` = single `<h2>` node, Enter →
+`<br>`, toolbar italic / underline / colour / font size (Normal + Large
+only), `.h2-format`; `"body"` = normal paragraphs, no headings, toolbar bold
+/ italic / underline / colour (no size), `.p-format`. New `link-buttons-editor.tsx`
+— horizontally-stacked cards, 1–3, each a `carouselImage` `UploadField` + a
+URL `Input` + a top-right trash badge, then a dashed "add" card that hides
+at 3; images upload immediately via `uploadHomePageLinkButtonImage`.
+All edited in the existing `HomePageForm` under an "About Section" heading,
+saved by the existing `saveHomePage`. See ADR-097.
+**Files to create or modify:**
+- `prisma/schema.prisma` + migrations `20260829010000_add_home_page_about_heading/`,
+  `20260829020000_add_home_page_about_body/`,
+  `20260829030000_add_home_page_about_link_buttons/`
+- `src/components/mini-rich-text-editor.tsx` — new (two modes)
+- `src/components/rich-text-constants.ts` — new (shared `TEXT_COLORS`/`FONT_SIZES`)
+- `src/components/rich-text-editor.tsx` — import the two lists instead of declaring them
+- `package.json` — 8 `@tiptap/extension-*` sub-packages (already in the lockfile)
+- `src/interfaces/general.ts` — `IHomeAboutLinkButton`
+- `src/lib/home-page.ts` — `IHomePage`, `getHomePage`, `parseAboutLinkButtons`
+- `src/app/(admin)/admin/homepage/content/limits.ts` — about heading/body/link-button caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema, blank→NULL, `uploadHomePageLinkButtonImage`, upsert
+- `src/app/(admin)/admin/homepage/content/link-buttons-editor.tsx` — new
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "About Section" block
+- `src/app/globals.css` — `.mini-rich-text-editor h2` / `.mini-rich-text-body p` resets
+- `ARCHITECTURE.md` (HomePage bullet), `DECISIONS.md` (ADR-097)
+**Acceptance criteria:**
+- [x] An "About Section" heading with a Heading editor, a Body editor, and a
+  Link Buttons list appears below the Hero fields on `/admin/homepage/content`.
+- [x] Heading toolbar: italic, underline, colour, font size (Normal + Large
+  only); content is always a single `<h2>` (Enter → `<br>`); previews at
+  `.h2-format`.
+- [x] Body toolbar: bold, italic, underline, colour (no font size); content
+  is paragraphs (Enter → new `<p>`); previews at `.p-format`.
+- [x] Link Buttons: 1–3 cards stacked horizontally, each an image upload + a
+  link input + a top-right trash; the "add" card hides at 3, trash is
+  disabled at 1; server rejects <1, >3, or an incomplete entry.
+- [x] Saving persists everything; an empty rich text editor stores `NULL`.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run — pending user go-ahead;
+  the three migrations also need applying with `prisma migrate dev`).
+**Do not:** Wire `About.tsx` to the fields in this task, or add a sanitizer
+(admin-authored HTML is trusted here, same as articles/categories).
+
+## [x] Task: Wire the public About section to its CMS fields
+
+**Context:** Follow-up to the task above. `About.tsx` rendered hardcoded
+copy/tiles; the `HomePage` columns existed but nothing read them.
+**Approach:** `AboutHomeSection` now takes `heading` / `body` / `linkButtons`
+props, passed from `(homepage)/page.tsx` (which already fetches
+`getHomePage("home")`). Text fields null → the original hardcoded JSX renders
+verbatim; set → the stored HTML renders via `dangerouslySetInnerHTML`. The
+heading HTML (always one `<h2>…</h2>` from `MiniRichTextEditor`) is unwrapped
+and dropped into this section's own `<h2 className="h2-format">`. The body
+`<p>`s render inside `<div className="p-format rich-body">` — the new
+`.rich-body` selector in globals.css shares the mini-editor's paragraph/bold
+rules so the public render matches the editor preview. Inline `<span style>`
+colour/size survive as-is (no wrapper class needed for those). Link buttons:
+non-empty list → one `<Link><Image>` per entry replacing `aboutMenuList`
+(image `alt` derived from the href since the CMS shape has no label field);
+empty → `aboutMenuList` unchanged.
+**Files to create or modify:**
+- `src/app/(user)/(homepage)/(sections)/About.tsx`
+- `src/app/(user)/(homepage)/page.tsx` — passes the three props
+- `src/app/globals.css` — `.rich-body` added to the shared mini-rich-text rules
+**Acceptance criteria:**
+- [x] With all three fields null/empty, the section renders exactly today's
+  heading + body + tiles.
+- [x] With them set, the CMS heading/body render with their colour/size/
+  italic/underline emphasis; the CMS link buttons render as the tiles.
+- [x] Still a single `<h2>` + paragraph(s); surrounding layout unchanged.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run — pending user go-ahead).
+**Known gap:** Link-button images get an `alt` derived from the destination
+href, since the CMS shape is only `{ href, image }`. A dedicated label field
+would be cleaner — deferred unless asked.
+**Do not:** Introduce `dangerouslySetInnerHTML` without confirming the value
+comes only from the admin-authored columns (it does).
+
+## [x] Task: Statistics counters CMS field (admin input only)
+
+**Context:** Continuing the homepage CMS buildout. The public homepage's
+animated stat band (`StatCounter`) is a hardcoded `statList` of 4
+`{ name, value }` pairs. Add the admin input to edit them (1–4); wire the
+public side later.
+**Approach:** New `Json` column `HomePage.statistics` (`@default("[]")`,
+array of `{ id, value, name }`). New `statistics-editor.tsx` — the same card
+layout as `link-buttons-editor.tsx` (1–4 cards, trash badge disabled at the
+minimum, dashed "add" card hidden at the max), each card a numeric `Input`
+(1–999,000,000,000, digits-only, `0` = empty) + a name `Input` (2–15 chars).
+Edited in `HomePageForm` under a "Statistics" `AdminSectionTitle`, saved by
+the existing `saveHomePage`. See ADR-098.
+**Files to create or modify:**
+- `prisma/schema.prisma` + migration `20260829040000_add_home_page_statistics/`
+- `src/interfaces/general.ts` — `IHomeStatistic`
+- `src/lib/home-page.ts` — `IHomePage`, `getHomePage`, `parseStatistics`
+- `src/app/(admin)/admin/homepage/content/limits.ts` — statistic caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema + upsert
+- `src/app/(admin)/admin/homepage/content/statistics-editor.tsx` — new
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "Statistics" block
+- `ARCHITECTURE.md` (HomePage bullet), `DECISIONS.md` (ADR-098)
+**Acceptance criteria:**
+- [x] A "Statistics" section with 1–4 cards appears below the About section
+  on `/admin/homepage/content`; "add" card hides at 4, trash disabled at 1.
+- [x] Each card has a Number input (digits only, clamped to 999 billion) and
+  a Name input (max 15 chars).
+- [x] Server rejects <1, >4, an incomplete card, a name under 2 chars, or a
+  value over 999 billion / under 1.
+- [x] Saving persists the list.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Wire `StatCounter` to the field in this task, or touch its
+count-up / digit-padding logic (that needs rework for large values — a
+follow-up).
+
+## [x] Task: Wire the public `StatCounter` to `HomePage.statistics` + homepage "-" fallback policy
+
+**Context:** Follow-up to the task above, plus a policy change: the client
+wants every dynamic homepage element to fall back to "-" (not hardcoded
+defaults) when its data is missing/empty/unavailable. See ADR-099.
+**Approach:** `StatCounter` takes a `stats` prop from `(homepage)/page.tsx`,
+animates `toLocaleString`-formatted count-ups (dropped the old `padStart`
+heuristic), and renders a single "-" cell when the list is empty. Shared
+`HOMEPAGE_EMPTY_PLACEHOLDER = "-"` constant in `src/lib/home-page.ts`;
+`AboutHomeSection`'s hardcoded fallbacks (heading spans, `aboutMenuList`,
+body copy) replaced with it. `getHomePage` wrapped in try/catch so a DB
+failure resolves to an all-empty `IHomePage` rather than 500ing the page.
+**Files to create or modify:**
+- `src/lib/home-page-constants.ts` — new, prisma-free home for `HOMEPAGE_EMPTY_PLACEHOLDER`
+- `src/lib/home-page.ts` — re-export the constant, try/catch in `getHomePage`
+- `src/app/(user)/(homepage)/(sections)/StatCounter.tsx` — `stats` prop, rewrite
+- `src/app/(user)/(homepage)/(sections)/About.tsx` — "-" fallbacks, drop hardcoded data
+- `src/app/(user)/(homepage)/page.tsx` — pass `stats={homePage.statistics}`
+- `DECISIONS.md` (ADR-099), `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] Empty `statistics` → the red band shows one "-" cell; non-empty →
+  CMS numbers/names animate in, large values grouped with separators.
+- [x] The count-up still triggers on scroll into view.
+- [x] About heading/body/link-column render "-" when their field is empty.
+- [x] `getHomePage` returning empty (missing row or DB error) does not crash
+  the homepage.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Apply "-" to the hero banner — it's a required field with a
+static image fallback and "-" can't stand in for a background image.
+
+## [x] Task: Highlight Video section — accent-title primitive + CMS + public wiring
+
+**Context:** New homepage CMS section: a title (with brand-accent words), a
+description, a YouTube link, and an optional thumbnail. Prompted a decision
+on how to do "accent word" titles cleanly (ADR-100).
+**Approach:**
+- New semantic `accent` Tiptap mark (`src/components/tiptap-accent.ts`) →
+  `<span class="heading-accent">`, coloured by `.heading-accent` in
+  globals.css (`var(--color-brand-red)`). New `MiniRichTextEditor` mode
+  `"section-title"` with a single "Accent" toolbar toggle on the existing
+  single-`<h2>` shape.
+- Four nullable `HomePage` columns (`highlightVideo{Title,Description,YoutubeUrl,ThumbnailUrl}`),
+  migration `20260829050000_add_home_page_highlight_video`. Title/description/
+  YouTube link required on save (link validated via `getYoutubeVideoId`);
+  thumbnail optional.
+- Edited inline in `HomePageForm` under a "Highlight Video" `AdminSectionTitle`
+  (`MiniRichTextEditor` + `Textarea` + `Input` + optional `UploadField`).
+- Public `VideoHomeSection` takes the four props, renders the title HTML
+  (accent runs intact), and swaps the always-on `<iframe>` for `YoutubeEmbed`
+  (lazy poster + click-to-play, uses the thumbnail). "-" fallback per ADR-099.
+**Files to create or modify:**
+- `src/components/tiptap-accent.ts` — new
+- `src/components/mini-rich-text-editor.tsx` — `"section-title"` mode (3 modes now)
+- `src/app/globals.css` — `.heading-accent`
+- `prisma/schema.prisma` + migration `20260829050000_add_home_page_highlight_video/`
+- `src/lib/home-page.ts` — `IHomePage` + `getHomePage`
+- `src/app/(admin)/admin/homepage/content/limits.ts` — highlight-video caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema, `uploadHomePageHighlightVideoThumbnail`, upsert
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "Highlight Video" block
+- `src/app/(user)/(homepage)/(sections)/Video.tsx` — props + `YoutubeEmbed`
+- `src/app/(user)/(homepage)/page.tsx` — pass the four props
+- `DECISIONS.md` (ADR-100), `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] A "Highlight Video" section appears below Statistics on
+  `/admin/homepage/content`: accent-only Title editor, Description textarea,
+  YouTube Link input, optional Thumbnail upload.
+- [x] "Accent" toggle marks a run brand-red (class, not inline hex); renders
+  the same in the editor preview and on the public homepage.
+- [x] Save rejects a blank title, a description under 2 / over 600 chars, or
+  an invalid YouTube link; accepts a missing thumbnail.
+- [x] Public `VideoHomeSection` shows the CMS title/description/video (lazy
+  embed with the thumbnail), or "-" placeholders when a field is empty.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Migrate the About heading off `"heading"` mode in this task —
+that's a separate call.
+
+## [x] Task: Feature List ("Why Choose Us") section — CMS + curated icon set + public wiring
+
+**Context:** The homepage "Why Choose RED?" block (`ChooseUsHomeSection`) is a
+hardcoded list of 6 icon + title + description items. Needs a CMS. See
+ADR-101 (also settles the "curated icon set stored by name" question).
+**Approach:**
+- `src/lib/feature-icons.ts` — one `FEATURE_ICONS` map (~30 lucide icons,
+  kebab keys), `FEATURE_ICON_NAMES`, `resolveFeatureIcon` (fallback to
+  `DEFAULT_FEATURE_ICON`), `featureIconLabel`. Shared by the picker + renderer.
+- `HomePage.featureListTitle` (section-title rich text HTML) + `HomePage.features`
+  (`Json`, `{ id, icon, title, description }[]`), migration
+  `20260829060000_add_home_page_feature_list`. Title required; 2–8 features,
+  each icon validated against `FEATURE_ICON_NAMES`, title ≤60, description
+  2–400.
+- `features-editor.tsx` — vertical list of cards: a swatch-style icon picker
+  (`Popover`, 3-wide grid) + title `Input` on the top row, description
+  `Textarea` below, trash + bottom "Add feature". Seeds 2 empty rows (icon
+  starts unset → trigger shows "Icon").
+- `HomePageForm` — "Feature List" section: `MiniRichTextEditor` `section-title`
+  + `FeaturesEditor`.
+- Public `ChooseUsHomeSection` takes `title` / `features`, renders the title
+  into an `<h2 className="h2-format">` (the stored `<h3>` is unwrapped —
+  deliberately "unlinked" from the editor's h3 preview), and each feature via
+  `resolveFeatureIcon` at fixed `size={40} strokeWidth={2} text-brand-red`.
+  "-" fallback per ADR-099.
+**Files to create or modify:**
+- `src/lib/feature-icons.ts` — new
+- `prisma/schema.prisma` + migration `20260829060000_add_home_page_feature_list/`
+- `src/interfaces/general.ts` — `IHomeFeature`
+- `src/lib/home-page.ts` — `IHomePage`, `getHomePage`, `parseFeatures`
+- `src/app/(admin)/admin/homepage/content/limits.ts` — feature caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema + upsert
+- `src/app/(admin)/admin/homepage/content/features-editor.tsx` — new
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "Feature List" block
+- `src/app/(user)/(homepage)/(sections)/ChooseUs.tsx` — props + wiring
+- `src/app/(user)/(homepage)/page.tsx` — pass the two props
+- `DECISIONS.md` (ADR-101), `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] A "Feature List" section below Highlight Video: section-title editor +
+  a list of feature cards (icon dropdown + title, description textarea).
+- [x] Icon picker is a 3-wide grid of the ~30 curated icons; empty trigger
+  shows "Icon", a set one shows the glyph; the choice renders the same icon
+  on the public side at the fixed size/colour.
+- [x] Save rejects a blank title, <2 or >8 features, an incomplete feature,
+  a title over 60, or a description outside 2–400.
+- [x] Public `ChooseUsHomeSection` renders the CMS title (as `<h2>`) and
+  features, or "-" when empty. Existing right-side decorative image unchanged.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Let the admin control icon size or colour — the renderer fixes
+them. Don't ship all of lucide or an icon-upload flow.
+
+## [x] Task: Brands section heading — CMS input + public wiring
+
+**Context:** The Brands marquee section's heading ("Meet Our **Brands**") was
+hardcoded. Add the CMS heading input only — the marquee logos stay static
+`brandList` for now.
+**Approach:** New nullable `HomePage.brandsTitle` column (migration
+`20260829070000_add_home_page_brands_title`). `MiniRichTextEditor`
+`"section-title"` mode (previewed at `.h3-format`), rendered on the public
+side into `Brand.tsx`'s existing `<h2 className="h2-format title-limiter ...">`
+via the new shared `unwrapHeadingHtml` util. Required on save (rich text
+content check), "-" fallback per ADR-099. Same pattern as the Highlight
+Video / Feature List titles — no new ADR.
+**Files to create or modify:**
+- `prisma/schema.prisma` + migration `20260829070000_add_home_page_brands_title/`
+- `src/lib/home-page.ts` — `IHomePage` + `getHomePage`
+- `src/lib/utils.ts` — new `unwrapHeadingHtml` (extracted from About.tsx / Video.tsx copies)
+- `src/app/(admin)/admin/homepage/content/limits.ts` — `MAX_HOME_BRANDS_TITLE_LENGTH`
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema + upsert
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "Brands" block
+- `src/app/(user)/(homepage)/(sections)/Brand.tsx` — `title` prop + wired heading
+- `src/app/(user)/(homepage)/page.tsx` — pass `title={homePage.brandsTitle}`
+- `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] A "Brands" section with a single "Heading" (accent) editor appears at
+  the bottom of `/admin/homepage/content`.
+- [x] Save rejects a blank heading.
+- [x] Public Brands heading renders the CMS text (accent intact) at
+  `.h2-format`, or "-" when unset; the marquee is unchanged.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Wire the brand logos / marquee to the CMS in this task — heading only.
+
+## [x] Task: Certifications section — CMS heading + logo list + public wiring
+
+**Context:** The Credibility/Certifications section ("Excellence Through
+**Certified Standards**" + 4 logos) was hardcoded. Add the CMS heading and a
+logo list (image only, no alt/name).
+**Approach:** New nullable `HomePage.certificationsTitle` (`section-title`
+rich text) + `certifications` `Json` `{ id, image }[]` columns, migration
+`20260829080000_add_home_page_certifications`. New `certifications-editor.tsx`
+— existing logos as square preview cards (drag to reorder via `@dnd-kit`,
+`rectSortingStrategy`; whole card is the handle, trash badge stops
+propagation); a single "+ Add logo" card whose hidden `<input multiple>`
+uploads several files at once and appends them. Empty state = just the add
+card (no seeded row, list can go to 0 in the editor; server requires ≥1 on
+save). "Add" card hidden at 8.
+Dedicated `uploadHomePageCertificationLogo` action
+(2MB, **PNG/JPG only — no WEBP**). Heading required on save; logos min 1.
+Public `CredibilityHomeSection` takes the two props: heading into the
+existing styled `<h2>` (accent intact), logos as `<Image fill object-contain>`
+in the existing `h-32` cells (`alt=""` — decorative, no alt field). "-"
+fallbacks per ADR-099. Same pattern as the other section titles — no new ADR.
+**Files to create or modify:**
+- `prisma/schema.prisma` + migration `20260829080000_add_home_page_certifications/`
+- `src/interfaces/general.ts` — `IHomeCertification`
+- `src/lib/home-page.ts` — `IHomePage`, `getHomePage`, `parseCertifications`
+- `src/app/(admin)/admin/homepage/content/limits.ts` — certification caps
+- `src/app/(admin)/admin/homepage/content/actions.ts` — schema, `uploadHomePageCertificationLogo`, upsert
+- `src/app/(admin)/admin/homepage/content/certifications-editor.tsx` — new
+- `src/app/(admin)/admin/homepage/content/home-page-form.tsx` — "Certifications" block
+- `src/app/(user)/(homepage)/(sections)/Credibility.tsx` — props + wired heading + logos
+- `src/app/(user)/(homepage)/page.tsx` — pass the two props
+- `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] A "Certifications" section with a Heading (accent) editor and a Logos
+  area (preview cards + a multi-file "+ Add logo" card, up to 8) appears on
+  `/admin/homepage/content`.
+- [x] Logo upload rejects non-PNG/JPG and files over 2MB; save rejects a
+  blank heading, <1 or >8 logos, or an empty logo card.
+- [x] Public section renders the CMS heading (accent) + logos, or "-" when unset.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Known gap:** Logos render `alt=""` (no alt field, "image only"). A per-logo
+alt/name field would be more accessible — deferred unless asked.
+**Do not:** Add WEBP support (spec is PNG/JPG only).

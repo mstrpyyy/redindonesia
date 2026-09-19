@@ -191,7 +191,7 @@ export const navMenus: INavbarMenu[] = [
     type: 'link'
   },
   {
-    name: 'About',
+    name: 'Our Story',
     slug: '/about',
     type: 'link'
   },

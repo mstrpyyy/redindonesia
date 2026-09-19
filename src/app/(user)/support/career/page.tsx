@@ -1,9 +1,16 @@
+import type { Metadata } from 'next'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
 import { hasRichTextContent } from '@/lib/utils'
+
+export const metadata: Metadata = {
+  title: 'Career',
+  description:
+    'Explore career opportunities at PT. Radian Elok Distriversa, a leading Indonesian distributor of medical aesthetic and laser devices.',
+}
 
 export default async function SupportCareer() {
   const page = await getSupportPage('career')

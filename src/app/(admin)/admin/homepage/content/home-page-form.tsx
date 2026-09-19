@@ -3,14 +3,39 @@
 import { useState, useTransition } from "react";
 import { Monitor, Smartphone, Tablet } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UploadField } from "@/components/upload-field";
-import { cn } from "@/lib/utils";
+import { cn, hasRichTextContent } from "@/lib/utils";
 import { findMissingBannerVideoFallback } from "@/lib/banner-video";
-import { MAX_HOME_BANNER_LABEL, MAX_HOME_BANNER_VIDEO_LABEL } from "./limits";
-import { saveHomePage, uploadHomePageBanner, uploadHomePageBannerVideo } from "./actions";
+import { MiniRichTextEditor } from "@/components/mini-rich-text-editor";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
+import { LinkButtonsEditor } from "./link-buttons-editor";
+import { StatisticsEditor } from "./statistics-editor";
+import { FeaturesEditor } from "./features-editor";
+import { CertificationsEditor } from "./certifications-editor";
+import type {
+  IHomeAboutLinkButton,
+  IHomeStatistic,
+  IHomeFeature,
+  IHomeCertification,
+} from "@/interfaces/general";
+import {
+  MAX_HOME_BANNER_LABEL,
+  MAX_HOME_BANNER_VIDEO_LABEL,
+  MAX_HOME_HERO_HEADING_LENGTH,
+  MAX_HOME_HERO_SUBHEADING_LENGTH,
+  MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
+} from "./limits";
+import {
+  saveHomePage,
+  uploadHomePageBanner,
+  uploadHomePageBannerVideo,
+  uploadHomePageHighlightVideoThumbnail,
+} from "./actions";
 import type { HomePageSlug, IHomePage } from "@/lib/home-page";
 
 function RequiredMark() {
@@ -55,6 +80,46 @@ export function HomePageForm({
   slug: HomePageSlug;
   initialData: IHomePage;
 }) {
+  const [heroHeading, setHeroHeading] = useState(initialData.heroHeading ?? "");
+  const [heroSubheading, setHeroSubheading] = useState(initialData.heroSubheading ?? "");
+  const [aboutHeading, setAboutHeading] = useState(initialData.aboutHeading ?? "");
+  const [aboutBody, setAboutBody] = useState(initialData.aboutBody ?? "");
+  // Seed one empty row when nothing is stored yet — the section always needs
+  // at least one button (server-enforced), and a deterministic id keeps SSR
+  // and the client hydration in sync (crypto.randomUUID is only used later,
+  // in the "Add" handler, which runs client-side only).
+  const [aboutLinkButtons, setAboutLinkButtons] = useState<IHomeAboutLinkButton[]>(
+    initialData.aboutLinkButtons.length > 0
+      ? initialData.aboutLinkButtons
+      : [{ id: "link-button-1", href: "", image: "" }]
+  );
+  const [statistics, setStatistics] = useState<IHomeStatistic[]>(
+    initialData.statistics.length > 0
+      ? initialData.statistics
+      : [{ id: "statistic-1", value: 0, name: "" }]
+  );
+  const [hlVideoTitle, setHlVideoTitle] = useState(initialData.highlightVideoTitle ?? "");
+  const [hlVideoDescription, setHlVideoDescription] = useState(initialData.highlightVideoDescription ?? "");
+  const [hlVideoYoutubeUrl, setHlVideoYoutubeUrl] = useState(initialData.highlightVideoYoutubeUrl ?? "");
+  const [hlVideoThumbnailUrl, setHlVideoThumbnailUrl] = useState(initialData.highlightVideoThumbnailUrl ?? "");
+  const [brandsTitle, setBrandsTitle] = useState(initialData.brandsTitle ?? "");
+  const [certificationsTitle, setCertificationsTitle] = useState(
+    initialData.certificationsTitle ?? ""
+  );
+  // No seeded empty row — the editor's empty state is just the "+ Add logo"
+  // card. The server still requires at least one on save.
+  const [certifications, setCertifications] = useState<IHomeCertification[]>(
+    initialData.certifications
+  );
+  const [featureListTitle, setFeatureListTitle] = useState(initialData.featureListTitle ?? "");
+  const [features, setFeatures] = useState<IHomeFeature[]>(
+    initialData.features.length > 0
+      ? initialData.features
+      : [
+          { id: "feature-1", icon: "", title: "", description: "" },
+          { id: "feature-2", icon: "", title: "", description: "" },
+        ]
+  );
   const [bannerXlUrl, setBannerXlUrl] = useState(initialData.bannerXlUrl ?? "");
   const [bannerXlVideoUrl, setBannerXlVideoUrl] = useState(initialData.bannerXlVideoUrl ?? "");
   const [bannerLgUrl, setBannerLgUrl] = useState(initialData.bannerLgUrl ?? "");
@@ -97,6 +162,22 @@ export function HomePageForm({
 
     startTransition(async () => {
       const formData = new FormData();
+      if (heroHeading.trim()) formData.set("heroHeading", heroHeading.trim());
+      if (heroSubheading.trim()) formData.set("heroSubheading", heroSubheading.trim());
+      if (hasRichTextContent(aboutHeading)) formData.set("aboutHeading", aboutHeading);
+      if (hasRichTextContent(aboutBody)) formData.set("aboutBody", aboutBody);
+      formData.set("aboutLinkButtons", JSON.stringify(aboutLinkButtons));
+      formData.set("statistics", JSON.stringify(statistics));
+      if (hasRichTextContent(hlVideoTitle)) formData.set("highlightVideoTitle", hlVideoTitle);
+      formData.set("highlightVideoDescription", hlVideoDescription.trim());
+      formData.set("highlightVideoYoutubeUrl", hlVideoYoutubeUrl.trim());
+      if (hlVideoThumbnailUrl) formData.set("highlightVideoThumbnailUrl", hlVideoThumbnailUrl);
+      if (hasRichTextContent(featureListTitle)) formData.set("featureListTitle", featureListTitle);
+      formData.set("features", JSON.stringify(features));
+      if (hasRichTextContent(brandsTitle)) formData.set("brandsTitle", brandsTitle);
+      if (hasRichTextContent(certificationsTitle))
+        formData.set("certificationsTitle", certificationsTitle);
+      formData.set("certifications", JSON.stringify(certifications));
       formData.set("bannerXlUrl", bannerXlUrl);
       if (bannerXlVideoUrl) formData.set("bannerXlVideoUrl", bannerXlVideoUrl);
       if (bannerLgUrl) formData.set("bannerLgUrl", bannerLgUrl);
@@ -118,8 +199,10 @@ export function HomePageForm({
 
   return (
     <div className="flex flex-col gap-4">
+      <AdminSectionTitle>Hero</AdminSectionTitle>
+
       <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium">
+        <p className="text-base font-semibold text-brand-red">
           Banner
           <RequiredMark />
         </p>
@@ -203,6 +286,181 @@ export function HomePageForm({
           </label>
         )}
       </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="hero-heading" className="text-base font-semibold text-brand-red">Hero Heading</Label>
+        <Input
+          id="hero-heading"
+          value={heroHeading}
+          onChange={(event) => setHeroHeading(event.target.value)}
+          maxLength={MAX_HOME_HERO_HEADING_LENGTH}
+          placeholder="e.g. Your Complete Medical Aesthetic Partner"
+          disabled={isPending}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="hero-subheading" className="text-base font-semibold text-brand-red">Hero Subheading</Label>
+        <Input
+          id="hero-subheading"
+          value={heroSubheading}
+          onChange={(event) => setHeroSubheading(event.target.value)}
+          maxLength={MAX_HOME_HERO_SUBHEADING_LENGTH}
+          placeholder="e.g. Powering the Future of Your Practice"
+          disabled={isPending}
+        />
+      </div>
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>About Section</AdminSectionTitle>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Heading</span>
+        <MiniRichTextEditor
+          value={aboutHeading}
+          onChange={setAboutHeading}
+          placeholder="e.g. 22 Years of Excellence in Medical Aesthetics"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Body</span>
+        <MiniRichTextEditor
+          mode="body"
+          value={aboutBody}
+          onChange={setAboutBody}
+          placeholder="Since 2004, PT Radian Elok Distriversa has been a cornerstone of..."
+        />
+      </div>
+
+      <LinkButtonsEditor
+        value={aboutLinkButtons}
+        onChange={setAboutLinkButtons}
+        disabled={isPending}
+      />
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>Statistics</AdminSectionTitle>
+
+      <StatisticsEditor value={statistics} onChange={setStatistics} disabled={isPending} />
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>Highlight Video</AdminSectionTitle>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Title</span>
+        <MiniRichTextEditor
+          mode="section-title"
+          value={hlVideoTitle}
+          onChange={setHlVideoTitle}
+          placeholder="Your Strategic Partner in Aesthetic Innovation"
+        />
+        <span className="text-muted-foreground text-xs">
+          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Description</span>
+        <Textarea
+          value={hlVideoDescription}
+          onChange={(event) => setHlVideoDescription(event.target.value)}
+          maxLength={MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH}
+          rows={3}
+          placeholder="Providing elite technology and dedicated service..."
+          disabled={isPending}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">YouTube Link</span>
+        <Input
+          value={hlVideoYoutubeUrl}
+          onChange={(event) => setHlVideoYoutubeUrl(event.target.value)}
+          placeholder="https://www.youtube.com/watch?v=..."
+          disabled={isPending}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Thumbnail</span>
+        <span className="text-muted-foreground -mt-1 text-xs">
+          Optional. A 16:9 poster shown before the video plays — YouTube&apos;s own
+          thumbnail is used if left empty.
+        </span>
+        <div className="w-64">
+          <UploadField
+            kind="image"
+            aspect="video"
+            uploadAction={uploadHomePageHighlightVideoThumbnail}
+            value={hlVideoThumbnailUrl}
+            onChange={(value) => setHlVideoThumbnailUrl((value as string) ?? "")}
+            disabled={isPending}
+          />
+        </div>
+      </div>
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>Feature List</AdminSectionTitle>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Title</span>
+        <MiniRichTextEditor
+          mode="section-title"
+          value={featureListTitle}
+          onChange={setFeatureListTitle}
+          placeholder="Why Choose RED ?"
+        />
+        <span className="text-muted-foreground text-xs">
+          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+        </span>
+      </div>
+
+      <FeaturesEditor value={features} onChange={setFeatures} disabled={isPending} />
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>Brands</AdminSectionTitle>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Heading</span>
+        <MiniRichTextEditor
+          mode="section-title"
+          value={brandsTitle}
+          onChange={setBrandsTitle}
+          placeholder="Meet Our Brands"
+        />
+        <span className="text-muted-foreground text-xs">
+          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+        </span>
+      </div>
+
+      <hr className="my-8 border-t" />
+
+      <AdminSectionTitle>Certifications</AdminSectionTitle>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-base font-semibold text-brand-red">Heading</span>
+        <MiniRichTextEditor
+          mode="section-title"
+          value={certificationsTitle}
+          onChange={setCertificationsTitle}
+          placeholder="Excellence Through Certified Standards"
+        />
+        <span className="text-muted-foreground text-xs">
+          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+        </span>
+      </div>
+
+      <CertificationsEditor
+        value={certifications}
+        onChange={setCertifications}
+        disabled={isPending}
+      />
 
       <div className="flex items-center justify-start gap-3">
         <Button type="button" onClick={handleSave} disabled={isPending || !canSubmit} className="w-32">

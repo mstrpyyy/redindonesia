@@ -16,8 +16,45 @@ import {
   MAX_HOME_BANNER_SIZE,
   MAX_HOME_BANNER_VIDEO_LABEL,
   MAX_HOME_BANNER_VIDEO_SIZE,
+  MAX_HOME_HERO_HEADING_LENGTH,
+  MAX_HOME_HERO_SUBHEADING_LENGTH,
+  MAX_HOME_ABOUT_HEADING_LENGTH,
+  MAX_HOME_ABOUT_BODY_LENGTH,
+  MIN_HOME_ABOUT_LINK_BUTTONS,
+  MAX_HOME_ABOUT_LINK_BUTTONS,
+  MAX_HOME_ABOUT_LINK_BUTTON_HREF_LENGTH,
+  ACCEPTED_HOME_ABOUT_LINK_BUTTON_IMAGE_TYPES,
+  MAX_HOME_ABOUT_LINK_BUTTON_IMAGE_SIZE,
+  MAX_HOME_ABOUT_LINK_BUTTON_IMAGE_LABEL,
+  MIN_HOME_STATISTICS,
+  MAX_HOME_STATISTICS,
+  MIN_HOME_STATISTIC_VALUE,
+  MAX_HOME_STATISTIC_VALUE,
+  MIN_HOME_STATISTIC_NAME_LENGTH,
+  MAX_HOME_STATISTIC_NAME_LENGTH,
+  MAX_HOME_HIGHLIGHT_VIDEO_TITLE_LENGTH,
+  MIN_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
+  MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
+  ACCEPTED_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_TYPES,
+  MAX_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_SIZE,
+  MAX_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_LABEL,
+  MAX_HOME_FEATURE_LIST_TITLE_LENGTH,
+  MIN_HOME_FEATURES,
+  MAX_HOME_FEATURES,
+  MAX_HOME_FEATURE_TITLE_LENGTH,
+  MIN_HOME_FEATURE_DESCRIPTION_LENGTH,
+  MAX_HOME_FEATURE_DESCRIPTION_LENGTH,
+  MAX_HOME_BRANDS_TITLE_LENGTH,
+  MAX_HOME_CERTIFICATIONS_TITLE_LENGTH,
+  MIN_HOME_CERTIFICATIONS,
+  MAX_HOME_CERTIFICATIONS,
+  ACCEPTED_HOME_CERTIFICATION_IMAGE_TYPES,
+  MAX_HOME_CERTIFICATION_IMAGE_SIZE,
+  MAX_HOME_CERTIFICATION_IMAGE_LABEL,
 } from "./limits";
 import { isHomePageSlug, type HomePageSlug } from "@/lib/home-page";
+import { FEATURE_ICON_NAMES } from "@/lib/feature-icons";
+import { hasRichTextContent, getYoutubeVideoId } from "@/lib/utils";
 
 type ActionResult<T> =
   | { success: true; data: T }
@@ -76,6 +113,99 @@ export async function uploadHomePageBannerVideo(formData: FormData): Promise<Act
   }
 }
 
+const linkButtonImageSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Image is required")
+  .refine(
+    (file) => file.size <= MAX_HOME_ABOUT_LINK_BUTTON_IMAGE_SIZE,
+    `Image must be smaller than ${MAX_HOME_ABOUT_LINK_BUTTON_IMAGE_LABEL}`
+  )
+  .refine(
+    (file) => ACCEPTED_HOME_ABOUT_LINK_BUTTON_IMAGE_TYPES.includes(file.type),
+    "Image must be a JPEG, PNG, or WEBP"
+  );
+
+export async function uploadHomePageLinkButtonImage(
+  formData: FormData
+): Promise<ActionResult<{ url: string }>> {
+  const parsed = linkButtonImageSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid image" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, HOME_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the button image." } };
+  }
+}
+
+const certificationImageSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Image is required")
+  .refine(
+    (file) => file.size <= MAX_HOME_CERTIFICATION_IMAGE_SIZE,
+    `Image must be smaller than ${MAX_HOME_CERTIFICATION_IMAGE_LABEL}`
+  )
+  .refine(
+    (file) => ACCEPTED_HOME_CERTIFICATION_IMAGE_TYPES.includes(file.type),
+    "Image must be a PNG or JPG"
+  );
+
+export async function uploadHomePageCertificationLogo(
+  formData: FormData
+): Promise<ActionResult<{ url: string }>> {
+  const parsed = certificationImageSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid image" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, HOME_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the logo." } };
+  }
+}
+
+const highlightVideoThumbnailSchema = z
+  .instanceof(File)
+  .refine((file) => file.size > 0, "Image is required")
+  .refine(
+    (file) => file.size <= MAX_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_SIZE,
+    `Image must be smaller than ${MAX_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_LABEL}`
+  )
+  .refine(
+    (file) => ACCEPTED_HOME_HIGHLIGHT_VIDEO_THUMBNAIL_TYPES.includes(file.type),
+    "Image must be a JPEG, PNG, or WEBP"
+  );
+
+export async function uploadHomePageHighlightVideoThumbnail(
+  formData: FormData
+): Promise<ActionResult<{ url: string }>> {
+  const parsed = highlightVideoThumbnailSchema.safeParse(formData.get("file"));
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid image" },
+    };
+  }
+
+  try {
+    const url = await saveUpload(parsed.data, HOME_BANNER_UPLOAD_FEATURE);
+    return { success: true, data: { url } };
+  } catch {
+    return { success: false, error: { code: "UPLOAD_ERROR", message: "Failed to upload the thumbnail." } };
+  }
+}
+
 // Same "true"/"false" string convention as HomeCarousel's `showSeeMore`
 // (actions.ts's `baseFieldsSchema`) — missing/anything else defaults to false.
 const booleanFlagSchema = z
@@ -83,6 +213,184 @@ const booleanFlagSchema = z
   .transform((value) => value === "true");
 
 const saveHomePageSchema = z.object({
+  heroHeading: z
+    .string()
+    .trim()
+    .max(MAX_HOME_HERO_HEADING_LENGTH, `Hero heading must be ${MAX_HOME_HERO_HEADING_LENGTH} characters or fewer`)
+    .optional(),
+  heroSubheading: z
+    .string()
+    .trim()
+    .max(
+      MAX_HOME_HERO_SUBHEADING_LENGTH,
+      `Hero subheading must be ${MAX_HOME_HERO_SUBHEADING_LENGTH} characters or fewer`
+    )
+    .optional(),
+  aboutHeading: z
+    .string()
+    .trim()
+    .max(MAX_HOME_ABOUT_HEADING_LENGTH, `About section heading is too long`)
+    .optional(),
+  aboutBody: z
+    .string()
+    .trim()
+    .max(MAX_HOME_ABOUT_BODY_LENGTH, `About section body is too long`)
+    .optional(),
+  // Sent as a JSON string from the client (FormData can't carry an array) —
+  // parse it here, then validate the shape. Every entry must be complete;
+  // 1-3 entries total.
+  aboutLinkButtons: z.preprocess(
+    (value) => {
+      if (typeof value !== "string" || value.length === 0) return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return "__invalid__";
+      }
+    },
+    z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          href: z
+            .string()
+            .trim()
+            .min(1, "Every link button needs a link")
+            .max(
+              MAX_HOME_ABOUT_LINK_BUTTON_HREF_LENGTH,
+              `A link button URL must be ${MAX_HOME_ABOUT_LINK_BUTTON_HREF_LENGTH} characters or fewer`
+            ),
+          image: z.string().trim().min(1, "Every link button needs an image"),
+        })
+      )
+      .min(MIN_HOME_ABOUT_LINK_BUTTONS, `Add at least ${MIN_HOME_ABOUT_LINK_BUTTONS} link button`)
+      .max(MAX_HOME_ABOUT_LINK_BUTTONS, `At most ${MAX_HOME_ABOUT_LINK_BUTTONS} link buttons`)
+  ),
+  // Also a JSON string from the client. 1-4 entries, each a positive integer
+  // value (up to 999 billion) and a 2-15 char name.
+  statistics: z.preprocess(
+    (value) => {
+      if (typeof value !== "string" || value.length === 0) return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return "__invalid__";
+      }
+    },
+    z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          value: z
+            .number()
+            .int("A statistic number must be a whole number")
+            .min(MIN_HOME_STATISTIC_VALUE, "Every statistic needs a number")
+            .max(MAX_HOME_STATISTIC_VALUE, "A statistic number can be at most 999 billion"),
+          name: z
+            .string()
+            .trim()
+            .min(MIN_HOME_STATISTIC_NAME_LENGTH, `Every statistic name needs at least ${MIN_HOME_STATISTIC_NAME_LENGTH} characters`)
+            .max(MAX_HOME_STATISTIC_NAME_LENGTH, `A statistic name must be ${MAX_HOME_STATISTIC_NAME_LENGTH} characters or fewer`),
+        })
+      )
+      .min(MIN_HOME_STATISTICS, `Add at least ${MIN_HOME_STATISTICS} statistic`)
+      .max(MAX_HOME_STATISTICS, `At most ${MAX_HOME_STATISTICS} statistics`)
+  ),
+  // Highlight Video — title (rich text, checked for real content below),
+  // description, and YouTube link are all required; thumbnail is optional.
+  highlightVideoTitle: z
+    .string()
+    .trim()
+    .max(MAX_HOME_HIGHLIGHT_VIDEO_TITLE_LENGTH, "Highlight video title is too long")
+    .optional(),
+  highlightVideoDescription: z
+    .string()
+    .trim()
+    .min(
+      MIN_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
+      `Highlight video description needs at least ${MIN_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH} characters`
+    )
+    .max(
+      MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
+      `Highlight video description must be ${MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH} characters or fewer`
+    ),
+  highlightVideoYoutubeUrl: z.string().trim().min(1, "Add the highlight video's YouTube link"),
+  highlightVideoThumbnailUrl: z.string().trim().optional(),
+  // Feature List — title (rich text, checked for real content below) and a
+  // JSON string of 2-8 { id, icon, title, description } entries.
+  featureListTitle: z
+    .string()
+    .trim()
+    .max(MAX_HOME_FEATURE_LIST_TITLE_LENGTH, "Feature list title is too long")
+    .optional(),
+  features: z.preprocess(
+    (value) => {
+      if (typeof value !== "string" || value.length === 0) return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return "__invalid__";
+      }
+    },
+    z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          icon: z.string().refine((name) => FEATURE_ICON_NAMES.includes(name), "Pick an icon"),
+          title: z
+            .string()
+            .trim()
+            .min(1, "Every feature needs a title")
+            .max(MAX_HOME_FEATURE_TITLE_LENGTH, `A feature title must be ${MAX_HOME_FEATURE_TITLE_LENGTH} characters or fewer`),
+          description: z
+            .string()
+            .trim()
+            .min(
+              MIN_HOME_FEATURE_DESCRIPTION_LENGTH,
+              `Every feature description needs at least ${MIN_HOME_FEATURE_DESCRIPTION_LENGTH} characters`
+            )
+            .max(
+              MAX_HOME_FEATURE_DESCRIPTION_LENGTH,
+              `A feature description must be ${MAX_HOME_FEATURE_DESCRIPTION_LENGTH} characters or fewer`
+            ),
+        })
+      )
+      .min(MIN_HOME_FEATURES, `Add at least ${MIN_HOME_FEATURES} features`)
+      .max(MAX_HOME_FEATURES, `At most ${MAX_HOME_FEATURES} features`)
+  ),
+  // Brands section — heading only for now (rich text, checked for real
+  // content below).
+  brandsTitle: z
+    .string()
+    .trim()
+    .max(MAX_HOME_BRANDS_TITLE_LENGTH, "Brands title is too long")
+    .optional(),
+  // Certifications — a heading (rich text, checked below) + a JSON string of
+  // 1-8 { id, image } logo entries.
+  certificationsTitle: z
+    .string()
+    .trim()
+    .max(MAX_HOME_CERTIFICATIONS_TITLE_LENGTH, "Certifications title is too long")
+    .optional(),
+  certifications: z.preprocess(
+    (value) => {
+      if (typeof value !== "string" || value.length === 0) return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return "__invalid__";
+      }
+    },
+    z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          image: z.string().trim().min(1, "Every certification needs a logo image"),
+        })
+      )
+      .min(MIN_HOME_CERTIFICATIONS, `Add at least ${MIN_HOME_CERTIFICATIONS} certification`)
+      .max(MAX_HOME_CERTIFICATIONS, `At most ${MAX_HOME_CERTIFICATIONS} certifications`)
+  ),
   bannerSmUrl: z.string().trim().optional(),
   bannerSmVideoUrl: z.string().trim().optional(),
   bannerMdUrl: z.string().trim().optional(),
@@ -125,6 +433,21 @@ export async function saveHomePage(
   }
 
   const parsed = saveHomePageSchema.safeParse({
+    heroHeading: formData.get("heroHeading") ?? undefined,
+    heroSubheading: formData.get("heroSubheading") ?? undefined,
+    aboutHeading: formData.get("aboutHeading") ?? undefined,
+    aboutBody: formData.get("aboutBody") ?? undefined,
+    aboutLinkButtons: formData.get("aboutLinkButtons") ?? undefined,
+    statistics: formData.get("statistics") ?? undefined,
+    highlightVideoTitle: formData.get("highlightVideoTitle") ?? undefined,
+    highlightVideoDescription: formData.get("highlightVideoDescription") ?? "",
+    highlightVideoYoutubeUrl: formData.get("highlightVideoYoutubeUrl") ?? "",
+    highlightVideoThumbnailUrl: formData.get("highlightVideoThumbnailUrl") ?? undefined,
+    featureListTitle: formData.get("featureListTitle") ?? undefined,
+    features: formData.get("features") ?? undefined,
+    brandsTitle: formData.get("brandsTitle") ?? undefined,
+    certificationsTitle: formData.get("certificationsTitle") ?? undefined,
+    certifications: formData.get("certifications") ?? undefined,
     bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
     bannerSmVideoUrl: formData.get("bannerSmVideoUrl") ?? undefined,
     bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
@@ -144,6 +467,21 @@ export async function saveHomePage(
   }
 
   const {
+    heroHeading,
+    heroSubheading,
+    aboutHeading,
+    aboutBody,
+    aboutLinkButtons,
+    statistics,
+    highlightVideoTitle,
+    highlightVideoDescription,
+    highlightVideoYoutubeUrl,
+    highlightVideoThumbnailUrl,
+    featureListTitle,
+    features,
+    brandsTitle,
+    certificationsTitle,
+    certifications,
     bannerSmUrl,
     bannerSmVideoUrl,
     bannerMdUrl,
@@ -154,6 +492,59 @@ export async function saveHomePage(
     bannerXlVideoUrl,
     bannerVideoUseForSmaller,
   } = parsed.data;
+
+  // An "empty" rich text editor still serializes to `<h2></h2>` — store that
+  // as NULL so the public side's "fall back to hardcoded copy" check is a
+  // plain null check.
+  const aboutHeadingHtml = hasRichTextContent(aboutHeading) ? (aboutHeading as string) : null;
+  const aboutBodyHtml = hasRichTextContent(aboutBody) ? (aboutBody as string) : null;
+  // Normalize to just the fields we persist (drop any extra keys), keeping the
+  // client-supplied `id` as a stable key for the list editor.
+  const aboutLinkButtonsJson = aboutLinkButtons.map((button) => ({
+    id: button.id,
+    href: button.href,
+    image: button.image,
+  }));
+  const statisticsJson = statistics.map((stat) => ({
+    id: stat.id,
+    value: stat.value,
+    name: stat.name,
+  }));
+
+  if (!hasRichTextContent(highlightVideoTitle)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a highlight video title" } };
+  }
+  const highlightVideoId = getYoutubeVideoId(highlightVideoYoutubeUrl);
+  if (!highlightVideoId) {
+    return {
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "That doesn't look like a valid YouTube link" },
+    };
+  }
+  const highlightVideoTitleHtml = highlightVideoTitle as string;
+  const highlightVideoThumbnail = highlightVideoThumbnailUrl || null;
+
+  if (!hasRichTextContent(featureListTitle)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a feature list title" } };
+  }
+  const featureListTitleHtml = featureListTitle as string;
+  const featuresJson = features.map((feature) => ({
+    id: feature.id,
+    icon: feature.icon,
+    title: feature.title,
+    description: feature.description,
+  }));
+
+  if (!hasRichTextContent(brandsTitle)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a brands title" } };
+  }
+  const brandsTitleHtml = brandsTitle as string;
+
+  if (!hasRichTextContent(certificationsTitle)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a certifications title" } };
+  }
+  const certificationsTitleHtml = certificationsTitle as string;
+  const certificationsJson = certifications.map((cert) => ({ id: cert.id, image: cert.image }));
 
   const fallbackError =
     assertVideoHasFallback("Sm", bannerSmUrl, bannerSmVideoUrl) ??
@@ -175,6 +566,21 @@ export async function saveHomePage(
       where: { slug },
       create: {
         slug,
+        heroHeading: heroHeading || null,
+        heroSubheading: heroSubheading || null,
+        aboutHeading: aboutHeadingHtml,
+        aboutBody: aboutBodyHtml,
+        aboutLinkButtons: aboutLinkButtonsJson,
+        statistics: statisticsJson,
+        highlightVideoTitle: highlightVideoTitleHtml,
+        highlightVideoDescription,
+        highlightVideoYoutubeUrl,
+        highlightVideoThumbnailUrl: highlightVideoThumbnail,
+        featureListTitle: featureListTitleHtml,
+        features: featuresJson,
+        brandsTitle: brandsTitleHtml,
+        certificationsTitle: certificationsTitleHtml,
+        certifications: certificationsJson,
         bannerSmUrl: bannerSmUrl || null,
         bannerSmVideoUrl: bannerSmVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,
@@ -186,6 +592,21 @@ export async function saveHomePage(
         bannerVideoUseForSmaller: videoUseForSmaller,
       },
       update: {
+        heroHeading: heroHeading || null,
+        heroSubheading: heroSubheading || null,
+        aboutHeading: aboutHeadingHtml,
+        aboutBody: aboutBodyHtml,
+        aboutLinkButtons: aboutLinkButtonsJson,
+        statistics: statisticsJson,
+        highlightVideoTitle: highlightVideoTitleHtml,
+        highlightVideoDescription,
+        highlightVideoYoutubeUrl,
+        highlightVideoThumbnailUrl: highlightVideoThumbnail,
+        featureListTitle: featureListTitleHtml,
+        features: featuresJson,
+        brandsTitle: brandsTitleHtml,
+        certificationsTitle: certificationsTitleHtml,
+        certifications: certificationsJson,
         bannerSmUrl: bannerSmUrl || null,
         bannerSmVideoUrl: bannerSmVideoUrl || null,
         bannerMdUrl: bannerMdUrl || null,

@@ -42,7 +42,7 @@ const menuList = [
   },
   {
     href: '/about',
-    text: 'About'
+    text: 'Our Story'
   },
   {
     href: '/media',

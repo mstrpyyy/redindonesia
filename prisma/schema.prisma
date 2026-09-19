@@ -358,6 +358,21 @@ model GalleriesPage {
 model HomePage {
   id                       String   @id @default(cuid())
   slug                     String   @unique
+  heroHeading              String? // plain text shown over the hero (ADR-096); public hero keeps its hardcoded copy as the fallback
+  heroSubheading           String? // plain text line under heroHeading (ADR-096)
+  aboutHeading             String? // single-<h2> rich text HTML for the About section title (ADR-097); public keeps its hardcoded copy as the fallback
+  aboutBody                String? // paragraph rich text HTML for the About section body (ADR-097); public keeps its hardcoded copy as the fallback
+  aboutLinkButtons         Json    @default("[]") // array of { id, href, image } — the image-as-button links on the About section (ADR-097)
+  statistics               Json    @default("[]") // array of { id, value, name } — the animated stat counters (ADR-098)
+  highlightVideoTitle         String? // section-title rich text HTML — one <h3> with accent spans — for the Highlight Video section (ADR-100)
+  highlightVideoDescription   String? // plain text under the highlight video title
+  highlightVideoYoutubeUrl    String? // the highlight video's YouTube URL
+  highlightVideoThumbnailUrl  String? // optional uploaded poster for the highlight video
+  featureListTitle            String? // section-title rich text HTML (one <h3>, accent spans) for the Feature List / "Why Choose Us" section (ADR-101)
+  features                    Json    @default("[]") // array of { id, icon, title, description } — the Feature List items (ADR-101)
+  brandsTitle                 String? // section-title rich text HTML (one <h3>, accent spans) for the Brands section heading
+  certificationsTitle         String? // section-title rich text HTML (one <h3>, accent spans) for the Certifications section heading
+  certifications              Json    @default("[]") // array of { id, image } — the certification logo images (max 8)
   bannerSmUrl              String? // 1080x1920 — mobile portrait, smallest, nothing to cascade to
   bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
   bannerMdUrl              String? // 1080x1440 — tablet portrait

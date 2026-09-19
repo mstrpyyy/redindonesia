@@ -38,6 +38,10 @@ export default function AOSProvider() {
     return () => {
       window.removeEventListener('load', init)
       document.removeEventListener('click', handleAnchorClick)
+      // Never leave the scroll-lock class on <body> (e.g. navigating away
+      // before `load` fires) — it would turn <body> into a scroll container
+      // and break `position: sticky` elsewhere.
+      document.body.classList.remove('overflow-hidden')
     }
   }, [])
 

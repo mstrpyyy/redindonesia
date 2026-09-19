@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { IArticle } from "@/interfaces/general";
 import { deleteArticle, updateArticleStatus } from "./editor/actions";
 
@@ -212,7 +213,7 @@ export function ArticleTable({ articles }: { articles: IArticle[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Article List</h2>
+        <AdminSectionTitle>Article List</AdminSectionTitle>
         <Button asChild>
           <Link href="/admin/media/articles/editor">
             <Plus className="size-4" /> Create article

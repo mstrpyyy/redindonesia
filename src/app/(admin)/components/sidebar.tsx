@@ -142,7 +142,7 @@ export const Sidebar = () => {
   }
 
   return (
-    <aside className="w-64 h-screen flex flex-col sticky top-0 self-start shrink-0">
+    <aside className="relative w-64 h-full flex flex-col shrink-0">
       <div className="absolute top-0 bottom-0 right-0 w-[2px] bg-border" />
       <div className="w-36 mx-auto shrink-0">
         <Link href="/admin">

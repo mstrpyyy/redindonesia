@@ -50,6 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { ISocialAccount } from "@/interfaces/general";
 import { deleteSocialAccount, reorderSocialAccounts } from "./actions";
 import { SocialAccountForm } from "./social-account-form";
@@ -249,7 +250,7 @@ export function SocialAccountTable({ accounts }: { accounts: ISocialAccount[] })
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Social Media List</h2>
+        <AdminSectionTitle>Social Media List</AdminSectionTitle>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button>

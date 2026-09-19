@@ -3,6 +3,8 @@ import { Navbar } from "./components/navbar/Navbar";
 import { Footer } from "./components/Footer";
 import SplashScreen from "./components/SplashScreen";
 import CanvasCursor from "./components/CanvasCursor";
+import DisableContextMenu from "./components/DisableContextMenu";
+import AOSProvider from "@/providers/AosProvider";
 import { buildNavMenus } from "@/lib/data";
 import {
   getPublicDeviceCategoryTree,
@@ -46,13 +48,15 @@ export default async function userLayout({
   );
 
   return (
-    <>
+    <div className="select-none">
+      <AOSProvider />
+      <DisableContextMenu />
       <SplashScreen />
       <CanvasCursor />
       <Navbar menus={menus} />
       {children}
       <Footer />
-    </>
+    </div>
   );
 }
 

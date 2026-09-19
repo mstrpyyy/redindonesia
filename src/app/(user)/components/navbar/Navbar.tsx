@@ -80,7 +80,7 @@ export const Navbar = ({ menus }: { menus: INavbarMenu[] }) => {
          alt="logo" 
          width={362} 
          height={91} 
-         className={`${isWhiteNav ? 'w-32' : 'w-32 lg:w-48'}`} 
+         className={`${isWhiteNav ? 'w-32' : 'w-32 lg:w-48'}`}
        />
       </Link>
 

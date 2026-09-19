@@ -47,6 +47,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { DEFAULT_HERO_TEXT_COLOR } from "@/lib/hero-text-colors";
 import { HeroTextColorPicker } from "./hero-text-color-picker";
 import { ICategory } from "@/interfaces/general";
@@ -967,7 +968,7 @@ export function CategoryTree({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">{title}</h2>
+        <AdminSectionTitle>{title}</AdminSectionTitle>
         <Button onClick={() => setAddTarget({ parentId: null, label: `Add ${title.toLowerCase()} category` })}>
           <Plus className="size-4" /> Add category
         </Button>

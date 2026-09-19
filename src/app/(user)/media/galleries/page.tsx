@@ -1,9 +1,16 @@
+import type { Metadata } from 'next'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '../../components/BodyWrapper'
 import { GalleryViewer } from '../../components/GalleryViewer'
 import { getGalleries } from '@/lib/galleries'
 import { getGalleriesPage } from '@/lib/galleries-page'
+
+export const metadata: Metadata = {
+  title: 'Galleries',
+  description:
+    'Photo galleries from events, trainings, and activities by PT. Radian Elok Distriversa.',
+}
 
 // Only the first 6 image paths per gallery are sent to the client on initial
 // render — GalleryViewer fetches the rest on demand (opening the lightbox or

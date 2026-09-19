@@ -4680,3 +4680,310 @@ required unless they want to add responsive sizes or video. The two
 catch-all routes' `generateMetadata` and `ProductPageView` each independently
 call `resolveHeroBannerXlUrl` — a third caller needing the same fallback
 should do the same rather than re-deriving it inline.
+
+## ADR-096: Homepage hero heading/subheading become CMS text fields
+
+**Date:** 2026-08-29
+**Status:** Accepted
+
+**Context:** The homepage hero (`src/app/(user)/(homepage)/(sections)/Hero.tsx`)
+has a hardcoded headline ("Your Complete Medical Aesthetic Partner") and
+subline ("Powering the Future of Your Practice"). The homepage is being made
+CMS-editable one section at a time; the hero text is the first piece. Only the
+admin input is in scope here — wiring the public hero to read these values is a
+later step.
+
+**Options considered:**
+1. Two nullable `String` columns on the existing `HomePage` model
+   (`heroHeading`, `heroSubheading`), edited in the same `HomePageForm` that
+   already owns the hero banner. Pros: one row, one form, one save action
+   already exists (`saveHomePage` upserts by slug); matches how `Category`
+   keeps `title`/`description` next to its banner. Cons: a tiny migration.
+2. A generic key/value "site text" table. Rejected — no other caller needs it,
+   and it trades a two-column migration for an untyped indirection layer
+   against this project's "no speculative generality" precedent (ADR-020 etc.).
+
+**Decision:** Option 1. Both fields optional (`String?`), length-capped in
+`limits.ts` (`MAX_HOME_HERO_HEADING_LENGTH` 120, `MAX_HOME_HERO_SUBHEADING_LENGTH`
+200), validated server-side in `saveHomePageSchema` and persisted in the same
+`homePage.upsert`. Migration `20260829000000_add_home_page_hero_text`. The
+`HomePageForm` renders them as two plain `Input`s under the "Hero" heading,
+above the banner table.
+
+**Consequences:** `bannerXlUrl` stays the only required field on the form —
+blank heading/subheading save as `NULL`. The public hero still shows its
+hardcoded copy until a follow-up task reads `heroHeading`/`heroSubheading` and
+falls back to the current strings when they're null. No change to the
+`revalidatePath("/")` already fired by `saveHomePage`.
+
+## ADR-097: Homepage About-section CMS fields — constrained rich text (`MiniRichTextEditor`) + a link-buttons list
+
+**Date:** 2026-08-29
+**Status:** Accepted
+
+**Context:** Next slice of the homepage CMS buildout (after ADR-096). The
+About section on the public homepage (`(homepage)/(sections)/About.tsx`) is a
+two-tone `<h2>` title ("22 Years" in brand red + oversized, then the rest), a
+supporting paragraph, and a column of 3 image-as-button links (the "who /
+what / work" tiles). The client needs to edit all three from the CMS — the
+heading with its inline colour/size emphasis, the body as normal paragraph
+copy, and the buttons as a short list of image + destination. Only the admin
+inputs are in scope here; wiring `About.tsx` is a later slice.
+
+**Options considered:**
+1. Plain text columns like `heroHeading` (ADR-096). Rejected — can't express
+   the per-run colour/size the heading design depends on.
+2. The full `RichTextEditor` for both. Rejected — headings toggle, lists,
+   links, images, tables, alignment, highlight, bold: overwhelming for a
+   title + one paragraph, and it lets the admin produce structurally wrong
+   output. It also loads Table/Image extensions these fields never need.
+3. One combined heading+body editor. Rejected — the toolbar is global, so
+   "font size allowed in the H2, not in the body" would mean enabling/
+   disabling the size control based on cursor position, and keeping "exactly
+   one H2 then paragraphs" needs schema gymnastics the admin can still break.
+4. A new `MiniRichTextEditor` with two modes:
+   - `"heading"`: doc schema locked to one `heading` node
+     (`Document.extend({ content: "heading" })` + `Heading` level 2), Enter
+     remapped to a `<br>` within it (never a new block), toolbar = italic /
+     underline / text colour / font size (Normal + Large only — the heading
+     is already `.h2-format` bold, so no bold control), editable area styled
+     `.h2-format`. Output is always exactly `<h2>…</h2>`.
+   - `"body"`: normal `Document` + `Paragraph` (Enter starts a new
+     paragraph), no `Heading` extension at all, toolbar = bold / italic /
+     underline / text colour — **no font size**, so the copy stays at the
+     `.p-format` scale the editable area is styled with. Output is
+     `<p>…</p>` blocks.
+
+**Decision:** Option 4 for the text. Two fields, two modes of one small
+component — the per-field toolbar rule (size on the heading, not the body)
+falls out for free, and neither field's structure can be broken. Stored in
+two new nullable columns, `HomePage.aboutHeading` (migration
+`20260829010000_add_home_page_about_heading`) and `HomePage.aboutBody`
+(migration `20260829020000_add_home_page_about_body`), capped at
+`MAX_HOME_ABOUT_HEADING_LENGTH` (2000) / `MAX_HOME_ABOUT_BODY_LENGTH` (6000)
+chars of raw HTML and validated server-side. An empty editor serializes to
+`<h2></h2>` / `<p></p>`; the action normalizes those to `NULL` via
+`hasRichTextContent` so the public fallback check stays a plain null check.
+The shared toolbar option lists (`TEXT_COLORS`, `FONT_SIZES`) moved to
+`src/components/rich-text-constants.ts` so the mini and full editors can't
+diverge. Eight `@tiptap/extension-*` sub-packages (`document`, `heading`, `paragraph`,
+`text`, `hard-break`, `bold`, `italic`, `history`) were added to
+`package.json` — all already resolved in the lockfile as transitive deps of
+`@tiptap/starter-kit` at the same 2.27.2, so `npm install` fetches nothing.
+
+The link buttons are a `Json` column `HomePage.aboutLinkButtons`
+(`@default("[]")`, migration `20260829030000_add_home_page_about_link_buttons`)
+holding an array of `{ id, href, image }` — same "JSON array on the row,
+no join table" call as `HomeCarousel.items` (ADR-066), since it's a fixed
+1–3 list with no per-item metadata. Edited as horizontally-stacked cards
+(`link-buttons-editor.tsx`, no drag reorder — a 3-item list doesn't need
+it): one card per button (image `UploadField` + URL `Input`, trash badge at
+the top-right corner, disabled at the 1-button minimum), followed by a
+dashed "add" card that disappears once 3 exist. Images upload
+immediately via a dedicated `uploadHomePageLinkButtonImage` action (1MB,
+JPEG/PNG/WEBP, into the existing `home-page` upload folder). Server-validated
+at 1–3 complete entries; the form seeds one empty row (deterministic id, so
+SSR/hydration match) when the stored list is empty.
+
+**Consequences:** There is now a second, deliberately minimal rich text
+editor with a `mode` prop. Other homepage CMS slices that need a
+styled-but-constrained heading or body should reuse `MiniRichTextEditor`
+(add a mode if a new shape is needed) rather than adding toolbar-filtering
+props to the full one. Admin-authored HTML is rendered trusted (no
+sanitizer), consistent with ADR-039 and the article/category render paths.
+`aboutLinkButtons` is now a required part of the homepage form (min 1) — an
+admin can't save the page without at least one button once this ships;
+`getHomePage` parses the JSON defensively (`parseAboutLinkButtons`) so a
+malformed row degrades to an empty list rather than throwing. A follow-up
+slice wired the public `AboutHomeSection` to `aboutHeading`/`aboutBody`/
+`aboutLinkButtons` — the stored HTML renders via `dangerouslySetInnerHTML`
+(heading unwrapped into `<h2 className="h2-format">`, body inside
+`<div className="p-format rich-body">`), the link buttons replace the
+hardcoded tiles, and every element falls back to its original JSX when its
+field is null/empty.
+
+## ADR-098: Homepage statistics counters are a `Json` list on `HomePage`
+
+**Date:** 2026-08-29
+**Status:** Accepted
+
+**Context:** Continuing the homepage CMS buildout. The public homepage's
+animated stat band (`StatCounter`, `(homepage)/(sections)/StatCounter.tsx`)
+is a hardcoded `statList` of 4 `{ name, value }` pairs. The client needs to
+edit those from the CMS — the number and its label, 1 to 4 of them. Admin
+input only here; wiring `StatCounter` is a later slice.
+
+**Options considered:**
+1. Four fixed `numberN`/`labelN` column pairs on `HomePage`. Rejected —
+   rigid, and "1 to 4, add/remove" is naturally a list.
+2. A separate `HomeStatistic` model + rows. Rejected — a fixed ≤4 list with
+   no per-row metadata or relations doesn't earn a table (same call as
+   `HomeCarousel.items` / `aboutLinkButtons`).
+3. A `Json` column `HomePage.statistics` (`@default("[]")`, migration
+   `20260829040000_add_home_page_statistics`) holding `{ id, value, name }[]`.
+
+**Decision:** Option 3. Edited with `statistics-editor.tsx` — the exact card
+layout `link-buttons-editor.tsx` established (1–4 cards, trash badge disabled
+at the minimum, a dashed "add" card that hides at the max), each card a
+numeric `Input` + a name `Input`. `value` is a positive integer 1 –
+999,000,000,000 (`MAX_HOME_STATISTIC_VALUE`); the editor keeps only digits,
+clamps to the max, and treats `0` as "empty" (blank field) which the server
+rejects as below the minimum. `name` is 2–15 chars. Server-validated at 1–4
+complete entries; the form seeds one empty card (deterministic id) when the
+stored list is empty. `getHomePage` parses the JSON defensively
+(`parseStatistics`).
+
+**Consequences:** `statistics` joins `aboutLinkButtons` as a required part of
+the homepage form (min 1) — the page can't be saved without at least one
+complete statistic. The `StatCounter` count-up animation and its
+digit-padding / formatting logic will need revisiting for values far larger
+than the current max of 1000 when the public wiring slice lands.
+
+## ADR-099: Every dynamic homepage element falls back to "-", and `getHomePage` never throws
+
+**Date:** 2026-08-29
+**Status:** Accepted (supersedes the "fall back to the original hardcoded
+JSX" consequences of ADR-096, ADR-097, ADR-098)
+
+**Context:** As the homepage sections were wired to the CMS (`HomePage`
+row), each kept its pre-CMS hardcoded copy as the fallback for a null/empty
+field. The client wants the opposite: if a dynamic homepage element has no
+data — because it's unconfigured, blank, or the DB read failed in prod — it
+should render a plain "-", never stale hardcoded content and never a blank
+gap. The homepage must also not 500 over CMS content.
+
+**Decision:**
+- One shared constant `HOMEPAGE_EMPTY_PLACEHOLDER = "-"`, defined in a
+  prisma-free `src/lib/home-page-constants.ts` (so the client `StatCounter`
+  can import it without pulling the DB layer into the browser bundle) and
+  re-exported from `src/lib/home-page.ts` for server consumers. Every dynamic
+  homepage element renders it when its value is missing/empty: the hero
+  heading (a single "-" word through `RevealText`) and subheading, the About
+  heading, the About body, the About link buttons (the whole menu column),
+  and the `StatCounter` cells (number and name).
+- The pre-CMS hardcoded arrays/copy (`aboutMenuList`, the two-tone `<h2>`
+  spans, the fixed `statList`) are deleted, not kept as fallbacks.
+- `getHomePage` wraps its Prisma read in try/catch → a failed query resolves
+  to the same all-empty `IHomePage` a missing row already produced, so the
+  "-" fallbacks cover a DB outage too. Same spirit as ADR-050's navbar
+  fallback.
+- The banner is out of scope — it's a required field with its own static
+  image fallback (ADR-082), and "-" can't stand in for a background image.
+
+**Consequences:** An unconfigured or blank homepage looks visibly
+unfinished (rows of "-") rather than showing plausible-but-fake defaults —
+which is the point: it signals "fill this in". The server already requires
+≥1 link button and ≥1 statistic, so those "-" states are only reachable
+before the first successful save or during a DB outage. `StatCounter` was
+also rewritten in this pass: it takes a `stats` prop, animates `toLocaleString`-
+formatted counts (dropping the old leading-zero `padStart` heuristic, which
+made no sense past four digits), and shows a single "-" cell when the list
+is empty.
+
+## ADR-100: Brand-accent words in section titles use a semantic `accent` mark, not a colour picker; Highlight Video is 4 `HomePage` columns
+
+**Date:** 2026-08-29
+**Status:** Accepted
+
+**Context:** Several homepage sections have a title where a few words are the
+brand red (the About heading, the Highlight Video title, etc.). The About
+heading currently uses `MiniRichTextEditor`'s `"heading"` mode, whose colour
+picker lets the admin choose any hex — off-brand reds included — and stores
+`style="color:#…"` inline, which a rebrand can't follow. The new Highlight
+Video section needs the same "some words are red" title.
+
+**Options considered:**
+1. Keep the free colour picker. Rejected — no guardrails, inconsistent reds,
+   inline hex that a rebrand orphans.
+2. Restrict the colour control to a fixed Default / Brand-Red toggle. Better,
+   but still emits inline `style="color"`.
+3. A semantic `accent` mark: a custom Tiptap `Mark`
+   (`src/components/tiptap-accent.ts`) that renders `<span class="heading-accent">`,
+   coloured by `.heading-accent { color: var(--color-brand-red) }` in
+   globals.css. A new `MiniRichTextEditor` mode `"section-title"` exposes
+   exactly one control — an "Accent" toggle — on a single-heading shape like
+   `"heading"`, but rendering `<h3>` at `.h3-format` (a section title inside
+   a section sits below the section's own `<h2>`).
+
+**Decision:** Option 3. On-brand by construction, one-click for the admin,
+class-not-hex so a rebrand changes one token, and clean portable HTML. The
+`"heading"` mode (free colour + Normal/Large size) stays for the About
+heading for now — no migration in this pass — but new accent-title sections
+use `"section-title"`, and the About heading can move later.
+
+The **Highlight Video** section is stored as four nullable `HomePage`
+columns (migration `20260829050000_add_home_page_highlight_video`), not a
+Json blob — it's a single fixed object, matching the codebase's
+one-column-per-scalar style (`hero*`, `about*`):
+`highlightVideoTitle` (section-title rich text HTML), `highlightVideoDescription`
+(plain text), `highlightVideoYoutubeUrl`, `highlightVideoThumbnailUrl`
+(optional). Title / description / YouTube link are required on save (the
+YouTube link is validated through `getYoutubeVideoId`); thumbnail is
+optional and falls back to YouTube's own poster. The public `VideoHomeSection`
+renders through `YoutubeEmbed` (lazy poster + click-to-play) instead of the
+old always-loaded `<iframe>`, and every field follows the ADR-099 "-"
+fallback (the video slot shows a "-" placeholder box when the URL is
+missing/invalid).
+
+**Consequences:** `MiniRichTextEditor` now has three modes
+(`heading` = `<h2>`/`.h2-format` + colour/size, `section-title` = `<h3>`/
+`.h3-format` + Accent only, `body` = `<p>`/`.p-format`), each a fixed
+toolbar — still no per-call toolbar-config props. The Highlight Video section joins the growing list of
+required homepage-form content (banner, ≥1 link button, ≥1 statistic, now the
+video) — the form is getting demanding; if that friction bites, individual
+sections can be relaxed to optional-with-"-".
+
+## ADR-101: Feature List ("Why Choose Us") section — curated icon set stored by name
+
+**Date:** 2026-08-29
+**Status:** Accepted
+
+**Context:** The homepage's "Why Choose RED?" block (`ChooseUsHomeSection`) is
+a hardcoded list of 6 items, each a lucide icon + an uppercase title + a
+paragraph. It needs a CMS. The generic UI pattern is a **Feature List** (icon
++ title + description, repeated) — that's the reusable name for the section
+type; the homepage instance is just titled "Why Choose RED?".
+
+**Options considered for the per-item icon:**
+1. Free lucide search over all ~1500 icons. Rejected — bundle bloat (or a
+   lazy-load layer), and the admin can pick anything, including off-theme
+   icons that break the visual rhythm.
+2. Per-item SVG/PNG upload. Rejected — SVG XSS surface, inconsistent
+   stroke/size/colour, no brand-red tinting, file management.
+3. A curated set (~30 icons relevant to trust / network / support / training
+   / warranty), shown in a dropdown, stored by kebab-case name.
+
+**Decision:** Option 3. `src/lib/feature-icons.ts` holds one
+`FEATURE_ICONS: Record<string, LucideIcon>` map (the 6 currently used plus
+~24 on-theme), read by both the admin picker and the public renderer — so
+only those icons enter the bundle. The DB stores the key string; the server
+action validates it against `FEATURE_ICON_NAMES`; the renderer
+(`resolveFeatureIcon`) falls back to `DEFAULT_FEATURE_ICON` for an unknown
+key. Icon **presentation is fixed in the renderer** (`size={40}`
+`strokeWidth={2}` `text-brand-red`) — the admin picks *which* icon, never its
+size or colour. Adding an option later is a one-line push to the map.
+
+Stored as: `HomePage.featureListTitle` (section-title rich text HTML, one
+`<h3>` with accent spans — same editor as the Highlight Video title) and
+`HomePage.features` (`Json` `@default("[]")`, `{ id, icon, title,
+description }[]`, 2–8 entries), migration
+`20260829060000_add_home_page_feature_list`. The admin editor is a vertical
+list of cards: an icon picker + title on the top row, a description textarea
+below. The icon picker is a swatch-style `Popover` — a 3-wide grid of the
+curated icons (all shown in brand red, the selected one ringed); its trigger
+shows just the chosen icon, or the word "Icon" while unset. Title required on
+save; each feature needs an icon, a title (≤60), and a 2–400 char description.
+
+**Deliberately "unlinked" heading scale:** the section-title editor previews
+the title at `.h3-format`, but `ChooseUsHomeSection` renders it into an
+`<h2 className="h2-format">` (this section's heading sits at the page's h2
+level, unlike the Highlight Video sub-heading). The stored HTML is an `<h3>`
+either way — `unwrapHeading` strips the wrapper, so the level mismatch is
+purely a preview-vs-public scale difference the client accepted.
+
+**Consequences:** `MiniRichTextEditor`'s `section-title` mode now serves two
+sections at different public scales — fine, since the wrapper tag is stripped
+on render. `features` joins the required homepage-form content (banner, ≥1
+link button, ≥1 statistic, the video, now ≥2 features). Per ADR-099 every
+field falls back to "-". If a future Feature List instance needs a different
+icon vocabulary, `feature-icons.ts` is the single place to extend.

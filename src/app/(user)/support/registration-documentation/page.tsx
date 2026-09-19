@@ -1,9 +1,16 @@
+import type { Metadata } from 'next'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
 import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { getSupportPage } from '@/lib/support-pages'
 import { hasRichTextContent } from '@/lib/utils'
+
+export const metadata: Metadata = {
+  title: 'Registration & Documentation',
+  description:
+    'Product registration and documentation support for medical aesthetic and laser devices distributed by PT. Radian Elok Distriversa.',
+}
 
 export default async function SupportRegistrationDocumentation() {
   const page = await getSupportPage('registration-documentation')

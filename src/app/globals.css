@@ -58,11 +58,15 @@
 
 html {
   scroll-padding-top: 80px;
-  overflow-x: hidden;
+  /* `clip`, not `hidden` — `overflow-x: hidden` forces `overflow-y` to compute
+     as `auto`, turning html/body into scroll containers, which breaks
+     `position: sticky` (the admin sidebar). `clip` suppresses the horizontal
+     scrollbar without establishing a scroll box. */
+  overflow-x: clip;
 }
 
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 :root {
@@ -277,11 +281,57 @@ body {
 }
 
 .h1-format {
-  @apply text-4xl md:text-6xl xl:text-7xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
+  @apply text-4xl md:text-6xl xl:text-7xl font-bold leading-10 sm:leading-9 md:leading-15 xl:leading-18 text-pretty;
 }
 
 .h2-format {
   @apply text-3xl sm:text-4xl xl:text-5xl font-bold leading-10 sm:leading-12 xl:leading-16 text-pretty;
+}
+
+/* The "Accent" mark from MiniRichTextEditor's "section-title" mode (ADR-100) —
+   a run of a section title in the brand red, via the token so a rebrand
+   needs no content edits. Same class in the editor preview and the public
+   render of the stored HTML. */
+.heading-accent {
+  color: var(--color-brand-red);
+}
+
+/* MiniRichTextEditor (ADR-097). Two places carry these rules: the editor's
+   own contenteditable preview (`.mini-rich-text-editor` / `.mini-rich-text-body`)
+   and the public render of the stored HTML (`.rich-body`, paired with
+   `.p-format` on the same element). Both put `.h2-format` / `.p-format` on
+   the wrapper, so the nodes inside should just inherit that scale — not the
+   browser default heading/paragraph sizing and margins. */
+.mini-rich-text-editor h2,
+.mini-rich-text-editor h3 {
+  font: inherit;
+  margin: 0;
+  color: inherit;
+}
+.mini-rich-text-body p,
+.rich-body p {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+.mini-rich-text-body p + p,
+.rich-body p + p {
+  margin-top: 0.75em;
+}
+/* `.p-format` is `font-light` (300); the UA `font-weight: bolder` on
+   <strong>/<b> only bumps that to 400, which reads as normal (same problem
+   `.tiptap-content-category p strong` solves lower in this file). Force an
+   explicit weight so bold text actually reads as bold — both in the editor
+   preview and in the public render. */
+.mini-rich-text-body strong,
+.mini-rich-text-body b,
+.mini-rich-text-body p strong,
+.mini-rich-text-body p b,
+.rich-body strong,
+.rich-body b,
+.rich-body p strong,
+.rich-body p b {
+  font-weight: 600;
 }
 
 .h2-md-format {

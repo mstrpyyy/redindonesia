@@ -232,6 +232,39 @@ export interface ICarouselItem {
   productId?: string | null
 }
 
+// One image-as-button link on the homepage About section (ADR-097). `id` is
+// a stable key for the admin list editor; `image` is an uploaded URL, `href`
+// the destination (relative or absolute).
+export interface IHomeAboutLinkButton {
+  id: string
+  href: string
+  image: string
+}
+
+// One animated stat counter on the homepage (ADR-098). `value` is a positive
+// integer (1 to 999 billion); `name` is its 2–15 char label.
+export interface IHomeStatistic {
+  id: string
+  value: number
+  name: string
+}
+
+// One item in the homepage Feature List / "Why Choose Us" section (ADR-101).
+// `icon` is a kebab-case key from `FEATURE_ICONS` (src/lib/feature-icons.ts).
+export interface IHomeFeature {
+  id: string
+  icon: string
+  title: string
+  description: string
+}
+
+// One certification logo on the homepage Certifications section. `image` is
+// an uploaded URL; there's no alt/name field (image only).
+export interface IHomeCertification {
+  id: string
+  image: string
+}
+
 // See ADR-066. "category" mode derives title/items/seeMoreUrl live from
 // `categoryId` at render time — `title`/`seeMoreUrl`/`items` are unused in
 // that mode. "custom" mode uses `title`/`seeMoreUrl`/`items` directly and

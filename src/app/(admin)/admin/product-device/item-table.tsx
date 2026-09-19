@@ -37,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { ICategory, IProductListItem, ITag } from "@/interfaces/general";
 import { deleteProduct, reorderProducts, updateProductStatus } from "./product-actions";
 import { ItemFilterBar } from "./item-filter-bar";
@@ -275,7 +276,7 @@ export function ItemTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">{title}</h2>
+        <AdminSectionTitle>{title}</AdminSectionTitle>
         <Button asChild>
           <Link href={`${editorBasePath}?type=${type}`}>
             <Plus className="size-4" /> Add {type}

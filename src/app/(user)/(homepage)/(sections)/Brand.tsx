@@ -6,8 +6,10 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import Marquee from 'react-fast-marquee'
 import { useInView } from 'react-intersection-observer'
+import { unwrapHeadingHtml } from '@/lib/utils'
+import { HOMEPAGE_EMPTY_PLACEHOLDER } from '@/lib/home-page-constants'
 
-export const BrandHomeSection = () => {
+export const BrandHomeSection = ({ title }: { title: string | null }) => {
    const { ref: brandRef, inView: brandFullyVisible } = useInView({
     threshold: 1,
   })
@@ -46,10 +48,16 @@ export const BrandHomeSection = () => {
         }
       `}
     >
-      <h2 className="h2-format title-limiter text-center mb-10 px-10">
-        Meet Our{' '}
-        <span className="text-brand-red">Brands</span>
-      </h2>
+      {title ? (
+        <h2
+          className="h2-format title-limiter text-center mb-10 px-10"
+          dangerouslySetInnerHTML={{ __html: unwrapHeadingHtml(title) }}
+        />
+      ) : (
+        <h2 className="h2-format title-limiter text-center mb-10 px-10">
+          {HOMEPAGE_EMPTY_PLACEHOLDER}
+        </h2>
+      )}
 
       <Marquee
         autoFill

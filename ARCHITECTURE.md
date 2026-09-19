@@ -212,7 +212,42 @@ The application follows a **hybrid data architecture**:
   - `HomePage` — the homepage hero banner, upsert-by-fixed-slug (currently
     just `"home"`, `HOME_PAGE_SLUGS` in `src/lib/home-page.ts`), managed on
     the admin Homepage → "Content" page (renamed from "Carousel", see
-    ADR-082) above the `HomeCarousel` list. Four banner sizes rather than
+    ADR-082) above the `HomeCarousel` list. Also carries optional
+    `heroHeading`/`heroSubheading` plain-text fields (ADR-096, wired to the
+    public hero — heading split into `RevealText` words) and the About
+    section's `aboutHeading` (single-`<h2>`
+    rich text HTML) + `aboutBody` (paragraph rich text HTML), both edited
+    with `MiniRichTextEditor` (`src/components/mini-rich-text-editor.tsx`,
+    `mode="heading"|"body"`), plus `aboutLinkButtons` — a `Json` array of
+    `{ id, href, image }` (1–3 image-as-button links,
+    `link-buttons-editor.tsx`), all ADR-097 — and `statistics`, a `Json`
+    array of `{ id, value, name }` (1-4 animated counters,
+    `statistics-editor.tsx`, ADR-098), and the Highlight Video section
+    (`highlightVideoTitle` — `MiniRichTextEditor` `"section-title"` mode: an
+    `<h3>` at `.h3-format` with an "Accent" toggle that marks brand-red runs
+    as `<span class="heading-accent">` instead of an inline hex;
+    `highlightVideoDescription`,
+    `highlightVideoYoutubeUrl`, `highlightVideoThumbnailUrl` — ADR-100), and
+    the Feature List / "Why Choose Us" section (`featureListTitle` —
+    `section-title` mode, previewed at `.h3-format` but rendered at
+    `.h2-format`; `features` — `Json` `{ id, icon, title, description }[]`,
+    `icon` a key into the curated `FEATURE_ICONS` map in
+    `src/lib/feature-icons.ts` — ADR-101), the Brands section heading
+    (`brandsTitle` — `section-title` mode, previewed at `.h3-format`,
+    rendered at `.h2-format`; the marquee content itself is still the static
+    `brandList`), and the Certifications section (`certificationsTitle` —
+    `section-title` mode; `certifications` — `Json` `{ id, image }[]`, up to
+    8 logo images, PNG/JPG only, no alt field so they render `alt=""`).
+    `AboutHomeSection`, `StatCounter`, `VideoHomeSection`,
+    `ChooseUsHomeSection`, `BrandHomeSection`'s heading, and
+    `CredibilityHomeSection` are all wired to the public homepage; the
+    stored rich text
+    renders via `dangerouslySetInnerHTML` (admin-authored, trusted) with
+    `.rich-body` / `.h2-format` for the type scale. Per ADR-099, every
+    dynamic homepage element renders `HOMEPAGE_EMPTY_PLACEHOLDER` ("-") when
+    its value is missing/empty — no hardcoded fallbacks — and `getHomePage`
+    never throws (a failed read resolves to an all-empty `IHomePage`).
+    Four banner sizes rather than
     the usual three — `bannerSmUrl`/`bannerMdUrl`/`bannerLgUrl`/
     `bannerXlUrl` at 1440x2560/1536x2048/2048x1536/2560x1440 — reusing the
     exact set `Category` established (ADR-035); only `bannerXlUrl` is

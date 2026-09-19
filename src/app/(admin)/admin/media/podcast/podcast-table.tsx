@@ -52,6 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { IPodcast } from "@/interfaces/general";
 import { deletePodcast, reorderPodcasts } from "./actions";
 import { PodcastForm } from "./podcast-form";
@@ -239,7 +240,7 @@ export function PodcastTable({ podcasts }: { podcasts: IPodcast[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Podcast List</h2>
+        <AdminSectionTitle>Podcast List</AdminSectionTitle>
         <Dialog open={dialogOpen} onOpenChange={handleAddOpenChange}>
           <DialogTrigger asChild>
             <Button>

@@ -81,3 +81,11 @@ export function hasRichTextContent(html: string | null | undefined): boolean {
   if (html.replace(/<[^>]*>/g, "").trim() !== "") return true
   return /<img\b/i.test(html)
 }
+
+// `MiniRichTextEditor`'s heading modes serialize to exactly one `<hN>…</hN>`.
+// Strip that wrapper so the inner content (text + `<span class="heading-accent">`
+// runs) can drop into a section's own heading element at whatever level that
+// section wants.
+export function unwrapHeadingHtml(html: string): string {
+  return html.replace(/^\s*<h[1-6]\b[^>]*>/i, "").replace(/<\/h[1-6]>\s*$/i, "")
+}

@@ -25,6 +25,8 @@ export default async function Home() {
     <main className="">
       {/* HERO */}
       <HeroHomeSection
+        heading={homePage.heroHeading}
+        subheading={homePage.heroSubheading}
         bannerSmUrl={homePage.bannerSmUrl}
         bannerSmVideoUrl={homePage.bannerSmVideoUrl}
         bannerMdUrl={homePage.bannerMdUrl}
@@ -39,30 +41,45 @@ export default async function Home() {
       <div className="shadow-[0_5px_25px_rgba(0,0,0,0.20)]">
         {/* ABOUT */}
         <BodyWrapper className="py-24 bg-secondary">
-          <AboutHomeSection />
+          <AboutHomeSection
+            heading={homePage.aboutHeading}
+            body={homePage.aboutBody}
+            linkButtons={homePage.aboutLinkButtons}
+          />
         </BodyWrapper>
 
         {/* STATS */}
-        <StatCounter />
+        <StatCounter stats={homePage.statistics} />
 
         {/* VIDEO */}
         <BodyWrapper className="py-14 lg:py-24 bg-brand-pink/50 backdrop-blur-md">
-          <VideoHomeSection />
+          <VideoHomeSection
+            title={homePage.highlightVideoTitle}
+            description={homePage.highlightVideoDescription}
+            youtubeUrl={homePage.highlightVideoYoutubeUrl}
+            thumbnailUrl={homePage.highlightVideoThumbnailUrl}
+          />
         </BodyWrapper>
       </div>
 
       {/* CHOOSE US */}
       <BodyWrapper className="">
-        <ChooseUsHomeSection />
+        <ChooseUsHomeSection
+          title={homePage.featureListTitle}
+          features={homePage.features}
+        />
       </BodyWrapper>
 
       <div className="shadow-[0px_10px_25px_10px_rgba(0,0,0,0.20)]">
         {/* BRAND */}
-        <BrandHomeSection />
+        <BrandHomeSection title={homePage.brandsTitle} />
 
         {/* CREDIBILITY */}
         <BodyWrapper className="py-10 sm:py-24 bg-brand-pink" id='certified-component'>
-          <CredibilityHomeSection />
+          <CredibilityHomeSection
+            title={homePage.certificationsTitle}
+            certifications={homePage.certifications}
+          />
         </BodyWrapper>
 
         {/* PRODUCTS */}

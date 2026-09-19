@@ -35,8 +35,8 @@ export const AboutHero = () => {
       <h1 className="text-shadow-md absolute top-2/3 left-1/2 -translate-x-1/2 w-full text-center text-5xl sm:text-6xl lg:text-8xl font-bold">
         <RevealText
           words={[
-            { text: 'About', className: 'text-white' },
-            { text: 'RED', className: 'text-brand-red2' },
+            { text: 'Our', className: 'text-white' },
+            { text: 'Story', className: 'text-brand-red2' },
           ]}
         />
       </h1>

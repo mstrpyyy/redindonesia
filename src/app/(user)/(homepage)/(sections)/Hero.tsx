@@ -3,6 +3,7 @@ import { FacebookOutlinedRounded, InstagramOutlinedRounded, LinkedinOutlinedRoun
 import Link from "next/link";
 import { SearchBar } from "@/app/(user)/components/SearchBar";
 import { resolveHomeBannerVideoUrls } from "@/lib/home-page";
+import { HOMEPAGE_EMPTY_PLACEHOLDER } from "@/lib/home-page-constants";
 import { HeroBannerGroup } from "@/app/(user)/components/HeroBannerGroup";
 import { RevealText } from "@/app/(user)/components/RevealText";
 
@@ -26,6 +27,10 @@ const socialMediaList = [
 ]
 
 interface IHeroHomeSectionProps {
+  // CMS text over the hero (ADR-096) — each falls back to "-" when blank
+  // (ADR-099), never a hardcoded default.
+  heading?: string | null;
+  subheading?: string | null;
   bannerSmUrl?: string | null;
   bannerSmVideoUrl?: string | null;
   bannerMdUrl?: string | null;
@@ -41,6 +46,8 @@ interface IHeroHomeSectionProps {
 }
 
 export const HeroHomeSection = ({
+  heading,
+  subheading,
   bannerSmUrl,
   bannerSmVideoUrl,
   bannerMdUrl,
@@ -51,6 +58,11 @@ export const HeroHomeSection = ({
   bannerXlVideoUrl,
   bannerVideoUseForSmaller = false,
 }: IHeroHomeSectionProps) => {
+  // Split the CMS heading into words so it keeps the same staggered reveal;
+  // blank → a single "-" word.
+  const headingWords = (
+    heading?.trim() ? heading.trim().split(/\s+/) : [HOMEPAGE_EMPTY_PLACEHOLDER]
+  ).map((text) => ({ text }));
   // The waterfall resolution (Xl → Lg → Md → Sm, ADR-091) — a size's own
   // video always wins; it only inherits a larger size's video when it has
   // none of its own and the global switch is on.
@@ -112,19 +124,11 @@ export const HeroHomeSection = ({
         "
       >
         <h1 className="text-3xl md:text-5xl font-bold max-lg:text-center portrait:text-center text-brand-red2 text-shadow-md sm:text-balance w-full lg:w-150 portrait:w-full">
-          <RevealText
-            staggerMs={200}
-            durationMs={300}
-            words={[
-              { text: 'Your' },
-              { text: 'Complete' },
-              { text: 'Medical' },
-              { text: 'Aesthetic' },
-              { text: 'Partner' },
-            ]}
-          />
+          <RevealText staggerMs={200} durationMs={300} words={headingWords} />
         </h1>
-        <h2 className="text-lg md:text-2xl text-pretty mt-2 mb-8 max-lg:text-center portrait:text-center">Powering the Future of Your Practice</h2>
+        <h2 className="text-lg md:text-2xl text-pretty mt-2 mb-8 max-lg:text-center portrait:text-center">
+          {subheading?.trim() || HOMEPAGE_EMPTY_PLACEHOLDER}
+        </h2>
         <div className="relative w-full lg:w-150 portrait:mx-auto">
           <SearchBar
             inputClassName="

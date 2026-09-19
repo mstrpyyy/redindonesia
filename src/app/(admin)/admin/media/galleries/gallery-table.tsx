@@ -53,6 +53,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { IGallery } from "@/interfaces/general";
 import { deleteGallery, reorderGalleries } from "./actions";
 import { GalleryForm } from "./gallery-form";
@@ -250,7 +251,7 @@ export function GalleryTable({ galleries }: { galleries: IGallery[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Gallery List</h2>
+        <AdminSectionTitle>Gallery List</AdminSectionTitle>
         <Dialog open={dialogOpen} onOpenChange={handleAddOpenChange}>
           <DialogTrigger asChild>
             <Button>

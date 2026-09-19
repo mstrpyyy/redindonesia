@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
 import { ICategory, IHomeCarouselListItem, IProductPickerOption } from "@/interfaces/general";
 import { deleteHomeCarousel, reorderHomeCarousels } from "./actions";
 import { CarouselForm } from "./carousel-form";
@@ -228,7 +229,7 @@ export function CarouselTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Carousel List</h2>
+        <AdminSectionTitle>Carousel List</AdminSectionTitle>
         <Dialog open={dialogOpen} onOpenChange={handleAddOpenChange}>
           <DialogTrigger asChild>
             <Button>

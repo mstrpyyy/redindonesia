@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import { BodyWrapper } from "@/app/(user)/components/BodyWrapper";
 import { VideoTextSection } from "@/app/(user)/components/VideoTextSection";
 import { AboutWho } from "./(sections)/Who";
 import { AboutWhat } from "./(sections)/What";
 import { AboutWork } from "./(sections)/Work";
 import { AboutHero } from "./(sections)/Hero";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Established in 2004, PT. Radian Elok Distriversa distributes medical aesthetic devices, medical laser devices, and cosmoceutical products across Indonesia, partnering with leading companies in Europe and the USA.",
+};
 
 
 export default function About() {

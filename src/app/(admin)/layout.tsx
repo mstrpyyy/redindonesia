@@ -20,7 +20,11 @@ export default function userLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex relative">
+    // Full-viewport shell: the shell itself never scrolls, the sidebar is a
+    // static full-height column, and only <main> scrolls (ContentWrapper).
+    // This avoids `position: sticky` entirely — it was fighting ancestor
+    // overflow/scroll-container quirks.
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <ContentWrapper>
         {children}

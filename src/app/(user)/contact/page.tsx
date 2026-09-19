@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '@/app/(user)/components/BodyWrapper'
@@ -5,6 +6,12 @@ import { TrustSection } from '@/app/(user)/components/TrustLists'
 import { ContactForm } from './contact-form'
 import { getContactPage } from '@/lib/contact-pages'
 import { hasRichTextContent } from '@/lib/utils'
+
+export const metadata: Metadata = {
+  title: 'Contact Us',
+  description:
+    'Get in touch with PT. Radian Elok Distriversa. Visit our Jakarta office or send us a message about medical aesthetic devices, medical laser devices, and cosmoceutical products.',
+}
 
 export default async function Contact() {
   const page = await getContactPage('content')

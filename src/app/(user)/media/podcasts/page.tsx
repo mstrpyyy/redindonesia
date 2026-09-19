@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { PageBanner } from '@/app/(user)/components/PageBanner'
 import { RevealText } from '@/app/(user)/components/RevealText'
 import { BodyWrapper } from '../../components/BodyWrapper'
@@ -6,6 +7,12 @@ import { ExternalLink } from 'lucide-react'
 import { getPodcastPage } from '@/lib/podcast-page'
 import { getPodcasts } from '@/lib/podcasts'
 import { getYoutubeVideoId } from '@/lib/utils'
+
+export const metadata: Metadata = {
+  title: 'Podcasts',
+  description:
+    'Podcasts from PT. Radian Elok Distriversa on medical aesthetics, devices, and industry insights.',
+}
 
 export default async function MediaPodcasts() {
   const [page, podcasts] = await Promise.all([

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Image from 'next/image'
 import { Globe } from 'lucide-react'
 import {
@@ -14,6 +15,12 @@ import { getSocialAccounts } from '@/lib/social-accounts'
 import { getSupportPage } from '@/lib/support-pages'
 import { hasRichTextContent } from '@/lib/utils'
 import { BodyWrapper } from '../../components/BodyWrapper'
+
+export const metadata: Metadata = {
+  title: 'Marcom & Promotion',
+  description:
+    'Marketing communication and promotional support from PT. Radian Elok Distriversa, including our official social media channels.',
+}
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   facebook: <FacebookOutlinedRounded className='size-5 shrink-0 text-brand-red2' />,

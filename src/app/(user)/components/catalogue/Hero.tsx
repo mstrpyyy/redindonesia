@@ -121,7 +121,7 @@ export const HeroDevice = ({
             line; capping both to 2/3 of the viewport keeps them readable
             without affecting the category hero's own (already centered,
             narrower) layout. */}
-        <h1 className={cn('h1-format', hasTextShadow && 'text-shadow', variant === 'product' && 'xl:max-w-[66.6667vw]')}>
+        <h1 className={cn('h1-format text-balance!', hasTextShadow && 'text-shadow', variant === 'product' && 'xl:max-w-[50vw]')}>
           {/* `title` is CMS-authored (category.title/name or product.name), not a
               fixed set of literal words like the other RevealText callers — split
               on whitespace at render time instead of hardcoding a `words` array. */}
