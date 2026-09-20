@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
 
     try {
       await jwtVerify(token, secret);
-      return NextResponse.redirect(new URL("/admin/homepage/content", request.url));
+      return NextResponse.redirect(new URL("/admin/home-about/home-page", request.url));
     } catch {
       return NextResponse.next();
     }
@@ -27,6 +27,9 @@ export async function middleware(request: NextRequest) {
 
   try {
     await jwtVerify(token, secret);
+    if (pathname === "/admin") {
+      return NextResponse.redirect(new URL("/admin/home-about/home-page", request.url));
+    }
     return NextResponse.next();
   } catch {
     return NextResponse.redirect(new URL("/admin/login", request.url));

@@ -92,7 +92,7 @@ export async function uploadSupportPageContentImage(formData: FormData): Promise
 }
 
 // Same "true"/"false" string convention as HomeCarousel's `showSeeMore` and
-// the homepage banner's own cascade flag (homepage/content/actions.ts).
+// the homepage banner's own cascade flag (home-about/home-page/actions.ts).
 const booleanFlagSchema = z
   .preprocess((value) => value ?? "false", z.enum(["true", "false"]))
   .transform((value) => value === "true");

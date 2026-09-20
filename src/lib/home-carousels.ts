@@ -3,7 +3,7 @@ import { getCategoryAncestry } from "@/lib/categories";
 import { getPublishedProductCards } from "@/lib/products";
 import { ICarouselItem, IHomeCarouselListItem, IPublicHomeCarousel } from "@/interfaces/general";
 
-// Same floor as MIN_CAROUSEL_ITEMS (src/app/(admin)/admin/homepage/content/
+// Same floor as MIN_CAROUSEL_ITEMS (src/app/(admin)/admin/home-about/home-page/
 // limits.ts) — kept as a local literal since lib/ shouldn't import from the
 // admin route tree. Below this, the largest breakpoint's xl:basis-1/4 track
 // (see ProductCarousel in src/app/(user)/components/Carousels.tsx) has

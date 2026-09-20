@@ -265,6 +265,30 @@ export interface IHomeCertification {
   image: string
 }
 
+// The Our Story (about) page — see ADR-103. `IAboutImage` is one photo in the
+// "Who" section's grid; `IAboutVideo` one YouTube video block (heading,
+// description and thumbnail are optional); `IAboutWorkCard` one "Work" card
+// (`icon` is a FEATURE_ICONS key, ADR-101).
+export interface IAboutImage {
+  id: string
+  image: string
+}
+
+export interface IAboutVideo {
+  id: string
+  youtubeUrl: string
+  thumbnailUrl: string
+  heading: string
+  description: string
+}
+
+export interface IAboutWorkCard {
+  id: string
+  icon: string
+  title: string
+  description: string
+}
+
 // See ADR-066. "category" mode derives title/items/seeMoreUrl live from
 // `categoryId` at render time — `title`/`seeMoreUrl`/`items` are unused in
 // that mode. "custom" mode uses `title`/`seeMoreUrl`/`items` directly and

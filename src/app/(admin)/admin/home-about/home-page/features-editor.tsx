@@ -18,7 +18,7 @@ import {
 
 // A swatch-style icon picker (3-wide grid of the curated set). The trigger
 // shows just the chosen icon, or the word "Icon" while empty.
-function IconPickerField({
+export function IconPickerField({
   value,
   onChange,
   disabled,

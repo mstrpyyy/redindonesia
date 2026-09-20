@@ -5023,3 +5023,79 @@ sections are not persisted by a Save (the form keeps them in state, so a later
 Save of that section still sends them). Adding a section means one schema
 `pick`, one parser, and one `SECTION_PARSERS` entry. The carousel list is
 unaffected — it already saves each add/edit/delete/reorder immediately.
+
+
+## ADR-103: Our Story (`/about`) page is CMS-driven from one `AboutPage` row, seeded with the pre-CMS copy
+
+**Date:** 2026-09-20
+**Status:** Accepted
+
+**Context:** The public `/about` ("Our Story") page — banner, "Who" text +
+photos, a video block, "What" text, "Work" text + cards — was fully hardcoded.
+The client wants each of those editable from a new Home & About → Our Story
+admin page.
+**Options considered:**
+1. Reuse `HomePage` with a second slug — the row is already 25+ homepage-only
+   columns; bolting another page's fields on muddies it.
+2. One new `AboutPage` model, upserted by fixed slug (`"our-story"`), same
+   shape as `HomePage`/`SupportPage` (chosen). Banner columns copy the 3-size
+   static-page shape (ADR-092); who/what/work each get an icon-image URL and a
+   rich-text body; `whoImages`, `videos` and `workCards` are `Json` arrays
+   (`{ id, image }`, `{ id, youtubeUrl, thumbnailUrl, heading, description }`,
+   `{ id, icon, title, description }`), parsed defensively in
+   `src/lib/about-page.ts`.
+3. A model per section — seven rows/tables for one page, no benefit.
+
+**Decision:** Option 2. The admin form has five collapsible sections (Banner,
+Who, Videos, What, Work), each with its own Save backed by one
+`saveAboutPageSection(slug, section, formData)` action that validates and
+upserts only that section's columns (the ADR-102 pattern). The banner uses the
+shared `PageBannerFields` and the public `PageBanner`, replacing the old
+bespoke `AboutHero`. Work cards reuse the homepage's curated icon set
+(ADR-101, `IconPickerField` exported from `features-editor.tsx`). Who photos
+use a new generic `src/components/image-grid-editor.tsx` (a copy of the
+certifications editor's card grid, parameterized) — `CertificationsEditor` was
+deliberately left untouched rather than refactored onto it.
+**Not editable** (stay hardcoded): the "We are RED Indonesia" heading and its
+typing animation, the "Our Brands" grid in What, the section order/layout.
+**Fallbacks:** ADR-099's convention applies — missing body text renders "-",
+`getAboutPage` never throws; a missing icon/photo list simply omits that
+element, and an empty videos list hides the video block. The migration
+**seeds the row with the page's previous copy** (banner/icon/photo paths under
+`/image/about/`, the paragraphs as `<p>` HTML, the video, the three cards), so
+`/about` looks unchanged the moment it is wired up and there is still no
+hardcoded default in the code.
+**Consequences:** Body text is now rich HTML rendered with
+`dangerouslySetInnerHTML` (admin-authored, trusted — same as the homepage);
+the old bold-ish first paragraph in Who/Work is now whatever the admin bolds.
+The banner is now the shared `PageBanner` (title at the bottom, 65vh) instead
+of the old centred-lower hero. Adding another editable page = a new model or
+slug plus a section-parser map like this one.
+
+
+## ADR-104: Admin routes for Home & About renamed to match their menu names
+
+**Date:** 2026-09-20
+**Status:** Accepted
+
+**Context:** The sidebar menu "Homepage" became "Home & About" with "Home page"
+and "Our Story" inside it (ADR-103), but the routes still read
+`/admin/homepage/content` and `/admin/homepage/our-story`. The client wanted the
+URLs to carry the real names.
+**Options considered:**
+1. Keep the old URLs — zero churn, but the address bar disagrees with the menu.
+2. Rename to `/admin/home-about/home-page` and `/admin/home-about/our-story`,
+   updating every hardcoded reference (chosen).
+3. Rename and add a redirect from the old URLs — no known external links to the
+   admin, so not worth it.
+
+**Decision:** Option 2. The folders `src/app/(admin)/admin/homepage` →
+`home-about` and `home-about/content` → `home-about/home-page` were renamed,
+and every reference updated: the sidebar slugs, the login redirect and the
+`/admin/login` middleware redirect, all three `revalidatePath` calls, the
+relative import of `IconPickerField` in the Our Story cards editor, and the
+path mentions in code comments. Earlier ADRs/tasks that cite the old paths are
+left as historical record.
+**Consequences:** `/admin/homepage/*` now 404 (no redirect). `revalidatePath`
+targets are string literals, so any future rename must update them by hand —
+a missed one fails silently by leaving the admin page stale.

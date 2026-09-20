@@ -32,5 +32,5 @@ export async function login(
   }
 
   await createSession(account.username);
-  redirect("/admin/homepage/content");
+  redirect("/admin/home-about/home-page");
 } 

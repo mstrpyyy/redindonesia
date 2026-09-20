@@ -209,9 +209,19 @@ The application follows a **hybrid data architecture**:
     of orientation+width. The cascade resolution itself
     (`resolveCascadingVideoUrls`, `src/lib/banner-video.ts`) is shared with
     `HomePage`'s own resolver rather than reimplemented — see ADR-092.
+  - `AboutPage` — the public `/about` ("Our Story") page, upsert-by-fixed-slug
+    (`"our-story"`, `ABOUT_PAGE_SLUGS` in `src/lib/about-page.ts`), managed on
+    the admin Home & About → "Our Story" page. Banner uses the same 3-size
+    columns as `SupportPage` (ADR-092); the Who/What/Work sections each have an
+    icon-image URL + a rich-text body, plus `whoImages` (`{ id, image }[]`),
+    `videos` (`{ id, youtubeUrl, thumbnailUrl, heading, description }[]`) and
+    `workCards` (`{ id, icon, title, description }[]`, `icon` a `FEATURE_ICONS`
+    key) `Json` columns. Each admin section has its own Save
+    (`saveAboutPageSection`, ADR-102 pattern) and the migration seeds the row
+    with the pre-CMS copy — ADR-103.
   - `HomePage` — the homepage hero banner, upsert-by-fixed-slug (currently
     just `"home"`, `HOME_PAGE_SLUGS` in `src/lib/home-page.ts`), managed on
-    the admin Homepage → "Content" page (renamed from "Carousel", see
+    the admin Home & About → "Home page" page, `/admin/home-about/home-page` (formerly Homepage → Content; see ADR-104; renamed from "Carousel", see
     ADR-082) above the `HomeCarousel` list. Each form section (Hero, About,
     Statistics, Highlight Video, Feature List, Brands, Certifications) has its
     own Save button, backed by `saveHomePageSection(slug, section, formData)`

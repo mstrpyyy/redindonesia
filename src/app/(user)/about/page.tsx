@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { BodyWrapper } from "@/app/(user)/components/BodyWrapper";
+import { PageBanner } from "@/app/(user)/components/PageBanner";
+import { RevealText } from "@/app/(user)/components/RevealText";
 import { VideoTextSection } from "@/app/(user)/components/VideoTextSection";
+import { getAboutPage } from "@/lib/about-page";
+import { getYoutubeVideoId } from "@/lib/utils";
 import { AboutWho } from "./(sections)/Who";
 import { AboutWhat } from "./(sections)/What";
 import { AboutWork } from "./(sections)/Work";
-import { AboutHero } from "./(sections)/Hero";
 
 export const metadata: Metadata = {
   title: "About",
@@ -12,27 +15,51 @@ export const metadata: Metadata = {
     "Established in 2004, PT. Radian Elok Distriversa distributes medical aesthetic devices, medical laser devices, and cosmoceutical products across Indonesia, partnering with leading companies in Europe and the USA.",
 };
 
+export default async function About() {
+  const page = await getAboutPage("our-story");
 
-export default function About() {
   return (
     <main>
-      <AboutHero/>
-      <BodyWrapper className='radial-gradient1 py-20 shadow-md relative z-10'>
-        <AboutWho/>
-        <VideoTextSection
-          className='mt-16 sm:mt-20 lg:mt-30'
-          videoId="O2o8r9zxD40"
-          videoTitle="We are radian elok distriversa"
-          thumbnailUrl="/image/about/about-banner-xl.webp"
-          heading="Our Mission in Motion"
-          description="Discover how we've partnered with global leaders to bring premier medical aesthetic solutions directly to Indonesia, redefining what's possible for local clinicians"
+      <PageBanner
+        defImage={page.bannerXlUrl ?? "/image/about/about-banner-xl.webp"}
+        mdImage={page.bannerMdUrl ?? undefined}
+        smImage={page.bannerSmUrl ?? undefined}
+        defVideo={page.bannerXlVideoUrl}
+        mdVideo={page.bannerMdVideoUrl}
+        smVideo={page.bannerSmVideoUrl}
+        videoUseForSmaller={page.bannerVideoUseForSmaller}
+        alt="Our Story"
+      >
+        <RevealText
+          words={[
+            { text: "Our", className: "text-white" },
+            { text: "Story", className: "text-brand-red2" },
+          ]}
         />
+      </PageBanner>
+      <BodyWrapper className='radial-gradient1 py-20 shadow-md relative z-10'>
+        <AboutWho iconUrl={page.whoIconUrl} body={page.whoBody} images={page.whoImages} />
+        {page.videos.map((video) => {
+          const videoId = getYoutubeVideoId(video.youtubeUrl);
+          if (!videoId) return null;
+          return (
+            <VideoTextSection
+              key={video.id}
+              className='mt-16 sm:mt-20 lg:mt-30'
+              videoId={videoId}
+              videoTitle={video.heading || "Our Story video"}
+              thumbnailUrl={video.thumbnailUrl || undefined}
+              heading={video.heading || undefined}
+              description={video.description || undefined}
+            />
+          );
+        })}
       </BodyWrapper>
       <BodyWrapper className="py-20 bg-secondary">
-        <AboutWhat/>
+        <AboutWhat iconUrl={page.whatIconUrl} body={page.whatBody} />
       </BodyWrapper>
       <BodyWrapper className="radial-gradient2 py-20 shadow-[0_-2px_6px_0px_rgba(0,0,0,0.12)] relative z-10">
-        <AboutWork/>
+        <AboutWork iconUrl={page.workIconUrl} body={page.workBody} cards={page.workCards} />
       </BodyWrapper>
     </main>
   )

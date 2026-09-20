@@ -4,8 +4,15 @@ import Link from 'next/link'
 import React from 'react'
 import { IconImage } from '../_components/iconImage'
 import { RadiantPulse } from '../_components/radiantPulse'
+import { HOMEPAGE_EMPTY_PLACEHOLDER } from '@/lib/home-page-constants'
 
-export const AboutWhat = () => {
+export const AboutWhat = ({
+  iconUrl,
+  body,
+}: {
+  iconUrl: string | null
+  body: string | null
+}) => {
   return (  
     <section id='about-what' className=''>
       <h2 className="sr-only">What is RED?</h2>
@@ -17,24 +24,28 @@ export const AboutWhat = () => {
             data-aos-duration="600"
           >
             <div className="relative z-10">
-              <IconImage
-                src={'/image/about/red-what-icon.webp'}
-                alt='red-what'
-                width={1081}
-                height={968}
-              />
+              {iconUrl && (
+                <IconImage
+                  src={iconUrl}
+                  alt='red-what'
+                  width={1081}
+                  height={968}
+                />
+              )}
               <RadiantPulse className='top-16!' />
             </div>
           </div>
-          <p className="mt-2" data-aos="fade-up" data-aos-duration="600" data-aos-delay="150">
-            At RED Indonesia, we believe that world-class clinical results are born from the perfect synergy between a practitioner&apos;s skill and the technology they wield. We don&apos;t just supply equipment; we cultivate long-term partnerships dedicated to elevating the standards of medical aesthetics in Indonesia.
-          </p>
-          <p className='mt-2' data-aos="fade-up" data-aos-duration="600" data-aos-delay="250">
-            For 22 years, we have acted as a bridge, scouring the globe for &quot;Gold Standard&quot; brands that are clinically proven, not just trendy. We collaborate with the world&apos;s leading brands to maintain the highest possible product quality and comprehensive after-sales service.
-          </p>
-          <p className='mt-2' data-aos="fade-up" data-aos-duration="600" data-aos-delay="350">
-            Think of us as a partner rather than a resource. We share your perspective and work together to achieve your clinical and professional goals.
-          </p>
+          {body ? (
+            <div
+              className="rich-body mt-2"
+              data-aos="fade-up"
+              data-aos-duration="600"
+              data-aos-delay="150"
+              dangerouslySetInnerHTML={{ __html: body }}
+            />
+          ) : (
+            <p className="mt-2">{HOMEPAGE_EMPTY_PLACEHOLDER}</p>
+          )}
         </div>
 
         <div className='w-full lg:w-fit mt-auto'>

@@ -210,7 +210,7 @@ const categoryFieldsSchema = z.object({
 // validated when `isPage` is true; a breadcrumb-only node's page fields are
 // never read from the client.
 // Same "true"/"false" string convention as HomePage's own cascade switch
-// (homepage/content/actions.ts's `booleanFlagSchema`) — missing/anything else
+// (home-about/home-page/actions.ts's `booleanFlagSchema`) — missing/anything else
 // defaults to false.
 const booleanFlagSchema = z
   .preprocess((value) => value ?? "false", z.enum(["true", "false"]))

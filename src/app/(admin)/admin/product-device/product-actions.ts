@@ -32,7 +32,7 @@ function revalidateProductPages(type: "device" | "product") {
   // reads every published product server-side on each visit — without this,
   // a product created/edited/hidden here wouldn't show up (or wouldn't drop
   // out) there until something else happened to revalidate that route.
-  revalidatePath("/admin/homepage/content");
+  revalidatePath("/admin/home-about/home-page");
   // The public homepage's "category" mode carousels and the public
   // devices/products catch-all both read Product rows live at render time
   // (ADR-066/ADR-036) with no admin-triggered revalidation of their own —

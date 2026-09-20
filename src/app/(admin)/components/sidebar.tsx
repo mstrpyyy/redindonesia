@@ -15,12 +15,16 @@ import { usePathname } from 'next/navigation'
 // only used here; every other section still uses the flat `menu` shape.
 const navMenus = [
   {
-    name: 'Homepage',
+    name: 'Home & About',
     icon: <GalleryHorizontal size={18} strokeWidth={2} />,
     menu: [
       {
-        name: 'Content',
-        slug: '/admin/homepage/content',
+        name: 'Home page',
+        slug: '/admin/home-about/home-page',
+      },
+      {
+        name: 'Our Story',
+        slug: '/admin/home-about/our-story',
       },
     ]
   },

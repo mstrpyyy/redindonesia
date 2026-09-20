@@ -3439,3 +3439,35 @@ fallbacks per ADR-099. Same pattern as the other section titles — no new ADR.
 **Known gap:** Logos render `alt=""` (no alt field, "image only"). A per-logo
 alt/name field would be more accessible — deferred unless asked.
 **Do not:** Add WEBP support (spec is PNG/JPG only).
+
+## [x] Task: Our Story (`/about`) page — CMS + public wiring
+
+**Context:** Home & About → Our Story was an empty admin shell and the public
+`/about` page was hardcoded. The client listed the editables: banner (same as
+the media/support pages), Who (icon, rich text, images), videos, What (icon,
+rich text), Work (icon, rich text, cards).
+**Approach:** New `AboutPage` model (one row, slug `"our-story"`) + migration
+`20260920125254_add_about_page` that also seeds the pre-CMS copy. Admin page
+`/admin/home-about/our-story` = five `CollapsibleSection`s (Banner, Who, Videos,
+What, Work), each with its own Save via `saveAboutPageSection` (per-section
+Zod parsers, ADR-102 pattern). Public `/about` reads `getAboutPage` and passes
+props to `AboutWho`/`AboutWhat`/`AboutWork`; the banner becomes the shared
+`PageBanner`; videos render one `VideoTextSection` each. See ADR-103.
+**Files to create or modify:**
+- `prisma/schema.prisma` + migration `20260920125254_add_about_page/`
+- `src/interfaces/general.ts` — `IAboutImage`, `IAboutVideo`, `IAboutWorkCard`
+- `src/lib/about-page.ts` — new: slugs, `IAboutPage`, `getAboutPage`
+- `src/components/image-grid-editor.tsx` — new generic reorderable image grid
+- `src/app/(admin)/admin/homepage/content/features-editor.tsx` — export `IconPickerField`
+- `src/app/(admin)/admin/home-about/our-story/` — `page.tsx`, `our-story-form.tsx`, `actions.ts`, `limits.ts`, `about-cards-editor.tsx`, `about-videos-editor.tsx`
+- `src/app/(user)/about/page.tsx`, `(sections)/Who.tsx`, `What.tsx`, `Work.tsx` — props; `Hero.tsx` removed (replaced by `PageBanner`)
+- `DECISIONS.md` (ADR-103), `ARCHITECTURE.md`
+**Acceptance criteria:**
+- [x] `/admin/home-about/our-story` shows Banner, Who, Videos, What, Work sections, each collapsible with its own Save.
+- [x] Each Save persists only its section; validation errors show next to that Save.
+- [x] Banner: 1920x830 image required, optional Md/Sm + mp4 per size, same as the media/support pages.
+- [x] Who/What/Work: icon image (optional), rich-text body (required); Who: up to 6 reorderable photos; Work: 1–6 cards with icon + title + description.
+- [x] Videos: 0–5 entries (YouTube link required and validated; heading/description/thumbnail optional).
+- [x] `/about` renders the stored content (verified: seeded copy served from the DB) and "-" for a missing body.
+- [ ] `tsc --noEmit` / `next build` pass (not yet run).
+**Do not:** Make the "We are RED Indonesia" heading, the Our Brands grid or the section layout editable.

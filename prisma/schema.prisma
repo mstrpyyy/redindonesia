@@ -401,3 +401,32 @@ model Podcast {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// Public /about ("Our Story") page, admin-managed under Home & About → Our
+// Story (ADR-103). One row, upserted by fixed slug (src/lib/about-page.ts) —
+// same upsert-by-slug pattern as HomePage/SupportPage. Banner reuses the
+// 3-size static-page shape (ADR-092); each section below (who/what/work) is
+// an icon image + rich text body, plus who's photo grid, a list of videos,
+// and work's card list. Sections are saved independently (ADR-102).
+model AboutPage {
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  bannerXlUrl              String? // 1920x830 — required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerMdUrl              String? // 1080x878 — optional
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerSmUrl              String? // 1080x1080 — optional
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean  @default(false) // Xl → Md → Sm waterfall, see ADR-091/ADR-092
+  whoIconUrl               String? // the "Who" section's illustration
+  whoBody                  String?  @db.Text // paragraph rich text HTML (MiniRichTextEditor "body" mode)
+  whoImages                Json     @default("[]") // array of { id, image } — the photo grid beside the Who text (max 6)
+  videos                   Json     @default("[]") // array of { id, youtubeUrl, thumbnailUrl, heading, description }
+  whatIconUrl              String? // the "What" section's illustration
+  whatBody                 String?  @db.Text // paragraph rich text HTML
+  workIconUrl              String? // the "Work" section's illustration
+  workBody                 String?  @db.Text // paragraph rich text HTML
+  workCards                Json     @default("[]") // array of { id, icon, title, description } — icon is a FEATURE_ICONS key (ADR-101)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
