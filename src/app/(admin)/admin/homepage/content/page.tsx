@@ -19,7 +19,7 @@ export default async function HomeCarouselPage() {
     <>
       <AdminTitle parent={"Homepage"} title={"Content"} />
       <HomePageForm slug="home" initialData={homePage} />
-      <hr className="my-6 border-t" />
+      <hr className="my-2 border-t" />
       <CarouselTable
         carousels={carousels}
         deviceCategories={deviceCategories}

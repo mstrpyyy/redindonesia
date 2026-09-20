@@ -212,7 +212,10 @@ The application follows a **hybrid data architecture**:
   - `HomePage` — the homepage hero banner, upsert-by-fixed-slug (currently
     just `"home"`, `HOME_PAGE_SLUGS` in `src/lib/home-page.ts`), managed on
     the admin Homepage → "Content" page (renamed from "Carousel", see
-    ADR-082) above the `HomeCarousel` list. Also carries optional
+    ADR-082) above the `HomeCarousel` list. Each form section (Hero, About,
+    Statistics, Highlight Video, Feature List, Brands, Certifications) has its
+    own Save button, backed by `saveHomePageSection(slug, section, formData)`
+    which validates and upserts only that section's columns — ADR-102. Also carries optional
     `heroHeading`/`heroSubheading` plain-text fields (ADR-096, wired to the
     public hero — heading split into `RevealText` words) and the About
     section's `aboutHeading` (single-`<h2>`

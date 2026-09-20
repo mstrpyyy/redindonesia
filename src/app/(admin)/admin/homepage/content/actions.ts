@@ -1,5 +1,6 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { saveUpload } from "@/lib/uploads";
 import { revalidatePath } from "next/cache";
@@ -405,7 +406,7 @@ const saveHomePageSchema = z.object({
 
 // A size's video is only ever shown alongside its still image (the image
 // becomes the required poster/fallback) — see ADR-089. Checked here, not
-// just client-side, since `saveHomePage` is the only write path.
+// just client-side, since `saveHomePageSection` is the only write path.
 const BANNER_SIZE_LABELS: Record<"Sm" | "Md" | "Lg" | "Xl", string> = {
   Sm: "1080x1920",
   Md: "1080x1440",
@@ -424,30 +425,62 @@ function assertVideoHasFallback(
   return null;
 }
 
-export async function saveHomePage(
-  slug: string,
-  formData: FormData
-): Promise<ActionResult<{ slug: HomePageSlug }>> {
-  if (!isHomePageSlug(slug)) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: "Unknown homepage page." } };
-  }
+export type HomePageSection =
+  | "hero"
+  | "about"
+  | "statistics"
+  | "highlight-video"
+  | "feature-list"
+  | "brands"
+  | "certifications";
 
-  const parsed = saveHomePageSchema.safeParse({
+const HOME_PAGE_SECTIONS: readonly string[] = [
+  "hero",
+  "about",
+  "statistics",
+  "highlight-video",
+  "feature-list",
+  "brands",
+  "certifications",
+] satisfies HomePageSection[];
+
+// Only the columns a section owns — merged into the row on save, so saving one
+// section never touches another's data (ADR-102). Assignable to both the
+// upsert's `create` (with `slug`) and `update`.
+type IHomePageSectionData = Partial<
+  Omit<Prisma.HomePageUncheckedCreateInput, "id" | "slug" | "createdAt" | "updatedAt">
+>;
+
+type SectionParseResult =
+  | { success: true; data: IHomePageSectionData }
+  | { success: false; message: string };
+
+function invalid(message: string): SectionParseResult {
+  return { success: false, message };
+}
+
+function firstIssue(error: z.ZodError): string {
+  return error.issues[0]?.message ?? "Invalid input";
+}
+
+const heroSectionSchema = saveHomePageSchema.pick({
+  heroHeading: true,
+  heroSubheading: true,
+  bannerSmUrl: true,
+  bannerSmVideoUrl: true,
+  bannerMdUrl: true,
+  bannerMdVideoUrl: true,
+  bannerLgUrl: true,
+  bannerLgVideoUrl: true,
+  bannerXlUrl: true,
+  bannerXlVideoUrl: true,
+  bannerVideoUseForSmaller: true,
+});
+
+function parseHeroSection(formData: FormData): SectionParseResult {
+  const parsed = heroSectionSchema.safeParse({
     heroHeading: formData.get("heroHeading") ?? undefined,
     heroSubheading: formData.get("heroSubheading") ?? undefined,
-    aboutHeading: formData.get("aboutHeading") ?? undefined,
-    aboutBody: formData.get("aboutBody") ?? undefined,
-    aboutLinkButtons: formData.get("aboutLinkButtons") ?? undefined,
-    statistics: formData.get("statistics") ?? undefined,
-    highlightVideoTitle: formData.get("highlightVideoTitle") ?? undefined,
-    highlightVideoDescription: formData.get("highlightVideoDescription") ?? "",
-    highlightVideoYoutubeUrl: formData.get("highlightVideoYoutubeUrl") ?? "",
-    highlightVideoThumbnailUrl: formData.get("highlightVideoThumbnailUrl") ?? undefined,
-    featureListTitle: formData.get("featureListTitle") ?? undefined,
-    features: formData.get("features") ?? undefined,
-    brandsTitle: formData.get("brandsTitle") ?? undefined,
-    certificationsTitle: formData.get("certificationsTitle") ?? undefined,
-    certifications: formData.get("certifications") ?? undefined,
     bannerSmUrl: formData.get("bannerSmUrl") ?? undefined,
     bannerSmVideoUrl: formData.get("bannerSmVideoUrl") ?? undefined,
     bannerMdUrl: formData.get("bannerMdUrl") ?? undefined,
@@ -458,30 +491,11 @@ export async function saveHomePage(
     bannerXlVideoUrl: formData.get("bannerXlVideoUrl") ?? undefined,
     bannerVideoUseForSmaller: formData.get("bannerVideoUseForSmaller"),
   });
-
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: { code: "VALIDATION_ERROR", message: parsed.error.issues[0]?.message ?? "Invalid input" },
-    };
-  }
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
 
   const {
     heroHeading,
     heroSubheading,
-    aboutHeading,
-    aboutBody,
-    aboutLinkButtons,
-    statistics,
-    highlightVideoTitle,
-    highlightVideoDescription,
-    highlightVideoYoutubeUrl,
-    highlightVideoThumbnailUrl,
-    featureListTitle,
-    features,
-    brandsTitle,
-    certificationsTitle,
-    certifications,
     bannerSmUrl,
     bannerSmVideoUrl,
     bannerMdUrl,
@@ -493,67 +507,12 @@ export async function saveHomePage(
     bannerVideoUseForSmaller,
   } = parsed.data;
 
-  // An "empty" rich text editor still serializes to `<h2></h2>` — store that
-  // as NULL so the public side's "fall back to hardcoded copy" check is a
-  // plain null check.
-  const aboutHeadingHtml = hasRichTextContent(aboutHeading) ? (aboutHeading as string) : null;
-  const aboutBodyHtml = hasRichTextContent(aboutBody) ? (aboutBody as string) : null;
-  // Normalize to just the fields we persist (drop any extra keys), keeping the
-  // client-supplied `id` as a stable key for the list editor.
-  const aboutLinkButtonsJson = aboutLinkButtons.map((button) => ({
-    id: button.id,
-    href: button.href,
-    image: button.image,
-  }));
-  const statisticsJson = statistics.map((stat) => ({
-    id: stat.id,
-    value: stat.value,
-    name: stat.name,
-  }));
-
-  if (!hasRichTextContent(highlightVideoTitle)) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a highlight video title" } };
-  }
-  const highlightVideoId = getYoutubeVideoId(highlightVideoYoutubeUrl);
-  if (!highlightVideoId) {
-    return {
-      success: false,
-      error: { code: "VALIDATION_ERROR", message: "That doesn't look like a valid YouTube link" },
-    };
-  }
-  const highlightVideoTitleHtml = highlightVideoTitle as string;
-  const highlightVideoThumbnail = highlightVideoThumbnailUrl || null;
-
-  if (!hasRichTextContent(featureListTitle)) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a feature list title" } };
-  }
-  const featureListTitleHtml = featureListTitle as string;
-  const featuresJson = features.map((feature) => ({
-    id: feature.id,
-    icon: feature.icon,
-    title: feature.title,
-    description: feature.description,
-  }));
-
-  if (!hasRichTextContent(brandsTitle)) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a brands title" } };
-  }
-  const brandsTitleHtml = brandsTitle as string;
-
-  if (!hasRichTextContent(certificationsTitle)) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: "Add a certifications title" } };
-  }
-  const certificationsTitleHtml = certificationsTitle as string;
-  const certificationsJson = certifications.map((cert) => ({ id: cert.id, image: cert.image }));
-
   const fallbackError =
     assertVideoHasFallback("Sm", bannerSmUrl, bannerSmVideoUrl) ??
     assertVideoHasFallback("Md", bannerMdUrl, bannerMdVideoUrl) ??
     assertVideoHasFallback("Lg", bannerLgUrl, bannerLgVideoUrl) ??
     assertVideoHasFallback("Xl", bannerXlUrl, bannerXlVideoUrl);
-  if (fallbackError) {
-    return { success: false, error: { code: "VALIDATION_ERROR", message: fallbackError } };
-  }
+  if (fallbackError) return invalid(fallbackError);
 
   // The flag is only meaningful once at least one size has a video — force it
   // back off server-side so a stale "true" can't linger with nothing to
@@ -561,68 +520,227 @@ export async function saveHomePage(
   const videoUseForSmaller =
     Boolean(bannerXlVideoUrl || bannerLgVideoUrl || bannerMdVideoUrl || bannerSmVideoUrl) && bannerVideoUseForSmaller;
 
+  return {
+    success: true,
+    data: {
+      heroHeading: heroHeading || null,
+      heroSubheading: heroSubheading || null,
+      bannerSmUrl: bannerSmUrl || null,
+      bannerSmVideoUrl: bannerSmVideoUrl || null,
+      bannerMdUrl: bannerMdUrl || null,
+      bannerMdVideoUrl: bannerMdVideoUrl || null,
+      bannerLgUrl: bannerLgUrl || null,
+      bannerLgVideoUrl: bannerLgVideoUrl || null,
+      bannerXlUrl,
+      bannerXlVideoUrl: bannerXlVideoUrl || null,
+      bannerVideoUseForSmaller: videoUseForSmaller,
+    },
+  };
+}
+
+const aboutSectionSchema = saveHomePageSchema.pick({
+  aboutHeading: true,
+  aboutBody: true,
+  aboutLinkButtons: true,
+});
+
+function parseAboutSection(formData: FormData): SectionParseResult {
+  const parsed = aboutSectionSchema.safeParse({
+    aboutHeading: formData.get("aboutHeading") ?? undefined,
+    aboutBody: formData.get("aboutBody") ?? undefined,
+    aboutLinkButtons: formData.get("aboutLinkButtons") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  const { aboutHeading, aboutBody, aboutLinkButtons } = parsed.data;
+
+  // An "empty" rich text editor still serializes to `<h2></h2>` — store that
+  // as NULL so the public side's "fall back to hardcoded copy" check is a
+  // plain null check.
+  return {
+    success: true,
+    data: {
+      aboutHeading: hasRichTextContent(aboutHeading) ? (aboutHeading as string) : null,
+      aboutBody: hasRichTextContent(aboutBody) ? (aboutBody as string) : null,
+      // Normalize to just the fields we persist (drop any extra keys), keeping
+      // the client-supplied `id` as a stable key for the list editor.
+      aboutLinkButtons: aboutLinkButtons.map((button) => ({
+        id: button.id,
+        href: button.href,
+        image: button.image,
+      })),
+    },
+  };
+}
+
+const statisticsSectionSchema = saveHomePageSchema.pick({ statistics: true });
+
+function parseStatisticsSection(formData: FormData): SectionParseResult {
+  const parsed = statisticsSectionSchema.safeParse({
+    statistics: formData.get("statistics") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  return {
+    success: true,
+    data: {
+      statistics: parsed.data.statistics.map((stat) => ({
+        id: stat.id,
+        value: stat.value,
+        name: stat.name,
+      })),
+    },
+  };
+}
+
+const highlightVideoSectionSchema = saveHomePageSchema.pick({
+  highlightVideoTitle: true,
+  highlightVideoDescription: true,
+  highlightVideoYoutubeUrl: true,
+  highlightVideoThumbnailUrl: true,
+});
+
+function parseHighlightVideoSection(formData: FormData): SectionParseResult {
+  const parsed = highlightVideoSectionSchema.safeParse({
+    highlightVideoTitle: formData.get("highlightVideoTitle") ?? undefined,
+    highlightVideoDescription: formData.get("highlightVideoDescription") ?? "",
+    highlightVideoYoutubeUrl: formData.get("highlightVideoYoutubeUrl") ?? "",
+    highlightVideoThumbnailUrl: formData.get("highlightVideoThumbnailUrl") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  const {
+    highlightVideoTitle,
+    highlightVideoDescription,
+    highlightVideoYoutubeUrl,
+    highlightVideoThumbnailUrl,
+  } = parsed.data;
+
+  if (!hasRichTextContent(highlightVideoTitle)) return invalid("Add a highlight video title");
+  if (!getYoutubeVideoId(highlightVideoYoutubeUrl)) {
+    return invalid("That doesn't look like a valid YouTube link");
+  }
+
+  return {
+    success: true,
+    data: {
+      highlightVideoTitle: highlightVideoTitle as string,
+      highlightVideoDescription,
+      highlightVideoYoutubeUrl,
+      highlightVideoThumbnailUrl: highlightVideoThumbnailUrl || null,
+    },
+  };
+}
+
+const featureListSectionSchema = saveHomePageSchema.pick({
+  featureListTitle: true,
+  features: true,
+});
+
+function parseFeatureListSection(formData: FormData): SectionParseResult {
+  const parsed = featureListSectionSchema.safeParse({
+    featureListTitle: formData.get("featureListTitle") ?? undefined,
+    features: formData.get("features") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  const { featureListTitle, features } = parsed.data;
+  if (!hasRichTextContent(featureListTitle)) return invalid("Add a feature list title");
+
+  return {
+    success: true,
+    data: {
+      featureListTitle: featureListTitle as string,
+      features: features.map((feature) => ({
+        id: feature.id,
+        icon: feature.icon,
+        title: feature.title,
+        description: feature.description,
+      })),
+    },
+  };
+}
+
+const brandsSectionSchema = saveHomePageSchema.pick({ brandsTitle: true });
+
+function parseBrandsSection(formData: FormData): SectionParseResult {
+  const parsed = brandsSectionSchema.safeParse({
+    brandsTitle: formData.get("brandsTitle") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  const { brandsTitle } = parsed.data;
+  if (!hasRichTextContent(brandsTitle)) return invalid("Add a brands title");
+
+  return { success: true, data: { brandsTitle: brandsTitle as string } };
+}
+
+const certificationsSectionSchema = saveHomePageSchema.pick({
+  certificationsTitle: true,
+  certifications: true,
+});
+
+function parseCertificationsSection(formData: FormData): SectionParseResult {
+  const parsed = certificationsSectionSchema.safeParse({
+    certificationsTitle: formData.get("certificationsTitle") ?? undefined,
+    certifications: formData.get("certifications") ?? undefined,
+  });
+  if (!parsed.success) return invalid(firstIssue(parsed.error));
+
+  const { certificationsTitle, certifications } = parsed.data;
+  if (!hasRichTextContent(certificationsTitle)) return invalid("Add a certifications title");
+
+  return {
+    success: true,
+    data: {
+      certificationsTitle: certificationsTitle as string,
+      certifications: certifications.map((cert) => ({ id: cert.id, image: cert.image })),
+    },
+  };
+}
+
+const SECTION_PARSERS: Record<HomePageSection, (formData: FormData) => SectionParseResult> = {
+  hero: parseHeroSection,
+  about: parseAboutSection,
+  statistics: parseStatisticsSection,
+  "highlight-video": parseHighlightVideoSection,
+  "feature-list": parseFeatureListSection,
+  brands: parseBrandsSection,
+  certifications: parseCertificationsSection,
+};
+
+function isHomePageSection(value: string): value is HomePageSection {
+  return HOME_PAGE_SECTIONS.includes(value);
+}
+
+export async function saveHomePageSection(
+  slug: string,
+  section: string,
+  formData: FormData
+): Promise<ActionResult<{ slug: HomePageSlug }>> {
+  if (!isHomePageSlug(slug)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Unknown homepage page." } };
+  }
+  if (!isHomePageSection(section)) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: "Unknown homepage section." } };
+  }
+
+  const parsed = SECTION_PARSERS[section](formData);
+  if (!parsed.success) {
+    return { success: false, error: { code: "VALIDATION_ERROR", message: parsed.message } };
+  }
+
   try {
     await prisma.homePage.upsert({
       where: { slug },
-      create: {
-        slug,
-        heroHeading: heroHeading || null,
-        heroSubheading: heroSubheading || null,
-        aboutHeading: aboutHeadingHtml,
-        aboutBody: aboutBodyHtml,
-        aboutLinkButtons: aboutLinkButtonsJson,
-        statistics: statisticsJson,
-        highlightVideoTitle: highlightVideoTitleHtml,
-        highlightVideoDescription,
-        highlightVideoYoutubeUrl,
-        highlightVideoThumbnailUrl: highlightVideoThumbnail,
-        featureListTitle: featureListTitleHtml,
-        features: featuresJson,
-        brandsTitle: brandsTitleHtml,
-        certificationsTitle: certificationsTitleHtml,
-        certifications: certificationsJson,
-        bannerSmUrl: bannerSmUrl || null,
-        bannerSmVideoUrl: bannerSmVideoUrl || null,
-        bannerMdUrl: bannerMdUrl || null,
-        bannerMdVideoUrl: bannerMdVideoUrl || null,
-        bannerLgUrl: bannerLgUrl || null,
-        bannerLgVideoUrl: bannerLgVideoUrl || null,
-        bannerXlUrl,
-        bannerXlVideoUrl: bannerXlVideoUrl || null,
-        bannerVideoUseForSmaller: videoUseForSmaller,
-      },
-      update: {
-        heroHeading: heroHeading || null,
-        heroSubheading: heroSubheading || null,
-        aboutHeading: aboutHeadingHtml,
-        aboutBody: aboutBodyHtml,
-        aboutLinkButtons: aboutLinkButtonsJson,
-        statistics: statisticsJson,
-        highlightVideoTitle: highlightVideoTitleHtml,
-        highlightVideoDescription,
-        highlightVideoYoutubeUrl,
-        highlightVideoThumbnailUrl: highlightVideoThumbnail,
-        featureListTitle: featureListTitleHtml,
-        features: featuresJson,
-        brandsTitle: brandsTitleHtml,
-        certificationsTitle: certificationsTitleHtml,
-        certifications: certificationsJson,
-        bannerSmUrl: bannerSmUrl || null,
-        bannerSmVideoUrl: bannerSmVideoUrl || null,
-        bannerMdUrl: bannerMdUrl || null,
-        bannerMdVideoUrl: bannerMdVideoUrl || null,
-        bannerLgUrl: bannerLgUrl || null,
-        bannerLgVideoUrl: bannerLgVideoUrl || null,
-        bannerXlUrl,
-        bannerXlVideoUrl: bannerXlVideoUrl || null,
-        bannerVideoUseForSmaller: videoUseForSmaller,
-      },
+      create: { slug, ...parsed.data },
+      update: parsed.data,
     });
 
     revalidateHomeCarouselPages();
     return { success: true, data: { slug } };
   } catch {
-    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to save the page." } };
+    return { success: false, error: { code: "INTERNAL_ERROR", message: "Failed to save the section." } };
   }
 }
 

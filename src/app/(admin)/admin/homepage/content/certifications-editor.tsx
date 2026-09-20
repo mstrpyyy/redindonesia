@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import {
   DndContext,
@@ -95,6 +95,9 @@ export function CertificationsEditor({
   disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Stable id so dnd-kit's `aria-describedby` matches between SSR and the
+  // client (its default is a module-level counter that drifts).
+  const dndId = useId();
   const [isUploading, startUpload] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -163,7 +166,7 @@ export function CertificationsEditor({
       />
 
       <div className="flex flex-wrap items-stretch gap-3">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={value.map((cert) => cert.id)} strategy={rectSortingStrategy}>
             {value.map((cert, index) => (
               <SortableLogoCard

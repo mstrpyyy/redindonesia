@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
+import { CollapsibleSection } from "@/app/(admin)/components/collapsible-section";
 import { ICategory, IHomeCarouselListItem, IProductPickerOption } from "@/interfaces/general";
 import { deleteHomeCarousel, reorderHomeCarousels } from "./actions";
 import { CarouselForm } from "./carousel-form";
@@ -227,39 +227,7 @@ export function CarouselTable({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <AdminSectionTitle>Carousel List</AdminSectionTitle>
-        <Dialog open={dialogOpen} onOpenChange={handleAddOpenChange}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="size-4" /> Add new carousel
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            showCloseButton={!isAddSaving}
-            onOpenAutoFocus={(event) => event.preventDefault()}
-            className={cn("flex max-h-[85vh] flex-col", addMode === null ? "sm:max-w-md" : "sm:max-w-3xl")}
-          >
-            <DialogHeader>
-              <DialogTitle>Choose Carousel Type</DialogTitle>
-            </DialogHeader>
-            <CarouselForm
-              deviceCategories={deviceCategories}
-              productCategories={productCategories}
-              productOptions={productOptions}
-              onSuccess={() => {
-                setDialogOpen(false);
-                setIsAddFormDirty(false);
-              }}
-              onDirtyChange={setIsAddFormDirty}
-              onPendingChange={setIsAddSaving}
-              onModeChange={setAddMode}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
-
+    <CollapsibleSection title="Carousel List">
       {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="rounded-lg border">
@@ -298,6 +266,35 @@ export function CarouselTable({
           </Table>
         </DndContext>
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={handleAddOpenChange}>
+        <DialogTrigger asChild>
+          <Button className="self-start">
+            <Plus className="size-4" /> Add new carousel
+          </Button>
+        </DialogTrigger>
+        <DialogContent
+          showCloseButton={!isAddSaving}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          className={cn("flex max-h-[85vh] flex-col", addMode === null ? "sm:max-w-md" : "sm:max-w-3xl")}
+        >
+          <DialogHeader>
+            <DialogTitle>Choose Carousel Type</DialogTitle>
+          </DialogHeader>
+          <CarouselForm
+            deviceCategories={deviceCategories}
+            productCategories={productCategories}
+            productOptions={productOptions}
+            onSuccess={() => {
+              setDialogOpen(false);
+              setIsAddFormDirty(false);
+            }}
+            onDirtyChange={setIsAddFormDirty}
+            onPendingChange={setIsAddSaving}
+            onModeChange={setAddMode}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editing !== null} onOpenChange={handleEditOpenChange}>
         <DialogContent
@@ -362,6 +359,6 @@ export function CarouselTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </CollapsibleSection>
   );
 }

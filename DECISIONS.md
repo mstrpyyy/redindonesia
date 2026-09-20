@@ -4987,3 +4987,39 @@ on render. `features` joins the required homepage-form content (banner, ≥1
 link button, ≥1 statistic, the video, now ≥2 features). Per ADR-099 every
 field falls back to "-". If a future Feature List instance needs a different
 icon vocabulary, `feature-icons.ts` is the single place to extend.
+
+
+## ADR-102: Homepage content form saves per section, not as one page-wide upsert
+
+**Date:** 2026-09-20
+**Status:** Accepted
+
+**Context:** The homepage content form had a single Save button at the bottom
+that posted every section's fields to `saveHomePage` (one Zod schema, one
+upsert). Every section needs its own Save button, and each must persist only
+that section — otherwise a Save in Hero would also write (and be blocked by
+validation of) unrelated, half-edited sections.
+**Options considered:**
+1. Repeat the same page-wide Save at the end of every section — trivial, but
+   saving one section still writes and validates all the others.
+2. One `saveHomePageSection(slug, section, formData)` action that picks the
+   section's own fields out of the existing Zod schema, validates only those,
+   and upserts only those columns (chosen).
+3. One exported server action per section — same behaviour, seven near-identical
+   exports and seven client imports.
+
+**Decision:** Option 2. Sections are `hero` (banner + hero heading/subheading),
+`about`, `statistics`, `highlight-video`, `feature-list`, `brands`,
+`certifications`. Each has a small parser built on `saveHomePageSchema.pick(...)`
+that returns just the section's columns; the action does
+`upsert({ create: { slug, ...data }, update: data })`. All `HomePage` content
+columns are already nullable or defaulted, so a first save of any single
+section can create the row. `saveHomePage` is removed.
+
+**Consequences:** A section's validation errors only block that section's
+Save. The Hero Save button is still disabled until the 1920x1080 banner image
+exists; the other sections have no client-side gate. Unsaved edits in other
+sections are not persisted by a Save (the form keeps them in state, so a later
+Save of that section still sends them). Adding a section means one schema
+`pick`, one parser, and one `SECTION_PARSERS` entry. The carousel list is
+unaffected — it already saves each add/edit/delete/reorder immediately.

@@ -12,7 +12,7 @@ import { UploadField } from "@/components/upload-field";
 import { cn, hasRichTextContent } from "@/lib/utils";
 import { findMissingBannerVideoFallback } from "@/lib/banner-video";
 import { MiniRichTextEditor } from "@/components/mini-rich-text-editor";
-import { AdminSectionTitle } from "@/app/(admin)/components/admin-section-title";
+import { CollapsibleSection } from "@/app/(admin)/components/collapsible-section";
 import { LinkButtonsEditor } from "./link-buttons-editor";
 import { StatisticsEditor } from "./statistics-editor";
 import { FeaturesEditor } from "./features-editor";
@@ -31,10 +31,11 @@ import {
   MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH,
 } from "./limits";
 import {
-  saveHomePage,
+  saveHomePageSection,
   uploadHomePageBanner,
   uploadHomePageBannerVideo,
   uploadHomePageHighlightVideoThumbnail,
+  type HomePageSection,
 } from "./actions";
 import type { HomePageSlug, IHomePage } from "@/lib/home-page";
 
@@ -130,7 +131,14 @@ export function HomePageForm({
   const [bannerSmVideoUrl, setBannerSmVideoUrl] = useState(initialData.bannerSmVideoUrl ?? "");
   // One global switch, not per-size — ADR-091.
   const [bannerVideoUseForSmaller, setBannerVideoUseForSmaller] = useState(initialData.bannerVideoUseForSmaller);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // `section` records which section's Save button was pressed so the result
+  // message renders next to that button only, not under all seven.
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+    section: HomePageSection;
+  } | null>(null);
+  const [savingSection, setSavingSection] = useState<HomePageSection | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const canSubmit = bannerXlUrl.length > 0;
@@ -146,332 +154,377 @@ export function HomePageForm({
     Sm: { imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl, setImageUrl: setBannerSmUrl, setVideoUrl: setBannerSmVideoUrl },
   };
 
-  const handleSave = () => {
-    setMessage(null);
+  // Builds only the fields the given section owns — the server action saves
+  // just those columns, so a section's Save never touches the others (ADR-102).
+  const buildSectionFormData = (section: HomePageSection): FormData => {
+    const formData = new FormData();
+    switch (section) {
+      case "hero":
+        if (heroHeading.trim()) formData.set("heroHeading", heroHeading.trim());
+        if (heroSubheading.trim()) formData.set("heroSubheading", heroSubheading.trim());
+        formData.set("bannerXlUrl", bannerXlUrl);
+        if (bannerXlVideoUrl) formData.set("bannerXlVideoUrl", bannerXlVideoUrl);
+        if (bannerLgUrl) formData.set("bannerLgUrl", bannerLgUrl);
+        if (bannerLgVideoUrl) formData.set("bannerLgVideoUrl", bannerLgVideoUrl);
+        if (bannerMdUrl) formData.set("bannerMdUrl", bannerMdUrl);
+        if (bannerMdVideoUrl) formData.set("bannerMdVideoUrl", bannerMdVideoUrl);
+        if (bannerSmUrl) formData.set("bannerSmUrl", bannerSmUrl);
+        if (bannerSmVideoUrl) formData.set("bannerSmVideoUrl", bannerSmVideoUrl);
+        formData.set("bannerVideoUseForSmaller", bannerVideoUseForSmaller ? "true" : "false");
+        break;
+      case "about":
+        if (hasRichTextContent(aboutHeading)) formData.set("aboutHeading", aboutHeading);
+        if (hasRichTextContent(aboutBody)) formData.set("aboutBody", aboutBody);
+        formData.set("aboutLinkButtons", JSON.stringify(aboutLinkButtons));
+        break;
+      case "statistics":
+        formData.set("statistics", JSON.stringify(statistics));
+        break;
+      case "highlight-video":
+        if (hasRichTextContent(hlVideoTitle)) formData.set("highlightVideoTitle", hlVideoTitle);
+        formData.set("highlightVideoDescription", hlVideoDescription.trim());
+        formData.set("highlightVideoYoutubeUrl", hlVideoYoutubeUrl.trim());
+        if (hlVideoThumbnailUrl) formData.set("highlightVideoThumbnailUrl", hlVideoThumbnailUrl);
+        break;
+      case "feature-list":
+        if (hasRichTextContent(featureListTitle)) formData.set("featureListTitle", featureListTitle);
+        formData.set("features", JSON.stringify(features));
+        break;
+      case "brands":
+        if (hasRichTextContent(brandsTitle)) formData.set("brandsTitle", brandsTitle);
+        break;
+      case "certifications":
+        if (hasRichTextContent(certificationsTitle))
+          formData.set("certificationsTitle", certificationsTitle);
+        formData.set("certifications", JSON.stringify(certifications));
+        break;
+    }
+    return formData;
+  };
 
-    const fallbackError = findMissingBannerVideoFallback([
-      { label: "1920x1080", imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
-      { label: "1440x1080", imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl },
-      { label: "1080x1440", imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
-      { label: "1080x1920", imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
-    ]);
-    if (fallbackError) {
-      setMessage({ type: "error", text: fallbackError });
-      return;
+  const handleSave = (section: HomePageSection) => {
+    setMessage(null);
+    setSavingSection(section);
+
+    if (section === "hero") {
+      const fallbackError = findMissingBannerVideoFallback([
+        { label: "1920x1080", imageUrl: bannerXlUrl, videoUrl: bannerXlVideoUrl },
+        { label: "1440x1080", imageUrl: bannerLgUrl, videoUrl: bannerLgVideoUrl },
+        { label: "1080x1440", imageUrl: bannerMdUrl, videoUrl: bannerMdVideoUrl },
+        { label: "1080x1920", imageUrl: bannerSmUrl, videoUrl: bannerSmVideoUrl },
+      ]);
+      if (fallbackError) {
+        setMessage({ type: "error", text: fallbackError, section });
+        return;
+      }
     }
 
     startTransition(async () => {
-      const formData = new FormData();
-      if (heroHeading.trim()) formData.set("heroHeading", heroHeading.trim());
-      if (heroSubheading.trim()) formData.set("heroSubheading", heroSubheading.trim());
-      if (hasRichTextContent(aboutHeading)) formData.set("aboutHeading", aboutHeading);
-      if (hasRichTextContent(aboutBody)) formData.set("aboutBody", aboutBody);
-      formData.set("aboutLinkButtons", JSON.stringify(aboutLinkButtons));
-      formData.set("statistics", JSON.stringify(statistics));
-      if (hasRichTextContent(hlVideoTitle)) formData.set("highlightVideoTitle", hlVideoTitle);
-      formData.set("highlightVideoDescription", hlVideoDescription.trim());
-      formData.set("highlightVideoYoutubeUrl", hlVideoYoutubeUrl.trim());
-      if (hlVideoThumbnailUrl) formData.set("highlightVideoThumbnailUrl", hlVideoThumbnailUrl);
-      if (hasRichTextContent(featureListTitle)) formData.set("featureListTitle", featureListTitle);
-      formData.set("features", JSON.stringify(features));
-      if (hasRichTextContent(brandsTitle)) formData.set("brandsTitle", brandsTitle);
-      if (hasRichTextContent(certificationsTitle))
-        formData.set("certificationsTitle", certificationsTitle);
-      formData.set("certifications", JSON.stringify(certifications));
-      formData.set("bannerXlUrl", bannerXlUrl);
-      if (bannerXlVideoUrl) formData.set("bannerXlVideoUrl", bannerXlVideoUrl);
-      if (bannerLgUrl) formData.set("bannerLgUrl", bannerLgUrl);
-      if (bannerLgVideoUrl) formData.set("bannerLgVideoUrl", bannerLgVideoUrl);
-      if (bannerMdUrl) formData.set("bannerMdUrl", bannerMdUrl);
-      if (bannerMdVideoUrl) formData.set("bannerMdVideoUrl", bannerMdVideoUrl);
-      if (bannerSmUrl) formData.set("bannerSmUrl", bannerSmUrl);
-      if (bannerSmVideoUrl) formData.set("bannerSmVideoUrl", bannerSmVideoUrl);
-      formData.set("bannerVideoUseForSmaller", bannerVideoUseForSmaller ? "true" : "false");
-
-      const result = await saveHomePage(slug, formData);
+      const result = await saveHomePageSection(slug, section, buildSectionFormData(section));
       setMessage(
         result.success
-          ? { type: "success", text: "Saved." }
-          : { type: "error", text: result.error.message }
+          ? { type: "success", text: "Saved.", section }
+          : { type: "error", text: result.error.message, section }
       );
     });
   };
 
+  const renderSaveBar = (section: HomePageSection) => (
+    <div className="flex items-center justify-start gap-3">
+      <Button
+        type="button"
+        onClick={() => handleSave(section)}
+        disabled={isPending || (section === "hero" && !canSubmit)}
+        className="w-32"
+      >
+        {isPending && savingSection === section ? "Saving..." : "Save"}
+      </Button>
+      {message?.section === section && (
+        <p className={message.type === "error" ? "text-destructive text-sm" : "text-emerald-600 text-sm"}>
+          {message.text}
+        </p>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex flex-col gap-4">
-      <AdminSectionTitle>Hero</AdminSectionTitle>
+    <div className="flex flex-col">
+      <CollapsibleSection title="Hero">
+        <div className="flex flex-col gap-3">
+          <p className="text-base font-semibold text-brand-red">
+            Banner
+            <RequiredMark />
+          </p>
+          <p className="text-muted-foreground -mt-2 text-xs">
+            Image: up to {MAX_HOME_BANNER_LABEL}, JPEG/PNG/WEBP. Video: up to{" "}
+            {MAX_HOME_BANNER_VIDEO_LABEL}, MP4, optional per size — image will be used as
+            fallback.
+          </p>
 
-      <div className="flex flex-col gap-3">
-        <p className="text-base font-semibold text-brand-red">
-          Banner
-          <RequiredMark />
-        </p>
-        <p className="text-muted-foreground -mt-2 text-xs">
-          Image: up to {MAX_HOME_BANNER_LABEL}, JPEG/PNG/WEBP. Video: up to{" "}
-          {MAX_HOME_BANNER_VIDEO_LABEL}, MP4, optional per size — image will be used as
-          fallback.
-        </p>
-
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent divide-x">
-              {BANNER_SIZES.map((size) => (
-                <TableHead key={size.key} className="text-center">
-                  <div className="flex flex-col items-center gap-1.5 py-2">
-                    <size.Icon className={cn("text-muted-foreground size-7", size.iconClassName)} />
-                    <span className="text-sm font-semibold whitespace-nowrap">
-                      {size.label}
-                      {size.required && <RequiredMark />}
-                    </span>
-                  </div>
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow className="hover:bg-transparent divide-x">
-              {BANNER_SIZES.map((size) => {
-                const field = bannerFields[size.key];
-                return (
-                  <TableCell key={size.key} className="align-top">
-                    <div className="flex flex-row justify-center gap-3">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <Label className="text-sm font-medium text-foreground">
-                          Image
-                          {size.required && <RequiredMark />}
-                        </Label>
-                        <UploadField
-                          kind="image"
-                          aspect={size.aspect}
-                          fit="cover"
-                          boxSizeClassName={size.boxSizeClassName}
-                          uploadAction={uploadHomePageBanner}
-                          value={field.imageUrl}
-                          onChange={(value) => field.setImageUrl((value as string) ?? "")}
-                        />
-                      </div>
-                      <div className="flex flex-col items-center gap-1.5">
-                        <Label className="text-sm font-medium text-foreground">Video</Label>
-                        <UploadField
-                          kind="video"
-                          aspect={size.aspect}
-                          fit="cover"
-                          boxSizeClassName={size.boxSizeClassName}
-                          uploadAction={uploadHomePageBannerVideo}
-                          value={field.videoUrl}
-                          onChange={(value) => field.setVideoUrl((value as string) ?? "")}
-                        />
-                      </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent divide-x">
+                {BANNER_SIZES.map((size) => (
+                  <TableHead key={size.key} className="text-center">
+                    <div className="flex flex-col items-center gap-1.5 py-2">
+                      <size.Icon className={cn("text-muted-foreground size-7", size.iconClassName)} />
+                      <span className="text-sm font-semibold whitespace-nowrap">
+                        {size.label}
+                        {size.required && <RequiredMark />}
+                      </span>
                     </div>
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          </TableBody>
-        </Table>
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow className="hover:bg-transparent divide-x">
+                {BANNER_SIZES.map((size) => {
+                  const field = bannerFields[size.key];
+                  return (
+                    <TableCell key={size.key} className="align-top">
+                      <div className="flex flex-row justify-center gap-3">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Label className="text-sm font-medium text-foreground">
+                            Image
+                            {size.required && <RequiredMark />}
+                          </Label>
+                          <UploadField
+                            kind="image"
+                            aspect={size.aspect}
+                            fit="cover"
+                            boxSizeClassName={size.boxSizeClassName}
+                            uploadAction={uploadHomePageBanner}
+                            value={field.imageUrl}
+                            onChange={(value) => field.setImageUrl((value as string) ?? "")}
+                          />
+                        </div>
+                        <div className="flex flex-col items-center gap-1.5">
+                          <Label className="text-sm font-medium text-foreground">Video</Label>
+                          <UploadField
+                            kind="video"
+                            aspect={size.aspect}
+                            fit="cover"
+                            boxSizeClassName={size.boxSizeClassName}
+                            uploadAction={uploadHomePageBannerVideo}
+                            value={field.videoUrl}
+                            onChange={(value) => field.setVideoUrl((value as string) ?? "")}
+                          />
+                        </div>
+                      </div>
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            </TableBody>
+          </Table>
 
-        {hasAnyVideo && (
-          <label className="flex items-start gap-2.5 pt-1">
-            <Switch
-              checked={bannerVideoUseForSmaller}
-              onCheckedChange={setBannerVideoUseForSmaller}
-              className="mt-0.5 shrink-0"
-            />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-foreground">Use existing video for empty screen sizes</span>
-              <span className="text-muted-foreground text-xs">
-                Screen size with no video will use the larger size&apos;s video if it exists.
+          {hasAnyVideo && (
+            <label className="flex items-start gap-2.5 pt-1">
+              <Switch
+                checked={bannerVideoUseForSmaller}
+                onCheckedChange={setBannerVideoUseForSmaller}
+                className="mt-0.5 shrink-0"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-foreground">Use existing video for empty screen sizes</span>
+                <span className="text-muted-foreground text-xs">
+                  Screen size with no video will use the larger size&apos;s video if it exists.
+                </span>
               </span>
-            </span>
-          </label>
-        )}
-      </div>
+            </label>
+          )}
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="hero-heading" className="text-base font-semibold text-brand-red">Hero Heading</Label>
-        <Input
-          id="hero-heading"
-          value={heroHeading}
-          onChange={(event) => setHeroHeading(event.target.value)}
-          maxLength={MAX_HOME_HERO_HEADING_LENGTH}
-          placeholder="e.g. Your Complete Medical Aesthetic Partner"
-          disabled={isPending}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="hero-subheading" className="text-base font-semibold text-brand-red">Hero Subheading</Label>
-        <Input
-          id="hero-subheading"
-          value={heroSubheading}
-          onChange={(event) => setHeroSubheading(event.target.value)}
-          maxLength={MAX_HOME_HERO_SUBHEADING_LENGTH}
-          placeholder="e.g. Powering the Future of Your Practice"
-          disabled={isPending}
-        />
-      </div>
-
-      <hr className="my-8 border-t" />
-
-      <AdminSectionTitle>About Section</AdminSectionTitle>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Heading</span>
-        <MiniRichTextEditor
-          value={aboutHeading}
-          onChange={setAboutHeading}
-          placeholder="e.g. 22 Years of Excellence in Medical Aesthetics"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Body</span>
-        <MiniRichTextEditor
-          mode="body"
-          value={aboutBody}
-          onChange={setAboutBody}
-          placeholder="Since 2004, PT Radian Elok Distriversa has been a cornerstone of..."
-        />
-      </div>
-
-      <LinkButtonsEditor
-        value={aboutLinkButtons}
-        onChange={setAboutLinkButtons}
-        disabled={isPending}
-      />
-
-      <hr className="my-8 border-t" />
-
-      <AdminSectionTitle>Statistics</AdminSectionTitle>
-
-      <StatisticsEditor value={statistics} onChange={setStatistics} disabled={isPending} />
-
-      <hr className="my-8 border-t" />
-
-      <AdminSectionTitle>Highlight Video</AdminSectionTitle>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Title</span>
-        <MiniRichTextEditor
-          mode="section-title"
-          value={hlVideoTitle}
-          onChange={setHlVideoTitle}
-          placeholder="Your Strategic Partner in Aesthetic Innovation"
-        />
-        <span className="text-muted-foreground text-xs">
-          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Description</span>
-        <Textarea
-          value={hlVideoDescription}
-          onChange={(event) => setHlVideoDescription(event.target.value)}
-          maxLength={MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH}
-          rows={3}
-          placeholder="Providing elite technology and dedicated service..."
-          disabled={isPending}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">YouTube Link</span>
-        <Input
-          value={hlVideoYoutubeUrl}
-          onChange={(event) => setHlVideoYoutubeUrl(event.target.value)}
-          placeholder="https://www.youtube.com/watch?v=..."
-          disabled={isPending}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Thumbnail</span>
-        <span className="text-muted-foreground -mt-1 text-xs">
-          Optional. A 16:9 poster shown before the video plays — YouTube&apos;s own
-          thumbnail is used if left empty.
-        </span>
-        <div className="w-64">
-          <UploadField
-            kind="image"
-            aspect="video"
-            uploadAction={uploadHomePageHighlightVideoThumbnail}
-            value={hlVideoThumbnailUrl}
-            onChange={(value) => setHlVideoThumbnailUrl((value as string) ?? "")}
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="hero-heading" className="text-base font-semibold text-brand-red">Hero Heading</Label>
+          <Input
+            id="hero-heading"
+            value={heroHeading}
+            onChange={(event) => setHeroHeading(event.target.value)}
+            maxLength={MAX_HOME_HERO_HEADING_LENGTH}
+            placeholder="e.g. Your Complete Medical Aesthetic Partner"
             disabled={isPending}
           />
         </div>
-      </div>
 
-      <hr className="my-8 border-t" />
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="hero-subheading" className="text-base font-semibold text-brand-red">Hero Subheading</Label>
+          <Input
+            id="hero-subheading"
+            value={heroSubheading}
+            onChange={(event) => setHeroSubheading(event.target.value)}
+            maxLength={MAX_HOME_HERO_SUBHEADING_LENGTH}
+            placeholder="e.g. Powering the Future of Your Practice"
+            disabled={isPending}
+          />
+        </div>
 
-      <AdminSectionTitle>Feature List</AdminSectionTitle>
+        {renderSaveBar("hero")}
+      </CollapsibleSection>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Title</span>
-        <MiniRichTextEditor
-          mode="section-title"
-          value={featureListTitle}
-          onChange={setFeatureListTitle}
-          placeholder="Why Choose RED ?"
+      <hr className="my-2 border-t" />
+
+      <CollapsibleSection title="About Section">
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Heading</span>
+          <MiniRichTextEditor
+            value={aboutHeading}
+            onChange={setAboutHeading}
+            placeholder="e.g. 22 Years of Excellence in Medical Aesthetics"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Body</span>
+          <MiniRichTextEditor
+            mode="body"
+            value={aboutBody}
+            onChange={setAboutBody}
+            placeholder="Since 2004, PT Radian Elok Distriversa has been a cornerstone of..."
+          />
+        </div>
+
+        <LinkButtonsEditor
+          value={aboutLinkButtons}
+          onChange={setAboutLinkButtons}
+          disabled={isPending}
         />
-        <span className="text-muted-foreground text-xs">
-          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
-        </span>
-      </div>
 
-      <FeaturesEditor value={features} onChange={setFeatures} disabled={isPending} />
+        {renderSaveBar("about")}
+      </CollapsibleSection>
 
-      <hr className="my-8 border-t" />
+      <hr className="my-2 border-t" />
 
-      <AdminSectionTitle>Brands</AdminSectionTitle>
+      <CollapsibleSection title="Statistics">
+        <StatisticsEditor value={statistics} onChange={setStatistics} disabled={isPending} />
 
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Heading</span>
-        <MiniRichTextEditor
-          mode="section-title"
-          value={brandsTitle}
-          onChange={setBrandsTitle}
-          placeholder="Meet Our Brands"
+        {renderSaveBar("statistics")}
+      </CollapsibleSection>
+
+      <hr className="my-2 border-t" />
+
+      <CollapsibleSection title="Highlight Video">
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Title</span>
+          <MiniRichTextEditor
+            mode="section-title"
+            value={hlVideoTitle}
+            onChange={setHlVideoTitle}
+            placeholder="Your Strategic Partner in Aesthetic Innovation"
+          />
+          <span className="text-muted-foreground text-xs">
+            Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Description</span>
+          <Textarea
+            value={hlVideoDescription}
+            onChange={(event) => setHlVideoDescription(event.target.value)}
+            maxLength={MAX_HOME_HIGHLIGHT_VIDEO_DESCRIPTION_LENGTH}
+            rows={3}
+            placeholder="Providing elite technology and dedicated service..."
+            disabled={isPending}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">YouTube Link</span>
+          <Input
+            value={hlVideoYoutubeUrl}
+            onChange={(event) => setHlVideoYoutubeUrl(event.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            disabled={isPending}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Thumbnail</span>
+          <span className="text-muted-foreground -mt-1 text-xs">
+            Optional. A 16:9 poster shown before the video plays — YouTube&apos;s own
+            thumbnail is used if left empty.
+          </span>
+          <div className="w-64">
+            <UploadField
+              kind="image"
+              aspect="video"
+              uploadAction={uploadHomePageHighlightVideoThumbnail}
+              value={hlVideoThumbnailUrl}
+              onChange={(value) => setHlVideoThumbnailUrl((value as string) ?? "")}
+              disabled={isPending}
+            />
+          </div>
+        </div>
+
+        {renderSaveBar("highlight-video")}
+      </CollapsibleSection>
+
+      <hr className="my-2 border-t" />
+
+      <CollapsibleSection title="Feature List">
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Title</span>
+          <MiniRichTextEditor
+            mode="section-title"
+            value={featureListTitle}
+            onChange={setFeatureListTitle}
+            placeholder="Why Choose RED ?"
+          />
+          <span className="text-muted-foreground text-xs">
+            Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+          </span>
+        </div>
+
+        <FeaturesEditor value={features} onChange={setFeatures} disabled={isPending} />
+
+        {renderSaveBar("feature-list")}
+      </CollapsibleSection>
+
+      <hr className="my-2 border-t" />
+
+      <CollapsibleSection title="Brands">
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Heading</span>
+          <MiniRichTextEditor
+            mode="section-title"
+            value={brandsTitle}
+            onChange={setBrandsTitle}
+            placeholder="Meet Our Brands"
+          />
+          <span className="text-muted-foreground text-xs">
+            Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+          </span>
+        </div>
+
+        {renderSaveBar("brands")}
+      </CollapsibleSection>
+
+      <hr className="my-2 border-t" />
+
+      <CollapsibleSection title="Certifications">
+        <div className="flex flex-col gap-2">
+          <span className="text-base font-semibold text-brand-red">Heading</span>
+          <MiniRichTextEditor
+            mode="section-title"
+            value={certificationsTitle}
+            onChange={setCertificationsTitle}
+            placeholder="Excellence Through Certified Standards"
+          />
+          <span className="text-muted-foreground text-xs">
+            Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
+          </span>
+        </div>
+
+        <CertificationsEditor
+          value={certifications}
+          onChange={setCertifications}
+          disabled={isPending}
         />
-        <span className="text-muted-foreground text-xs">
-          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
-        </span>
-      </div>
 
-      <hr className="my-8 border-t" />
-
-      <AdminSectionTitle>Certifications</AdminSectionTitle>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-brand-red">Heading</span>
-        <MiniRichTextEditor
-          mode="section-title"
-          value={certificationsTitle}
-          onChange={setCertificationsTitle}
-          placeholder="Excellence Through Certified Standards"
-        />
-        <span className="text-muted-foreground text-xs">
-          Select some words and hit <span className="font-medium">Add Accent</span> to make them brand red.
-        </span>
-      </div>
-
-      <CertificationsEditor
-        value={certifications}
-        onChange={setCertifications}
-        disabled={isPending}
-      />
-
-      <div className="flex items-center justify-start gap-3">
-        <Button type="button" onClick={handleSave} disabled={isPending || !canSubmit} className="w-32">
-          {isPending ? "Saving..." : "Save"}
-        </Button>
-        {message && (
-          <p className={message.type === "error" ? "text-destructive text-sm" : "text-emerald-600 text-sm"}>
-            {message.text}
-          </p>
-        )}
-      </div>
+        {renderSaveBar("certifications")}
+      </CollapsibleSection>
     </div>
   );
 }
