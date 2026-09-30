@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, GalleryHorizontal, Image as ImageIcon, Layers, Mail, Shield } from 'lucide-react'
+import { ChevronRight, GalleryHorizontal, Image as ImageIcon, Layers, Mail, QrCode, Shield } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -46,7 +46,23 @@ const navMenus = [
           { name: 'Catalogue', slug: '/admin/product-device/products/items' },
         ],
       },
+      {
+        name: 'Brands',
+        menu: [
+          { name: 'List', slug: '/admin/product-device/brands' },
+        ],
+      },
     ],
+  },
+  {
+    name: 'Digital',
+    icon: <QrCode size={18} strokeWidth={2} />,
+    menu: [
+      {
+        name: 'Catalogue',
+        slug: '/admin/digital',
+      },
+    ]
   },
   {
     name: 'Media',
@@ -93,7 +109,7 @@ const navMenus = [
     icon: <Mail size={18} strokeWidth={2}  />,
     menu: [
       {
-        name: 'Content',
+        name: 'Page Content',
         slug: '/admin/contact/content',
       },
       {

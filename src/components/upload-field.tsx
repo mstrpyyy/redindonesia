@@ -26,6 +26,7 @@ export function UploadField({
   uploadAction = uploadSegmentAsset,
   preview = true,
   boxSizeClassName,
+  accept: acceptOverride,
   value,
   onChange,
   disabled,
@@ -78,6 +79,10 @@ export function UploadField({
   // (e.g. a document row's thumbnail, where the caller renders its own
   // "view" action alongside).
   preview?: boolean;
+  // Overrides the kind-derived default file-picker filter — e.g. the digital
+  // flipbook field scopes this to "application/pdf" instead of kind "file"'s
+  // generic image+PDF default, since a flipbook is never an image.
+  accept?: string;
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
@@ -107,7 +112,8 @@ export function UploadField({
   };
 
   const accept =
-    kind === "icon"
+    acceptOverride ??
+    (kind === "icon"
       ? "image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
       : kind === "image"
         ? "image/jpeg,image/png,image/webp,image/gif"
@@ -115,7 +121,7 @@ export function UploadField({
           ? "image/jpeg,image/png,image/webp"
           : kind === "video"
             ? "video/mp4"
-            : "image/jpeg,image/png,image/webp,image/gif,application/pdf";
+            : "image/jpeg,image/png,image/webp,image/gif,application/pdf");
 
   if (kind === "icon") {
     return (

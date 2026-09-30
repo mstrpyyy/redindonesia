@@ -1,7 +1,37 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Tailwind v4's automatic content detection doesn't scan node_modules —
+   react-pdf-flipbook-viewer (the /digital flipbook page, ADR-113) ships its
+   own Tailwind-classed markup and needs this explicit source or its toolbar/
+   buttons render unstyled. */
+@source "../../node_modules/react-pdf-flipbook-viewer/dist/**/*.js";
+
 @custom-variant dark (&:is(.dark *));
+
+/* react-pdf-flipbook-viewer's own toolbar/slider/buttons are styled with
+   plain shadcn utility classes (bg-background, bg-primary, etc.) reading
+   this project's *light*-theme tokens (this project defines no .dark theme
+   at all) — on the flipbook page's black background that toolbar rendered
+   white. Scoping a local override of just the tokens that component reads
+   to this one wrapper class (rather than introducing a site-wide .dark
+   theme nothing else uses) makes its bottom bar/slider match the page
+   without touching any other component. See ADR-114. */
+.digital-flipbook-theme {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.3 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.708 0 0);
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 12%);
+}
 
 @theme {
   --breakpoint-xs: 25rem;

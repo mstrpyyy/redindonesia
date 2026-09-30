@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { ICategory, INavbarMenu } from "@/interfaces/general";
+import { ICategory, ICategoryUrlSuggestion, INavbarMenu } from "@/interfaces/general";
 import { resolveCascadingVideoUrls } from "@/lib/banner-video";
 
 // The four category banner sizes form one waterfall, largest to smallest —
@@ -209,6 +209,37 @@ export async function mapCategoriesToNavMenu(
 ): Promise<INavbarMenu[]> {
   const productsByCategory = await getPublicNavProductsByCategory(type);
   return buildCategoryNavMenu(categories, productsByCategory);
+}
+
+// Flattened list of every category's own page path, across both the device
+// and product trees — offered as autocomplete suggestions on the Brand admin
+// form's URL field (see ADR-115), since a brand almost always links to one of
+// these catalogue pages. Every node is included, not just `isPage` ones — a
+// plain breadcrumb category (ADR-033) is still a real, navigable URL.
+export async function getCategoryUrlSuggestions(): Promise<ICategoryUrlSuggestion[]> {
+  const [devices, products] = await Promise.all([getCategoryTree("device"), getCategoryTree("product")]);
+  return [
+    ...flattenCategoryUrlSuggestions(devices, "Devices", "/devices", [], []),
+    ...flattenCategoryUrlSuggestions(products, "Products", "/products", [], []),
+  ];
+}
+
+function flattenCategoryUrlSuggestions(
+  nodes: ICategory[],
+  rootLabel: string,
+  rootPath: string,
+  parentNames: string[],
+  parentSlugs: string[]
+): ICategoryUrlSuggestion[] {
+  return nodes.flatMap((node) => {
+    const names = [...parentNames, node.name];
+    const slugs = [...parentSlugs, node.slug];
+    const current: ICategoryUrlSuggestion = {
+      label: `${rootLabel} > ${names.join(" > ")}`,
+      url: `${rootPath}/${slugs.join("/")}`,
+    };
+    return [current, ...flattenCategoryUrlSuggestions(node.children, rootLabel, rootPath, names, slugs)];
+  });
 }
 
 function buildCategoryNavMenu(

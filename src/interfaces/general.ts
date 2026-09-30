@@ -22,6 +22,22 @@ export interface ISocialAccount {
   order: number
 }
 
+export interface IBrand {
+  id: string
+  name: string
+  logo: string
+  url: string | null
+  order: number
+}
+
+// One flattened catalogue-page option for the Brand admin form's URL field
+// autocomplete (`getCategoryUrlSuggestions`, src/lib/categories.ts) — every
+// device/product Category node's own breadcrumb + real path.
+export interface ICategoryUrlSuggestion {
+  label: string
+  url: string
+}
+
 export interface IGallery {
   id: string
   title: string

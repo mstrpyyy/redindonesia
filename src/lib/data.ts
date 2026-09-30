@@ -254,19 +254,3 @@ export function buildNavMenus(devices: ILiveCategoryBranch, products: ILiveCateg
   )
 }
 
-export const brandList = [
-  { src: '/image/brand-logo/alma.webp', name: 'alma', link:'/' },
-  { src: '/image/brand-logo/aquaglo.webp', name: 'aquaglo', link:'/' },
-  { src: '/image/brand-logo/inno-ce.webp', name: 'inno-ce', link:'/' },
-  { src: '/image/brand-logo/inno-exoma.webp', name: 'inno exoma', link:'/' },
-  { src: '/image/brand-logo/innoaesthetics.webp', name: 'innoaesthetics', link:'/' },
-  { src: '/image/brand-logo/meline.webp', name: 'meline', link:'/' },
-  { src: '/image/brand-logo/novuma.webp', name: 'novuma', link:'/' },
-  { src: '/image/brand-logo/tegoder.webp', name: 'tegoder', link:'/' },
-  // { src: '/image/brand2.png', name: 'almabeauty', link:'/' },
-  // { src: '/image/brand3.png', name: 'aestheticbyalma', link:'/' },
-  // { src: '/image/brand8.png', name: 'ionto', link:'/' },
-  // { src: '/image/brand12.png', name: 'tegor', link:'/' },
-]
-
-

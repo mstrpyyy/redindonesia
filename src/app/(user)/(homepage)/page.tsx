@@ -10,15 +10,17 @@ import { BrandHomeSection } from "./(sections)/Brand";
 import { ProductHomeSection } from "./(sections)/Products";
 import { getPublicHomeCarousels } from "@/lib/home-carousels";
 import { getHomePage } from "@/lib/home-page";
+import { getBrands } from "@/lib/brands";
 
 export const metadata: Metadata = {
   title: 'Home'
 };
 
 export default async function Home() {
-  const [carousels, homePage] = await Promise.all([
+  const [carousels, homePage, brands] = await Promise.all([
     getPublicHomeCarousels(),
     getHomePage("home"),
+    getBrands(),
   ]);
 
   return (
@@ -72,7 +74,7 @@ export default async function Home() {
 
       <div className="shadow-[0px_10px_25px_10px_rgba(0,0,0,0.20)]">
         {/* BRAND */}
-        <BrandHomeSection title={homePage.brandsTitle} />
+        <BrandHomeSection title={homePage.brandsTitle} brands={brands} />
 
         {/* CREDIBILITY */}
         <BodyWrapper className="py-10 sm:py-24 bg-brand-pink" id='certified-component'>

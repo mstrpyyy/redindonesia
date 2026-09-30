@@ -5099,3 +5099,821 @@ left as historical record.
 **Consequences:** `/admin/homepage/*` now 404 (no redirect). `revalidatePath`
 targets are string literals, so any future rename must update them by hand —
 a missed one fails silently by leaving the admin page stale.
+
+
+## ADR-105: DigitalItem model — fixed-key `media` object, reused banner shape, self-hosted flipbook
+
+**Date:** 2026-09-29
+**Status:** Partially superseded by ADR-106 — the `media` fixed-key-object
+decision (Option 3 below) no longer holds; the banner-reuse and self-hosted
+flipbook decisions still stand.
+
+**Context:** The on-site marketing team needs a `/digital` feature: a flat list
+of QR-linked pages, each a button-list of a brand/product's digital media
+(YouTube videos, a flipbook-viewer PDF, and plain documents opened with
+default browser behavior). This ADR covers the CMS half only (schema, admin
+list, 3-step editor) — the public `/digital` and `/digital/[slug]` routes are a
+follow-up task (see TASKS.md).
+
+**Options considered (data shape for the 3 media types):**
+1. One JSON column per type (`youtubeVideos`, `flipbookFiles`, `documentFiles`)
+   — three separate `Json` columns, always present, empty array means "off."
+2. An open-ended array of typed blocks, copying `Product.segments`'s
+   repeatable-block engine (`segment-types.ts` + `SegmentsBuilder`) — lets an
+   item have, say, two independent flipbook sections.
+3. A single fixed-key JSON object (`{ youtube?, flipbook?, document? }`) where
+   key presence *is* the on/off toggle (chosen).
+
+**Options considered (background images):**
+1. A single desktop-only image field — simplest, but inconsistent with every
+   other hero/banner in the app and no mobile-specific crop.
+2. Reuse `Category`'s exact 4-size (`Sm`/`Md`/`Lg`/`Xl`) responsive
+   image+optional-video+cascade-fallback shape (ADR-089/091/093) (chosen).
+
+**Options considered (flipbook viewer, decided now for the follow-up task):**
+1. Third-party embed service (e.g. Heyzine, FlipHTML5, Issuu) — fastest to
+   build, but requires an external account, uploading PDFs to a third party,
+   and accepting its pricing/ToS — an ongoing vendor dependency this project
+   otherwise avoids (self-hosted VPS, no SaaS content services).
+2. Self-hosted: render PDF pages client-side with `pdfjs-dist` and animate
+   page turns with a lightweight page-flip library (e.g. `react-pageflip`) —
+   no ongoing cost or ToS, consistent with the project's self-hosted stance;
+   more implementation work, done entirely in this codebase (chosen, per
+   explicit user confirmation).
+
+**Decision:** `DigitalItem` is a flat, category-less model (`id`, `name`,
+`slug`, `status`, `order`, `qrImageUrl`, the 4-size banner fields, `media:
+Json`) — closer to `Article`/`Gallery` than to `Product`, since there is no
+brand hierarchy to route an item through. `media` is Option 3: a fixed-key
+object (`{ youtube?: { videos: [...] }, flipbook?: { items: [...] },
+document?: { items: [...] } }`), because there are exactly 3 possible types,
+none repeatable — a keyed object needing three small dedicated row-editors
+(`youtube-videos-editor.tsx`, `flipbook-files-editor.tsx`,
+`document-files-editor.tsx`) is simpler than standing up Product's generic
+segment engine for a set of types that will never grow past 3. Background
+images reuse Category's exact banner shape/UI (own copy in
+`digital-form.tsx`, not extracted into a shared component — matches this
+repo's existing per-feature duplication of that table). The flipbook viewer
+will be self-hosted (`pdfjs-dist` + a page-flip library) when the public child
+page is built — recorded now so that follow-up task doesn't re-litigate it,
+and so today's upload validation (`ACCEPTED_DIGITAL_FLIPBOOK_TYPES` = PDF
+only, no rendering dependency added yet) doesn't need to change later.
+
+**Consequences:** Adding a 4th media type later means widening the `media`
+object and its Zod schema/completeness check by hand (a few lines in
+`digital-media.ts`/`digital-actions.ts`), not just registering a new segment
+type — an acceptable tradeoff since the 3 types are a closed, spec-given set,
+not an open content model. An item can't have two independent YouTube
+sections with different framing (e.g. "Demo Videos" vs "Testimonials") — all
+its videos share one "YouTube Videos" toggle; splitting that further would
+need Option 2's engine instead. Draft items only require a `name` to save
+(QR image / Xl background / a complete media type are enforced only when
+publishing, same draft-vs-publish split as `Product`'s `validateSegments`).
+The public `/digital` list and `/digital/[slug]` child page, and the flipbook
+viewer component itself, remain unbuilt until the follow-up task.
+
+
+## ADR-106: DigitalItem `media` becomes a repeatable block array (supersedes ADR-105's fixed-key object)
+
+**Date:** 2026-09-29
+**Status:** Accepted, refined by ADR-107 (block array shape stands; what a
+non-"youtube" block holds inside it changed)
+
+**Context:** ADR-105 modeled `media` as a fixed-key object
+(`{ youtube?, flipbook?, document? }`) on the reasoning that each of the 3
+media types would be toggled on at most once. Before any public page was
+built on top of it, the client clarified the real requirement: a media type
+can be used more than once per item (e.g. two separate "YouTube Videos"
+blocks — say, "Demo Videos" and "Testimonials" — each its own labeled
+section), and the admin should add media the same way sections are added on
+the product editor: an "Add" dropdown that inserts a new block, not a fixed
+set of on/off switches. A fixed-key object can't express two instances of the
+same key.
+
+**Options considered:**
+1. Keep the fixed-key object, and fake repeats by asking the admin to cram
+   multiple videos into one "youtube" block's list — already possible for
+   *videos*, but does not give two independently labeled/orderable sections,
+   which is what was actually asked for.
+2. Switch to an open-ended array of typed blocks, mirroring
+   `Product.segments`/`segment-types.ts` — an "Add Media" dropdown appends a
+   new `{ id, type, name?, ...content }` block; any type can appear any number
+   of times, in any order (chosen).
+
+**Decision:** Option 2. `DigitalItem.media` is now `Json` holding an ordered
+array of `IDigitalMediaBlock` (`src/interfaces/digital.ts`): a
+discriminated union on `type` (`"youtube" | "flipbook" | "document"`), each
+block carrying its own `id`, optional `name` (an admin-facing label, not
+shown to the public), and its type's content (`videos`/`items`). The Media
+tab (renamed from "Media Types" to "Media") replaces the 3 `Switch` toggles
+with an `MediaBlocksEditor` component
+(`src/app/(admin)/admin/digital/media-blocks-editor.tsx`): an "Add Media"
+`DropdownMenu` (the same pattern as the product editor's "Add a segment"
+menu) appends a block of the chosen type; each block renders as a card with
+its label, name input, move-up/down, remove, and its own
+`YoutubeVideosEditor`/`FlipbookFilesEditor`/`DocumentFilesEditor` for its
+items — those 3 row-editors are reused unchanged from ADR-105, only the
+container around them changed. `digital-media.ts`'s completeness helpers
+(`isDigitalMediaComplete`) now walk the array instead of the 3 fixed keys.
+Migration `20260929202135_digital_media_array` changes only the column's
+default (`"{}"` → `"[]"`); the column itself (`Json`) didn't need to change.
+
+**Consequences:** An item's media buttons can now be organized into as many
+labeled sections as needed (e.g. multiple flipbook blocks for multiple
+brochures), matching how segments already work for Product. This does not
+change anything about the deferred public `/digital`/`/digital/[slug]` pages
+or the flipbook viewer decision from ADR-105 — those still read from
+whatever shape `media` ends up as, which is now this array. Reordering blocks
+uses simple move-up/down buttons rather than full drag-and-drop (`dnd-kit`) —
+acceptable given the short block lists in practice; revisit with `dnd-kit` if
+that stops holding.
+
+
+## ADR-107: Only "youtube" blocks hold multiple media; every button gets a required label + optional image
+
+**Date:** 2026-09-29
+**Status:** Accepted, refined by ADR-108 (the label/image ended up on a
+youtube *block*, not on each of its videos)
+
+**Context:** ADR-106 made every media block type (`youtube`/`flipbook`/
+`document`) hold a nested `items`/`videos` list, on the assumption that any
+type might need more than one entry per block. The client clarified that
+only YouTube videos actually need that — a flipbook or document block should
+hold exactly one file; a second flipbook button is a second **block** (via
+the existing "Add Media" menu), not a second row inside one block. Separately,
+every button-producing entry needed a required text label (previously
+"title"/"name" were optional, admin-facing-only fields) plus the option to
+upload a custom image to stand in for the button's icon.
+
+**Options considered (flipbook/document shape):**
+1. Keep the `items: [...]` list shape for all 3 types, just cap flipbook/
+   document lists at 1 entry in validation — keeps the type union uniform,
+   but leaves a pointless list UI (add/remove buttons, empty-state) around a
+   single value.
+2. Flatten `flipbook`/`document` blocks to hold their one file's fields
+   (`label`, `imageUrl?`, `fileUrl`) directly on the block, no nested list;
+   `youtube` keeps its `videos: [...]` list, since it's the only type that
+   is genuinely multi-valued (chosen).
+
+**Options considered (label requirement):**
+1. Keep the admin-facing `name`/`title` fields optional, as before — leaves
+   open the possibility of a published button with no visible text.
+2. Rename to `label`, make it required (enforced by
+   `isDigitalMediaBlockComplete`/`isYoutubeVideoComplete` — required only to
+   *publish*, same as every other required field in this editor, not at the
+   Zod-parse/draft-save layer), and add an optional `imageUrl` alongside it
+   for a custom button visual (chosen).
+
+**Decision:** Option 2 on both counts. `IDigitalYoutubeBlock` keeps
+`videos: IDigitalYoutubeVideo[]`; `IDigitalFlipbookBlock`/
+`IDigitalDocumentBlock` now carry `label: string`, `imageUrl?: string`,
+`fileUrl: string` directly (no nested list) — see
+`src/interfaces/digital.ts`. `IDigitalYoutubeVideo` gained the same
+`label`/`imageUrl` pair (renamed from the old optional `title`). The admin UI
+follows: `youtube-videos-editor.tsx` gained a `Button Image` `UploadField`
+per row and renamed its "Title" input to the required "Label";
+`flipbook-files-editor.tsx`/`document-files-editor.tsx` (the old list
+editors) were deleted and replaced by one shared
+`single-media-block-fields.tsx` (`Label` + optional `Button Image` +
+required file `UploadField`), embedded directly in `media-blocks-editor.tsx`
+in place of the old per-type list components. A new upload action,
+`uploadDigitalMediaLabelImage` (`digital-upload-actions.ts`), lands every
+button image in the same `digital-content` folder the other media-block
+files use. `digital-media.ts`'s completeness helpers were rewritten around
+the new shapes (`isDigitalMediaBlockComplete` branches on `type` directly
+rather than walking a list for every type). The "Add Media" button itself is
+now full width (`className="w-full"` in `media-blocks-editor.tsx`), per the
+client's request, unrelated to the shape change but landed in the same pass.
+
+**Consequences:** A flipbook/document button's identity (label + optional
+image) is edited in the same place as its file, one level shallower than
+before — fewer clicks, and no more empty-list UI for a value that can only
+ever be 0 or 1. Adding a `youtube`-style "genuinely repeatable" block type in
+the future means giving it its own `videos`-shaped list, not reusing
+`flipbook`/`document`'s flattened shape. The label requirement is
+enforced the same way every other publish-only requirement in this editor is
+(checked in `isDigitalMediaComplete`/the server's parity check in
+`digital-actions.ts`, not at the Zod-parse layer) — a draft can still have a
+blank label, same draft-vs-publish split as everything else here. No schema
+migration was needed for this change: `DigitalItem.media` is still a `Json`
+array — only the TypeScript shape of what lives inside each block changed.
+
+
+## ADR-108: A youtube block's label/image belong to the block, not to each video
+
+**Date:** 2026-09-29
+**Status:** Accepted
+
+**Context:** ADR-107 put `label`/`imageUrl` on each `IDigitalYoutubeVideo`,
+reasoning that every "button-producing entry" needed them. The client
+clarified the actual page structure: on the `/digital/[slug]` landing page,
+each media block is ONE button (its `label`/image), and for a youtube block,
+clicking that one button opens a dedicated video page which then lists one
+or more videos. A video's own `url`/`title`/`description` belong to *that*
+video page, not to the landing page — so a video never needs its own
+label/image; only the block (the landing-page button) does.
+
+**Options considered:**
+1. Keep `label`/`imageUrl` on each video (ADR-107's shape) — wrong once the
+   two-page structure was clarified: a youtube block with 3 videos would show
+   3 separate landing-page buttons, not the intended 1 button → video-page-
+   with-3-videos.
+2. Move `label`/`imageUrl` off the video and onto the block itself, shared
+   via a common `IDigitalMediaBlockBase { id, label, imageUrl? }` that all 3
+   block types extend; `flipbook`/`document` already had them at the block
+   level (ADR-107), so this just brings `youtube` in line (chosen).
+
+**Decision:** Option 2. `IDigitalMediaBlockBase` (`src/interfaces/digital.ts`)
+now holds `label`/`imageUrl?`, extended by all three block interfaces —
+`youtube` additionally has `videos: IDigitalYoutubeVideo[]`;
+`flipbook`/`document` additionally have `fileUrl`. `IDigitalYoutubeVideo`
+reverts to its original ADR-105 shape (`id`, `url`, optional `title`/
+`description`) with no `label`/`imageUrl` of its own.
+`youtube-videos-editor.tsx` dropped the per-row image upload and renamed
+"Label" back to the optional "Title". The label+image fields (previously
+duplicated inside the old `single-media-block-fields.tsx` for flipbook/
+document only) are now one shared `media-block-label-fields.tsx`
+(`MediaBlockLabelFields`) rendered once per block in `media-blocks-editor.tsx`
+regardless of type, with the type-specific content (`YoutubeVideosEditor`, or
+a single file `UploadField` for flipbook/document) rendered below it.
+`isDigitalMediaBlockComplete` (`digital-media.ts`) now checks `block.label`
+first for every type, then branches on type-specific content.
+
+**Consequences:** The admin editor now visually matches the real page
+structure: one Label + Button Image pair per block (the landing-page
+button), and — only for youtube — a "shown on this button's own video page"
+list below it. `MAX_DIGITAL_YOUTUBE_TITLE_LENGTH` came back (a video's
+optional title is a distinct field from a block's required label, both
+capped independently). No schema migration needed — same as ADR-107, this is
+a TypeScript-shape-only change to `DigitalItem.media`'s `Json` contents.
+
+
+## ADR-109: Public `/digital` QR page lives outside `(user)`, with no site Navbar/Footer
+
+**Date:** 2026-09-29
+**Status:** Accepted
+
+**Context:** The CMS built in ADR-105 through ADR-108 needed its public
+counterpart: a page showing every published `DigitalItem`'s QR code as a
+clickable carousel, matching a reference screenshot the client provided — a
+plain black background, the RED logo, a heading, the QR carousel with
+arrow controls, and a "Home Page" button. The reference has none of the
+site's normal navbar or footer — no menu, no search bar, no site links — just
+the logo, the content, and one way back to the main site. This page is meant
+to be landed on directly from a scanned/printed QR code (or a physical
+kiosk), not browsed to from the site's own navigation.
+
+**Options considered:**
+1. Put it under `src/app/(user)/digital/page.tsx` like every other public
+   page — automatically inherits `(user)/layout.tsx`'s `Navbar`/`Footer`/
+   `AOSProvider`/`SplashScreen`, consistent with the rest of the site, but
+   contradicts the reference's chrome-less design and adds a redundant way
+   to navigate away that the "Home Page" button already exists to provide.
+2. Put it at `src/app/digital/page.tsx`, outside every route group — gets
+   only the root layout (font + globals, no Navbar/Footer/AOS/Splash) — the
+   exact same precedent `src/app/not-found.tsx` already establishes for a
+   standalone page in this codebase (chosen).
+
+**Decision:** Option 2. `src/app/digital/page.tsx` is a plain async server
+component with its own `metadata` export (no `(user)` title template to
+inherit from out here). It fetches `getPublishedDigitalItems()` (new,
+`src/lib/digital.ts` — `status: "public"` only, ordered by `order asc`,
+`{ id, name, slug, qrImageUrl }`, see `IPublicDigitalItem` in
+`src/interfaces/digital.ts`) and renders: the white RED logo
+(`/image/logo-red-white.png`, the dark-background variant `Navbar`/`Footer`
+already use), an `.h1-format` "Digital Content" heading, a new
+`DigitalQrCarousel` client component, and a `Button asChild variant="glass"
+size="lg" className="rounded-full"` linking home with a `lucide-react`
+`House` icon — `variant="glass"` because that's this codebase's own
+established convention for a CTA pill over a dark/photo background
+(`CategoryCard.tsx`'s "View Category" button), not a bespoke button style
+copied from the reference screenshot. `DigitalQrCarousel`
+(`src/app/digital/digital-qr-carousel.tsx`) reuses the shared
+`Carousel`/`CarouselContent`/`CarouselItem`/`CarouselPrevious`/
+`CarouselNext` (`src/components/ui/carousel.tsx`, embla-backed) the same way
+`components/Carousels.tsx`'s `ProductCarousel` does, with `variant="glass"`
+arrows instead of their `outline` default (this page's background is
+black). Each QR renders in a white rounded card at the same 4:3-vertical
+(`aspect-[3/4]`) shape the admin's QR upload box uses, `object-contain`ed and
+centered — consistent with the earlier "auto align to center" requirement —
+rather than the reference screenshot's roughly-square crop, since the
+container shape was already fixed by that earlier decision. Each card links
+to `/digital/${item.slug}` (the still-unbuilt child page — a 404 today,
+tracked as the next task in `TASKS.md`, not this one).
+`revalidateDigitalPages()` (`digital-actions.ts`) now also revalidates
+`/digital`, so a publish/unpublish/reorder in the admin shows up immediately.
+
+**Consequences:** `/digital` is the second standalone top-level page in this
+codebase (after `/not-found`) — a reader looking for every public route
+needs to check both `(user)/*` and the app root, not just the route group.
+The future `/digital/[slug]` child page should live alongside this one at
+`src/app/digital/[slug]/page.tsx` (same standalone treatment — it's part of
+the same scanned-QR flow, not a normal browsed page) rather than under
+`(user)`. Because there's no Navbar/Footer, the "Home Page" button is the
+page's only way back to the rest of the site — removing it without
+replacement would strand a visitor.
+
+
+## ADR-110: `/digital/[slug]` hero — reuse `HeroBannerGroup`, own gradient overlays, no new component
+
+**Date:** 2026-09-29
+**Status:** Accepted
+
+**Context:** ADR-109 built the `/digital` QR list; this covers its child
+page — what a visitor lands on after scanning/clicking a QR. The client
+provided two reference screenshots of a design (not an existing component in
+this codebase — confirmed by search): on md+ screens, a full-bleed photo on
+the right fading to a solid black panel on the left holding a heading and a
+two-column grid of media buttons; on narrow screens, the photo confined to
+the top of the screen fading into solid black beneath it, with the heading
+and a single-column button list on that black area. Explicit instruction:
+"for <md, use black as background and add fade to black to transition
+between the image and the black bg."
+
+**Options considered (background image + fade mechanism):**
+1. A literal two-column CSS grid (an actual black `<div>` beside an actual
+   `<img>`), swapped to a stacked column on narrow screens — matches the
+   screenshots' composition most literally, but means hand-rolling a second,
+   parallel responsive-image system next to the one `HeroBannerGroup`
+   already provides (which itself already handles the Sm/Md/Lg/Xl
+   breakpoint/orientation selection, per-size video, and cascade fallback).
+2. Reuse `HeroBannerGroup` (`src/app/(user)/components/HeroBannerGroup.tsx`)
+   unchanged as a full-bleed background — the exact same component
+   `Hero.tsx` uses for the Product/Category hero — and lay two of this
+   page's OWN gradient-overlay `<div>`s on top of it to *simulate* the
+   split/fade look, rather than a real grid (chosen).
+
+**Decision:** Option 2. `digital-item-hero.tsx` renders `HeroBannerGroup`
+with the same 4 slots (`sm`/`md`/`lg`/`xl`, same `hidden portrait:.../hidden
+landscape:...` classes) `ProductPageView.tsx` builds for `IHeroSegment`,
+fed from `DigitalItem`'s own identical banner fields via two new
+`src/lib/digital.ts` helpers (`DIGITAL_BANNER_SIZE_ORDER`,
+`resolveDigitalBannerVideoUrls` — the same `resolveCascadingVideoUrls` call
+`resolveProductHeroBannerVideoUrls` makes, just keyed off `IDigitalItem`
+instead of `IHeroSegment`). On top of that shared background, two of this
+page's own overlays — deliberately NOT reusing `Hero.tsx`'s own subtle
+`from-black/70` vignette, since the reference calls for a starker, more
+literal transition than that hero's default:
+- `<md`: `absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black
+  from-30% to-transparent md:hidden` — solid black for the bottom third,
+  fading up into the image above it.
+- `md+`: `absolute inset-0 bg-linear-to-r from-black from-45% to-transparent
+  hidden md:block` — solid black for the left ~45%, fading right into the
+  image.
+
+Content (the item's `name` as an `.h1-format` heading, then a
+`grid-cols-1 sm:grid-cols-2` grid of `MediaBlockButton`s, one per
+`item.media` block) sits in a `z-20` column positioned to sit over the black
+region at both sizes (bottom-anchored + top-padded on `<md`, left-anchored
+with a `max-w-xl`/`max-w-2xl` cap on `md+`) — not an actual second grid
+column, just positioning inside the same full-bleed section.
+
+**Decision (button behavior, one per block type):** `flipbook`/`document`
+blocks render a plain `<a href={fileUrl} target="_blank">` — same
+"default browser behavior" the original spec calls for, and there's no
+flipbook-viewer component yet (still deferred, ADR-105). A `youtube` block
+renders a button that opens a `Dialog` (shadcn, `src/components/ui/dialog.tsx`
+— already used on the public side by the superseded `GalleryViewerOld.tsx`)
+listing every one of that block's videos via the existing `YoutubeEmbed`
+(`react-lite-youtube-embed`) + `getYoutubeVideoId` (`src/lib/utils.ts`) —
+this is ADR-108's "its own video page" realized as a dialog on this same
+page rather than a new route, since a separate `/digital/[slug]/video`-style
+page wasn't asked for. Every button falls back to a `lucide-react` icon per
+type (`PlayCircle`/`BookOpen`/`FileDown` — `FileDown` matches the catalogue
+hero's own existing document-button fallback) when the block has no uploaded
+`imageUrl`.
+
+**Explicitly not built:** the decorative geometric line-art graphic in the
+reference's top-left corner — no such asset or component exists anywhere in
+this codebase, and fabricating one from scratch wasn't asked for. The
+reference's two-part heading ("Soprano Titanium" + script "Special Edition")
+and its two-line tagline ("Hair Removal, Remastered." / "Now, Even Faster.")
+are that specific product's own marketing copy — `DigitalItem` has no
+tagline/subtitle fields, so the heading here is just `item.name` (the
+model's only text field, previously hidden on the `/digital` list page for
+being SEO/accessibility-only — here it's the page's actual visible title,
+since a detail page needs to say what it's showing).
+
+**Consequences:** A `youtube` block with several videos now genuinely works
+end-to-end (not just a placeholder) via the in-page dialog, without needing
+a new route. If a future task wants a real standalone video page per block
+instead of a dialog, that's a `src/app/digital/[slug]/video/[blockId]`-style
+addition, not a rewrite of this component. The gradient-overlay approach
+means the full still-image continues to load underneath the opaque black
+region (same tradeoff `Hero.tsx` already accepts) — acceptable since
+`HeroBannerGroup` already serves an appropriately-sized image per breakpoint,
+not a single oversized one.
+
+
+## ADR-111: Every media button is a real page; the flipbook viewer is implemented
+
+**Date:** 2026-09-29
+**Status:** Accepted (supersedes ADR-110's youtube-dialog decision); the
+flipbook viewer's own implementation is superseded by ADR-113 — the
+navigation/button decisions below still stand
+
+**Context:** Two follow-ups on the `/digital/[slug]` hero (ADR-110): every
+button should navigate to a real page rather than a `flipbook`
+that still just links to the raw PDF or a `youtube` block opening an
+in-page dialog; and the deferred flipbook viewer (ADR-105) needed to be
+built. Separately, a block's uploaded `imageUrl` — labeled in the admin as
+"This will replace the label for button" — was actually rendering
+alongside the text label on the public page, not replacing it, and the icon
+was small.
+
+**Decision (navigation):** `flipbook` and `youtube` blocks each get their
+own route under the item's slug: `/digital/[slug]/flipbook/[blockId]` and
+`/digital/[slug]/videos/[blockId]` — both standalone (no Navbar/Footer,
+ADR-109's precedent) with a plain "← Back" link to `/digital/[slug]`.
+`document` blocks are unchanged (`<a target="_blank">` straight to the file)
+— that was always "default browser behavior" per the original spec, and a
+new tab showing the raw file already satisfies "leads to a new page"; there
+was nothing to fix there. A shared lookup,
+`getPublishedDigitalMediaBlock(slug, blockId)` (`src/lib/digital.ts`), finds
+the published item and then the one block by id; each route 404s if the
+item isn't published, the block id doesn't exist, or it's the wrong block
+`type` for that route.
+
+**Decision (flipbook viewer, fulfilling ADR-105):** Self-hosted, as decided
+back in ADR-105 — `pdfjs-dist` (rasterizes every PDF page to a canvas,
+client-side) feeding `react-pageflip`'s `HTMLFlipBook` (page-turn
+animation), no third-party embed service. Two implementation details worth
+recording:
+- **`legacy` build, not the package's default export.** Importing
+  `pdfjs-dist` directly logs `"Please use the legacy build in Node.js
+  environments"` the moment the module loads — Next.js server-renders a
+  "use client" component's initial HTML (even though `useEffect` itself
+  never runs server-side), so the bare import alone executes in Node.
+  `pdfjs-dist/legacy/build/pdf.mjs` tolerates that; the default build
+  assumes a browser-only environment from the moment it's imported.
+- **Worker script copied into `public/`, not loaded from a CDN.**
+  `pdf.worker.min.mjs` (from `pdfjs-dist/legacy/build/`) is copied to
+  `public/pdf.worker.min.mjs` and referenced via
+  `GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"` — self-hosted, no
+  runtime fetch from a third party, consistent with ADR-105's reasoning for
+  choosing self-hosted over an embed service in the first place. Re-copy
+  this file if `pdfjs-dist` is ever upgraded (no build step wires this
+  automatically yet).
+
+`FlipbookViewer` (`src/app/digital/[slug]/flipbook/[blockId]/flipbook-viewer.tsx`,
+`"use client"`) loads the PDF via `getDocument({ url })`, renders each page
+to an offscreen `<canvas>` at a fixed scale, converts it to a WEBP data URL,
+and once every page is rendered, hands the array to `HTMLFlipBook` as one
+plain `<img>`-in-`<div>` per page. `react-pageflip`'s exported type
+(`IFlipSetting`) makes every sizing/behavior prop required with no runtime
+`defaultProps` in the bundle — every prop is passed explicitly rather than
+relying on the library to fill in defaults.
+
+**Decision (button image "replaces" the label):** `MediaBlockButton`
+(`src/app/digital/[slug]/media-block-button.tsx`) now branches on
+`block.imageUrl`: present → render only the image, enlarged (`size-20
+sm:size-24`, up from the icon's `size-8`) with no visible text label
+alongside it (the image's `alt` carries the accessible name instead); absent
+→ the existing lucide-react fallback icon (`PlayCircle`/`BookOpen`/
+`FileDown` per type) paired with the visible text label, unchanged. This
+makes the public rendering match what the admin's own helper text
+(`media-block-label-fields.tsx`, ADR-107) already promised.
+
+**Consequences:** `MediaBlockButton` no longer needs to be a client
+component (no `Dialog` state) — it's back to a plain server-rendered
+component, one less client bundle. Adding `pdfjs-dist` + `react-pageflip`
+as dependencies pulls in a non-trivial client bundle for the flipbook route
+specifically (not the rest of the site, since it's only imported from that
+one route's client component). The worker file copy is a manual step, not
+automated — flagged above so it isn't missed on a future `pdfjs-dist`
+upgrade.
+
+
+## ADR-112: Flipbook viewer renders pages progressively, not all-at-once
+
+**Date:** 2026-09-29
+**Status:** Superseded by ADR-113 — the hand-rolled pdfjs-dist +
+react-pageflip viewer this ADR optimized was replaced outright, progressive
+rendering and all; kept as historical record of that approach's tuning
+
+**Context:** ADR-111's first `FlipbookViewer` rendered every PDF page to a
+canvas in one tight loop, held everything in a single `pages` array, and
+only showed the flipbook once all of them finished. For anything beyond a
+couple of pages this felt "stuck" — the loading spinner never updated, the
+tab visibly lagged while the loop ran, and the wait scaled linearly with
+page count and the `1.5x` render scale used per page.
+
+**Decision:** `pages` now grows one entry at a time as each page finishes
+rendering (`setPages((current) => [...current, dataUrl])` inside the loop)
+instead of being built into a local array and set once at the end.
+`HTMLFlipBook` mounts as soon as the first page exists — its own
+`renderOnlyPageLengthChange` prop re-measures the book only when the page
+count changes, so a growing `children` array is exactly the update pattern
+it expects. A small "Loading page N of Total..." indicator stays visible
+below the book while later pages continue rendering, and `await new
+Promise((resolve) => setTimeout(resolve, 0))` between pages yields to the
+browser each iteration so that indicator (and any user interaction) can
+actually repaint instead of the whole loop running as one uninterrupted
+block. `PAGE_RENDER_SCALE` dropped from `1.5` to `1`, and the per-page
+encode switched from `image/webp` to `image/jpeg` (typically faster
+`canvas.toDataURL` encode, no transparency needed for a scanned page) —
+both cut per-page cost directly, on top of the progressive-display change.
+
+**Consequences:** A visitor sees and can start flipping through page 1
+almost immediately instead of staring at a bare spinner for however long
+the whole document takes; the remaining pages fill in behind it. Total
+render time for the full document is roughly the same (still one page at a
+time, still on the main thread) — this fixes the *perceived* stall and the
+UI lockup, not the total work, so a very long PDF will still take a while
+to finish loading, just without freezing the tab or hiding progress from
+the visitor while it does.
+
+
+## ADR-113: Flipbook viewer replaced with `react-pdf-flipbook-viewer` (supersedes the hand-rolled pdfjs-dist + react-pageflip viewer)
+
+**Date:** 2026-09-30
+**Status:** Accepted
+
+**Context:** The hand-rolled viewer (ADR-111, tuned in ADR-112) — raw
+`pdfjs-dist` rasterizing pages to canvases, fed into `react-pageflip` — still
+wasn't working well enough in practice. The client asked to use
+`react-pdf-flipbook-viewer` (an npm package wrapping `react-pdf` +
+`react-pageflip` + `react-zoom-pan-pinch` + `screenfull` + `react-share`
+behind one `<FlipbookViewer pdfUrl="..." />` component with its own toolbar,
+zoom/pan, fullscreen, keyboard nav, and share button) instead of continuing
+to hand-maintain the rasterization/paging pipeline.
+
+**Decision:** Swapped the whole hand-rolled viewer for
+`react-pdf-flipbook-viewer`. `src/app/digital/[slug]/flipbook/[blockId]/flipbook-viewer.tsx`
+is now a thin wrapper: `<PdfFlipbookViewer pdfUrl={fileUrl} />`. Three
+integration details worth recording, each a real gotcha hit while wiring
+this up:
+
+1. **Version pinning.** `react-pdf-flipbook-viewer` depends on `react-pdf@^9.1.1`,
+   which itself depends on a specific `pdfjs-dist` (`4.8.69` at the time of
+   writing) — a different major version than the `pdfjs-dist@6.x` the
+   previous hand-rolled viewer used. Installing `react-pdf` without pinning
+   to that range (`npm install react-pdf`, no version) grabs the latest
+   major instead and produces **two separate, non-deduped `react-pdf`/
+   `pdfjs-dist` installations** (one top-level, one nested under
+   `react-pdf-flipbook-viewer/node_modules/`) — installing `react-pdf@^9.1.1`
+   explicitly is what lets npm dedupe them back into one shared copy. The
+   unused `pdfjs-dist`/`react-pageflip` direct dependencies from the old
+   viewer were removed from `package.json`; both are still present
+   transitively (via `react-pdf` and `react-pdf-flipbook-viewer`
+   respectively) but are no longer imported directly by this codebase.
+2. **Worker override, same reasoning as ADR-105/ADR-111, different
+   mechanism.** The library sets `pdfjs.GlobalWorkerOptions.workerSrc` to a
+   CDN URL (`unpkg.com/pdfjs-dist@<version>/...`) as a side effect the
+   moment its own module is imported. `flipbook-viewer.tsx` imports `{
+   pdfjs } from "react-pdf"` itself and reassigns
+   `pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"` — since
+   both imports resolve to the same singleton `pdfjs` module instance, and
+   ES module evaluation order runs the library's own top-level code (which
+   sets the CDN default) before this file's own top-level code (which
+   overrides it), the override reliably wins by the time any PDF actually
+   loads. `public/pdf.worker.min.mjs` must come from *this* dependency
+   chain's `pdfjs-dist` (`node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs`,
+   now that it's deduped to one top-level copy) — re-copy it if `react-pdf`
+   is ever upgraded to a version pinned to a different `pdfjs-dist`.
+3. **Tailwind v4 content detection doesn't reach `node_modules`.** The
+   package's own README says to add it to `tailwind.config.js`'s `content`
+   array — this project has no such file (Tailwind v4, CSS-first config via
+   `@theme` in `globals.css`). The v4 equivalent is an explicit `@source`
+   directive: `@source "../../node_modules/react-pdf-flipbook-viewer/dist/**/*.js";`
+   added right after `@import "tailwindcss"` in `globals.css` — without it,
+   the library's own toolbar/button/slider markup renders with none of its
+   own Tailwind classes actually compiled into the stylesheet.
+
+**Consequences:** The flipbook route's client bundle now includes
+`react-pdf-flipbook-viewer`'s fuller dependency tree (`react-share`,
+`react-zoom-pan-pinch`, `react-draggable`, `screenfull`, on top of
+`react-pdf`/`react-pageflip`) — a heavier bundle than the hand-rolled
+version, scoped to only that one route's client component either way.
+Zoom/pan, fullscreen, keyboard navigation, and a share button now come for
+free (this package's stated feature set) rather than needing to be
+hand-built if requested later. `flipbook-viewer.tsx` no longer needs its own
+loading-state/progress UI, canvas rendering, or page-array management — all
+of that lived inside ADR-112's since-deleted implementation and is now the
+library's concern.
+
+
+## ADR-114: Flipbook toolbar restyled via scoped CSS tokens; share button replaced, not forked
+
+**Date:** 2026-09-30
+**Status:** Accepted
+
+**Context:** `react-pdf-flipbook-viewer`'s bottom toolbar rendered white (not
+black) on the flipbook page, its progress slider wasn't the intended grey,
+and its share button is a bespoke dropdown, not this project's shadcn
+`DropdownMenu`. The library's toolbar/slider/buttons are styled with plain
+shadcn utility classes (`bg-background`, `bg-primary`, `text-muted-foreground`,
+etc.) that read this project's CSS custom properties — and this project
+defines only a *light* theme (no `.dark` block exists in `globals.css` at
+all), so on the flipbook page's black background those classes resolved to
+their light-theme values: a white bar, near-black-on-black text/slider.
+
+**Options considered:**
+1. Fork/vendor the library's toolbar, slider, and share components into this
+   codebase and hand-edit their JSX/classes directly — full control, but
+   permanently duplicates and has to maintain react-pageflip ref plumbing,
+   two-page-spread math, and keyboard-shortcut wiring that already work
+   correctly, just to change a handful of colors and one button.
+2. Scope a CSS custom-property override to a wrapper class around the
+   viewer, so the *same* shadcn utility classes the library already uses
+   resolve to dark-theme values instead — no component code touched at all.
+   For the share button specifically, since a different dropdown
+   implementation isn't a CSS-only change, use the library's own
+   `disableShare` prop to hide its built-in one and render this project's
+   real `DropdownMenu` alongside it instead (chosen).
+
+**Decision:** Option 2. `.digital-flipbook-theme` (`globals.css`) sets
+`--background`/`--foreground`/`--muted-foreground`/`--secondary`/
+`--secondary-foreground`/`--primary`/`--primary-foreground`/`--popover`/
+`--popover-foreground`/`--accent`/`--accent-foreground`/`--border`/`--muted`
+to dark values, scoped to a wrapper `<div className="digital-flipbook-theme">`
+around `<PdfFlipbookViewer>` in `flipbook-viewer.tsx` — nothing outside that
+wrapper is affected, so the rest of the site's light theme is untouched.
+`--foreground` (the slider's track, `bg-foreground`) is a darker grey and
+`--primary` (the slider's thumb, `bg-primary`) a lighter grey, so the two
+stay visually distinct rather than both reading as the exact same tone.
+`disableShare` is passed to `<PdfFlipbookViewer>`; a new
+`FlipbookShareMenu` (`flipbook-share-menu.tsx`) renders this project's own
+`DropdownMenu`/`DropdownMenuItem`s next to the page's "Back" link instead —
+Copy Link (via `navigator.clipboard`) plus plain share-intent links
+(WhatsApp/Facebook/X/LinkedIn, the same 4 platforms the library's own share
+button offered) rather than pulling in `react-share` (already a transitive
+dependency, but not one this code imports directly) just to reproduce 4
+static URLs.
+
+**Consequences:** One known, accepted side effect: `pdf-page.js` (the actual
+PDF page renderer, not the toolbar) also uses `bg-background`/`bg-muted` for
+each page's placeholder color while it loads — the same scoped override
+darkens that too, rather than leaving it white. This reads as a reasonable
+dark loading-state color for a page that already fades everything else to
+black, so it was left as-is rather than working around it. Any *other*
+shadcn-token-driven visual in this library that isn't the toolbar/slider
+(none currently known beyond the loading spinner, which uses hardcoded
+`hsl(var(--primary))`/`hsl(var(--background))` — a pre-existing mismatch
+with this project's `oklch()`-based tokens, unrelated to this change and not
+addressed here) would also pick up this scoped theme automatically, for
+better or worse. This approach only reaches what the library expresses as
+CSS-variable-driven Tailwind classes — a future change needing an actual
+different DOM structure (not just different colors) inside the toolbar
+would still require forking it.
+
+## ADR-115: `Brand` model + admin CRUD for Products & Devices → Brands → List
+
+**Date:** 2026-09-30
+**Status:** Accepted
+
+**Context:** The admin asked for a new "Brands" section under Products &
+Devices (`/admin/product-device/brands`): a reorderable, editable table of
+brands, each created via a dialog requiring a Logo, Name, and URL — the URL
+should suggest the site's own catalogue pages but still accept any address.
+No `Brand` model existed; the only prior "brand" data was the static
+`brandList` array (`src/lib/data.ts`, `{ src, name, link }`) driving the
+homepage/About marquees, which is the same three-field shape but plain
+constant data with no admin surface.
+
+**Options considered:**
+1. Reuse/extend `brandList` — no schema change, but it's a build-time
+   constant; there's no admin CRUD path to a static TS file without a
+   redeploy per edit, which defeats the point of a CMS table.
+2. New `Brand` Prisma model, admin-only for now, matching `SocialAccount`'s
+   exact flat/orderable/single-image-per-row shape — schema growth, but a
+   direct fit for "reorder + edit + create-via-dialog" with a proven pattern
+   already in the codebase (chosen).
+3. Model brands as `Category` nodes (they already represent brand pages,
+   e.g. `ALMA LASER`) — rejected: a `Category` carries an entire page-content
+   shape (banners, body, YouTube) a marquee logo entry doesn't need, and
+   scoping a `Brand` to *link to* a category (rather than *be* one) keeps the
+   marquee's link target free to also be an external URL, unrelated to the
+   catalogue tree.
+
+**Decision:** Option 2. New `Brand` model (`id`, `name`, `logo`, `url`,
+`order`, timestamps) in `prisma/schema.prisma`
+(`prisma/migrations/20260929234848_add_brand/`). Admin CRUD mirrors
+`SocialAccount`'s table/form/actions almost line-for-line: `@dnd-kit`
+drag-reorder, a create/edit `Dialog` with a plain deferred-upload `<input
+type="file">` (uploaded and old-file-cleaned-up only on submit, not on
+select — deliberately not the newer `UploadField`/`uploadSegmentAsset`
+immediate-upload pattern used by `Product.segments`, since that pattern's
+lack of orphan-file cleanup is only acceptable for fields buried in an
+arbitrarily-edited JSON tree; a top-level row like this can and should clean
+up properly, exactly as `SocialAccount` already does), Name text input, and
+a URL text input with a native HTML `<datalist>` of suggestions. Suggestions
+come from a new `getCategoryUrlSuggestions()` (`src/lib/categories.ts`) that
+flattens both the device and product `Category` trees into
+`{ label: "Devices > Medical Aesthetic Devices > Alma Laser", url:
+"/devices/medical-aesthetic-devices/alma-laser" }` entries for every node
+(not just `isPage` ones — a plain breadcrumb category is still a real URL).
+A `<datalist>` rather than a `Command`/combobox component, same reasoning
+`category-picker.tsx` already gave (ADR-019 era): no cmdk dependency in this
+project yet, and the option count here is small. Server-side URL validation
+only requires a leading `/` or an `http(s)://` scheme — deliberately not
+`z.url()` (that would reject the internal-path suggestions, which aren't
+absolute URLs) and not a stricter allowlist (an admin must be able to link
+anywhere).
+
+**Consequences:** Brands are admin-manageable but not yet public-facing —
+`brandList` (`src/lib/data.ts`) still drives the homepage/About marquees
+unchanged. Wiring those to read from `Brand` instead is a natural follow-up
+(see TASKS.md) but was out of scope here: the ask was specifically the admin
+section, and swapping the marquees' data source touches public rendering
+this task didn't ask to touch. Until that follow-up lands, the two "brand"
+concepts (the CMS table and the static marquee list) coexist independently.
+Every device/product `Category` becomes an implicit dependency an admin can
+copy a URL from without needing to know the exact slug path by hand — if a
+category is later renamed or moved, a `Brand.url` that pointed at its old
+path is not automatically updated (same "snapshot, not a live reference"
+tradeoff `HomeCarousel`'s "custom" mode already accepts for its own
+hand-entered `items`, as opposed to its "category" mode's live resolution).
+
+## ADR-116: `Brand.url` made optional; suggestions widened to include products
+
+**Date:** 2026-09-30
+**Status:** Accepted
+
+**Context:** Follow-up to ADR-115, two corrections from the admin: (1) a
+brand should be listable with no destination URL at all — `url` was
+required, blocking that; (2) the URL suggestion list only offered `Category`
+pages (brand section pages like `ALMA LASER`), not individual published
+products/devices underneath them — an admin wanting to link a brand entry
+straight to one specific product had no suggestion for it.
+
+**Decision:** `Brand.url` becomes nullable (`String?`,
+`prisma/migrations/20260930002449_brand_url_optional/`). The server action's
+Zod schema (`brandFieldsSchema`) trims the submitted value and transforms an
+empty string to `null` before the format `refine` runs, so the leading-`/`-
+or-`http(s)://` check only applies when a value is actually present; the
+form's URL `Input` drops its `required` attribute. The table's URL column
+renders "No URL" in place of the copy-link button when `item.url` is null.
+For suggestions, rather than duplicating `Category`-tree-walking logic, a new
+`getBrandUrlSuggestions()` (`src/lib/brands.ts`) composes the existing
+`getCategoryUrlSuggestions()` with the existing `getPublishedProductPickerOptions()`
+(`src/lib/products.ts`, built for the homepage carousel's "custom" mode item
+picker, ADR-068) — the latter already resolves every published product's
+real public URL across both types, so no new product-URL-resolution code was
+needed, just a label mapped onto its existing shape. This composition lives
+in `src/lib/brands.ts` rather than inside `getCategoryUrlSuggestions()`
+itself, since `products.ts` already imports from `categories.ts`
+(`getCategoryAncestry`) — merging there would create a circular import.
+
+**Consequences:** A brand with no URL renders as a plain logo/name row with
+no link — expected for e.g. a distributor's own house brand with no
+dedicated catalogue page yet. The URL suggestion list now scales with the
+number of published products, not just categories; unpublished/draft
+products are correctly excluded (matching ADR-038's "a draft's URL 404s"
+rule — a suggestion should only ever point at a URL that actually resolves).
+
+## ADR-117: Wire the homepage/About brand marquees to the `Brand` table
+
+**Date:** 2026-09-30
+**Status:** Accepted
+
+**Context:** ADR-115 built the `Brand` admin CRUD but deliberately left the
+homepage's "Meet Our Brands" marquee (`BrandHomeSection`) and the About
+page's "Our Brands" grid (`AboutWhat`) on the old static `brandList`
+(`src/lib/data.ts`) as a follow-up. The admin now asked for that follow-up:
+both sections should reflect real `Brand` rows.
+
+**Options considered:**
+1. Leave `brandList` in place and have both components accept an optional
+   `brands` prop that falls back to it when empty — avoids a "blank
+   marquee" moment if the table is ever empty, but keeps dead static data
+   around indefinitely and adds a silent fallback branch nothing else in
+   this codebase's CMS-migrated sections uses (`AboutPage`/`HomePage`/
+   `Category` all render their own empty-state placeholder instead of
+   falling back to hardcoded content — see ADR-099).
+2. Wire both components directly to `getBrands()`, delete `brandList`
+   entirely, and seed the `Brand` table with the same 8 entries via a
+   data-only migration so the public pages look identical immediately after
+   deploy — consistent with how `AboutPage`/`HomePage` themselves were
+   migrated (ADR-103's "migration seeds the row with the pre-CMS copy")
+   (chosen).
+
+**Decision:** Option 2. `BrandHomeSection` and `AboutWhat` both take a
+`brands: IBrand[]` prop now instead of importing `brandList`; each page
+(`(homepage)/page.tsx`, `about/page.tsx`) fetches `getBrands()` alongside its
+existing data (uncached — same as `SocialAccount`/`Gallery`, not
+`Category`'s `unstable_cache` treatment, since brand count/traffic here
+doesn't need it). A logo whose `url` is `null` (ADR-116) renders as a plain
+`div` instead of a `Link` in both places. An empty `Brand` table renders the
+same `HOMEPAGE_EMPTY_PLACEHOLDER` ("-") convention `CredibilityHomeSection`'s
+`certifications` list already uses for a matching "list of logos" section,
+rather than a silent fallback. `revalidateBrandPages()`
+(`brands/actions.ts`) now also revalidates `/` and `/about`, not just the
+admin list. A new data-only migration
+(`prisma/migrations/20260930003718_seed_brand_list/`) inserts the original
+8 `brandList` entries as real rows (fixed ids, `ON CONFLICT DO NOTHING` for
+idempotency) — referencing the existing bundled `/image/brand-logo/*.webp`
+assets directly rather than copying them into `/uploads/brands`, and seeded
+with `url: null` since the original list's `link: '/'` on every entry was a
+non-functional placeholder, not a real destination worth carrying forward.
+`brandList` itself is deleted from `src/lib/data.ts` (its only two
+consumers).
+
+**Consequences:** The homepage/About brand sections are now fully
+admin-manageable, matching every other CMS-migrated section's pattern. The
+seed migration is a one-time data fix — an admin who later deletes all 8
+seeded rows without adding replacements will see the empty-state
+placeholder, which is correct/expected, not a bug. Any future static-data
+section migrated the same way should follow this same seed-then-delete
+approach rather than keeping a fallback branch, for consistency.
+

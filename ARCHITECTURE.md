@@ -22,6 +22,7 @@ PT. Radian Elok Distriversa is a catalog and marketing website for medical aesth
 ### Layout & Sections
 - **BodyWrapper**: A standard container used across pages to maintain consistent padding, max-width, and centering (`body-container-limit`).
 - **(sections) Grouping**: Complex pages (like the homepage) break down content into a `(sections)` directory to keep the main `page.tsx` clean and modular.
+- **Standalone pages** (`src/app/not-found.tsx`, `src/app/digital/page.tsx`): pages that live at the app root, outside every route group, get only the root layout (font + globals) — no site `Navbar`/`Footer`/`AOSProvider`/`SplashScreen` from `(user)/layout.tsx`. Used for pages that are deliberately chrome-less (a 404, or a page meant to be landed on directly from a scanned QR code rather than browsed to from the site nav — see ADR-109).
 - **Catalogue System**: A specialized set of components in `src/app/components/catalogue` used for product displays:
   - `HeroDevice`: Full-viewport hero sections with breadcrumbs and document download links.
   - `DeviceFilterList`: Combines filtering logic with a responsive grid of product cards.
@@ -122,6 +123,109 @@ The application follows a **hybrid data architecture**:
     this (`resolveHeroBannerXlUrl`, `src/lib/products.ts`) — see ADR-095,
     which extends the Category banner's video/cascade capability (ADR-093)
     here.
+  - `Brand` — one row per logo shown in the admin's new "Products & Devices
+    → Brands → List" table (`/admin/product-device/brands`, see ADR-115/
+    ADR-116). `id`, `name`, `logo` (relative path under `/uploads/brands`),
+    `url?` (optional — an internal catalogue/product path such as
+    `/devices/medical-aesthetic-devices/alma-laser`, or any external URL —
+    validated server-side, when present, to require either a leading `/` or
+    an `http(s)://` scheme, nothing narrower; a brand can be listed with no
+    link at all, ADR-116), `order`, `createdAt`, `updatedAt`. Flat, orderable,
+    single-image-per-row — the same shape as `SocialAccount`, reusing its
+    create/edit-dialog + drag-reorder + delete-with-file-cleanup pattern
+    exactly. The admin form's URL field autocompletes from
+    `getBrandUrlSuggestions()` (`src/lib/brands.ts`) — every device/product
+    `Category` page (`getCategoryUrlSuggestions()`, `src/lib/categories.ts`,
+    a flattened breadcrumb+path list) plus every published device/product's
+    own page (`getPublishedProductPickerOptions()`, `src/lib/products.ts`,
+    already built for the homepage carousel's item picker, ADR-068) — via a
+    plain HTML `<datalist>` (no cmdk/Command component in this project yet —
+    same reasoning `category-picker.tsx` already documented) — the field
+    still accepts any other URL typed in freely, or none. Wired to both
+    public consumers (ADR-117): the homepage's "Meet Our Brands" marquee
+    (`BrandHomeSection`, `src/app/(user)/(homepage)/(sections)/Brand.tsx`) and
+    the About page's "Our Brands" grid (`AboutWhat`,
+    `src/app/(user)/about/(sections)/What.tsx`) both now render `getBrands()`
+    directly (uncached, same as `SocialAccount`/`Gallery` — low enough
+    traffic/volume not to need `Category`'s `unstable_cache` treatment)
+    instead of the old static `brandList` (`src/lib/data.ts`, removed —
+    dead code once both consumers moved over). A tile with no `url` renders
+    as a plain non-interactive div instead of a `Link`. Both consuming pages
+    (`/`, `/about`) are revalidated on every Brand create/update/delete/
+    reorder alongside the admin list itself. The pre-existing static
+    8-brand list was seeded into the `Brand` table by a data-only migration
+    (`prisma/migrations/20260930003718_seed_brand_list/`) so the public
+    pages look unchanged immediately after this shipped, with `url: null`
+    for all eight (the original list's `link: '/'` was a non-functional
+    placeholder, not a real destination worth carrying forward).
+  - `DigitalItem` — one row per QR-linked "digital media" page for the
+    on-site marketing team (`/admin/digital`, see ADR-105 through ADR-108).
+    Flat add/edit/delete/drag-reorder list, not a category tree like
+    `Product` — there is no brand/category hierarchy to route through. `id`,
+    `name` (accessibility/SEO label), `slug` (unique, auto-generated, powers
+    the future `/digital/[slug]` child page), `status` (`"hidden" | "public"`,
+    same convention as `Product`), `order`, `qrImageUrl` (uploaded, not
+    generated — relative path under `/uploads/digital`), the same four
+    responsive banner sizes + optional per-size video + cascade flag as
+    `Category`'s own banner (`bannerSmUrl`/…/`bannerXlUrl`(required to
+    publish)/`bannerVideoUseForSmaller`), and `media` (`Json`, default `[]`).
+    `media` is an ordered array of typed blocks (`IDigitalMediaBlock`,
+    discriminated by `type`), same "JSON array of typed blocks" shape as
+    `Product.segments` — see ADR-106, which supersedes ADR-105's original
+    fixed-key-object plan: a block (`youtube`/`flipbook`/`document`) can be
+    added more than once via the admin's "Media" tab's "Add Media" dropdown
+    (`media-blocks-editor.tsx`, same pattern as the product editor's "Add a
+    segment" menu). Every block is one landing-page button, carrying a
+    required `label` (the button's visible text) and optional `imageUrl` (a
+    custom visual label) via a shared `IDigitalMediaBlockBase` — see
+    ADR-107/ADR-108. What the button leads to differs by type: `flipbook`/
+    `document` open their one `fileUrl` directly; `youtube` opens a dedicated
+    video page listing one or more `videos: IDigitalYoutubeVideo[]`, each
+    with its own `url` (required) and optional `title`/`description` shown on
+    THAT page — a video has no label/image of its own (see
+    `src/interfaces/digital.ts`). Media-block files (flipbook PDFs,
+    documents, and the optional button images) upload immediately on file
+    select via `uploadDigitalFlipbookFile`/`uploadDigitalDocumentFile`/
+    `uploadDigitalMediaLabelImage` (`digital-upload-actions.ts`,
+    `/uploads/digital-content`), same pattern as `Product`'s segment assets
+    (ADR-021). The public QR landing page (`src/app/digital/page.tsx`, see
+    ADR-109) — a standalone page outside `(user)` (no site Navbar/Footer,
+    same precedent as `src/app/not-found.tsx`, since it's meant to be landed
+    on directly from a scanned QR code) — shows every published item's QR in
+    a `DigitalQrCarousel`, each linking to `/digital/[slug]`
+    (`src/app/digital/[slug]/page.tsx`, see ADR-110): the item's `name` as a
+    heading over its responsive banner (reuses `HeroBannerGroup`, the same
+    component the catalogue Product/Category hero uses, with this page's own
+    starker fade-to-black overlays), and one button per `media` block — a
+    block with its own uploaded `imageUrl` shows just that image, enlarged,
+    with no text label (the image "replaces" the label, ADR-111); otherwise a
+    fallback icon + the visible label. Every button is a real navigation, no
+    in-page modal (ADR-111, supersedes ADR-110's dialog): `document` still
+    links straight to its file (`target="_blank"`, default browser
+    behavior); `youtube` and `flipbook` blocks each get their own standalone
+    page, `/digital/[slug]/videos/[blockId]` and
+    `/digital/[slug]/flipbook/[blockId]` (both looked up via the shared
+    `getPublishedDigitalMediaBlock(slug, blockId)`, `src/lib/digital.ts`).
+    The flipbook *viewer* (ADR-105's deferred decision) is the
+    `react-pdf-flipbook-viewer` package (ADR-113, supersedes the hand-rolled
+    `pdfjs-dist` + `react-pageflip` viewer from ADR-111/ADR-112) — a thin
+    `<FlipbookViewer pdfUrl={fileUrl} />` wrapper in
+    `flipbook-viewer.tsx` that also gets zoom/pan, fullscreen, keyboard nav,
+    and a share button for free. Its own worker default points at a CDN
+    (`unpkg.com`); `flipbook-viewer.tsx` overrides
+    `pdfjs.GlobalWorkerOptions.workerSrc` to the self-hosted
+    `public/pdf.worker.min.mjs` (copied from the exact `pdfjs-dist` version
+    `react-pdf` — `react-pdf-flipbook-viewer`'s own dependency — resolves
+    to; re-copy it if that version ever changes). Tailwind v4's automatic
+    content detection doesn't reach `node_modules`, so `globals.css` has an
+    explicit `@source` pointing at this package's `dist/` for its own
+    utility classes to compile in at all. Its toolbar/slider read this
+    project's shadcn CSS tokens directly — since this project has no `.dark`
+    theme, they rendered light on the flipbook page's black background until
+    `.digital-flipbook-theme` (`globals.css`, ADR-114) scoped a dark override
+    of just those tokens to a wrapper around the viewer. Its own share
+    button is disabled (`disableShare`) in favor of a real shadcn
+    `DropdownMenu` (`flipbook-share-menu.tsx`) rendered on the page instead.
   - `SupportPage` — one row per static Support page (Registration &
     Documentation, Warranty & Service, Career, and Marcom & Promotion — the
     latter also keeps its own `SocialAccount`-driven highlight list

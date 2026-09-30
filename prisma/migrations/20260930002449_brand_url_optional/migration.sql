@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Brand" ALTER COLUMN "url" DROP NOT NULL;

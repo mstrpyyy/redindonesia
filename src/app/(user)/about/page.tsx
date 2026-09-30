@@ -4,6 +4,7 @@ import { PageBanner } from "@/app/(user)/components/PageBanner";
 import { RevealText } from "@/app/(user)/components/RevealText";
 import { VideoTextSection } from "@/app/(user)/components/VideoTextSection";
 import { getAboutPage } from "@/lib/about-page";
+import { getBrands } from "@/lib/brands";
 import { getYoutubeVideoId } from "@/lib/utils";
 import { AboutWho } from "./(sections)/Who";
 import { AboutWhat } from "./(sections)/What";
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function About() {
-  const page = await getAboutPage("our-story");
+  const [page, brands] = await Promise.all([getAboutPage("our-story"), getBrands()]);
 
   return (
     <main>
@@ -56,7 +57,7 @@ export default async function About() {
         })}
       </BodyWrapper>
       <BodyWrapper className="py-20 bg-secondary">
-        <AboutWhat iconUrl={page.whatIconUrl} body={page.whatBody} />
+        <AboutWhat iconUrl={page.whatIconUrl} body={page.whatBody} brands={brands} />
       </BodyWrapper>
       <BodyWrapper className="radial-gradient2 py-20 shadow-[0_-2px_6px_0px_rgba(0,0,0,0.12)] relative z-10">
         <AboutWork iconUrl={page.workIconUrl} body={page.workBody} cards={page.workCards} />

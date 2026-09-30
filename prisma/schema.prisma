@@ -174,6 +174,21 @@ model Product {
   @@index([type, categoryId])
 }
 
+// A brand entry (logo + name + optional destination URL) managed under the
+// Products & Devices admin section (see ADR-115/ADR-116) — flat, orderable,
+// single-image-per-row shape identical to SocialAccount, just pointing at a
+// catalogue page (or any external URL) instead of a social profile. `url` is
+// optional (ADR-116) — a brand can be listed with no link at all.
+model Brand {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String // relative path under /uploads/brands
+  url       String? // an internal catalogue path (e.g. "/devices/...") or an external URL
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // A single homepage carousel section (see ADR-066). Two mutually exclusive
 // authoring modes, discriminated by `mode`:
 // - "category": a leaf `Category` node (no children) drives everything —
@@ -384,6 +399,44 @@ model HomePage {
   bannerVideoUseForSmaller Boolean  @default(false)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
+}
+
+// One row per QR-linked "digital media" page for the on-site marketing team
+// (see ADR-105, ADR-106) — a flat add/edit/delete/reorder list, not a category
+// tree like Product, since there is no brand/category hierarchy to route
+// through: each item is its own standalone page at (future) /digital/[slug].
+// `media` is an ordered array of typed blocks (youtube/flipbook/document),
+// same "JSON array of typed blocks" shape as Product's `segments` — a media
+// type can be added more than once (see ADR-106, which supersedes ADR-105's
+// original fixed-key-object plan): `{ id, type, name?, videos/items: [...] }[]`
+// (see src/interfaces/digital.ts). Background banner fields reuse Category's
+// exact 4-size responsive image+optional-video+cascade shape (ADR-089/091/093)
+// for consistency.
+model DigitalItem {
+  id     String @id @default(cuid())
+  name   String // accessibility/SEO name, also the QR's accessible label
+  slug   String @unique // powers the future /digital/[slug] child page
+  status String @default("hidden") // "hidden" | "public" — same convention as Product
+  order  Int    @default(0)
+
+  qrImageUrl String // uploaded QR code image (suggested 4:3 vertical / 3:4, not generated)
+
+  bannerSmUrl              String? // 1080x1920 — mobile portrait
+  bannerSmVideoUrl         String? // optional mp4, falls back to bannerSmUrl as poster/no-video image
+  bannerMdUrl              String? // 1080x1440 — tablet portrait
+  bannerMdVideoUrl         String? // optional mp4, falls back to bannerMdUrl as poster/no-video image
+  bannerLgUrl              String? // 1440x1080 — tablet/small-desktop landscape
+  bannerLgVideoUrl         String? // optional mp4, falls back to bannerLgUrl as poster/no-video image
+  bannerXlUrl              String? // 1920x1080 — desktop landscape, required
+  bannerXlVideoUrl         String? // optional mp4, falls back to bannerXlUrl as poster/no-video image
+  bannerVideoUseForSmaller Boolean @default(false) // Xl → Lg → Md → Sm waterfall, see ADR-091/ADR-093
+
+  media Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 // One podcast episode shown on /media/podcasts — admin-managed add/edit/
